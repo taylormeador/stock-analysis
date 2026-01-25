@@ -1,8 +1,21 @@
+import os
+import logging
+
 from celery import Celery
 from celery.schedules import crontab
-import os
+from sqlalchemy import insert
 
+import database.db as db
+import database.models as models
 import reddit
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
+logger = logging.getLogger(__name__)
 
 # Celery configuration
 app = Celery("tasks")
@@ -11,8 +24,8 @@ app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:
 
 # Celery Beat schedule
 app.conf.beat_schedule = {
-    "scrape-reddit-every-five-minutes": {
-        "task": "tasks.scrape_reddit",
+    "scrape-reddit-new-every-five-minutes": {
+        "task": "tasks.scrape_reddit_new",
         "schedule": 300.0,
     },
 }
@@ -20,12 +33,24 @@ app.conf.beat_schedule = {
 
 @app.task
 def scrape_reddit_new():
-    """Scrape Reddit for stock mentions"""
-    print("Scraping Reddit /new...")
-    # Your scraping logic here
+    """Scrape Reddit /new for stock mentions"""
+
+    logger.info("scraping Reddit /new...")
+
     post_filter = "new"
-    posts, comments = reddit.scrape(post_filter=post_filter)
-    return "Reddit scraping complete"
+    post_limit = 25
+    posts, comments = reddit.scrape(post_filter=post_filter, post_limit=post_limit)
+
+    posts_statement = insert(models.reddit_posts)
+    comments_statement = insert(models.reddit_comments)
+    with db.get_connection() as conn:
+        logger.info(f"inserting {len(posts)} posts and {len(comments)} comments")
+        conn.execute(posts_statement, posts)
+        conn.execute(comments_statement, comments)
+        conn.commit()
+
+    logger.info("Reddit /new scraping complete")
+    return
 
 
 @app.task
