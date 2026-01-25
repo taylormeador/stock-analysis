@@ -40,7 +40,7 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=postgresql://stock_analysis:${POSTGRES_PASSWORD}@postgres:5432/stock_analysis_db
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./worker:/app
     depends_on:
@@ -58,7 +58,7 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=postgresql://stock_analysis:${POSTGRES_PASSWORD}@postgres:5432/stock_analysis_db
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./worker:/app
     depends_on:

@@ -2,6 +2,8 @@ from celery import Celery
 from celery.schedules import crontab
 import os
 
+import reddit
+
 # Celery configuration
 app = Celery("tasks")
 app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
@@ -9,18 +11,20 @@ app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:
 
 # Celery Beat schedule
 app.conf.beat_schedule = {
-    "scrape-reddit-every-5-minutes": {
+    "scrape-reddit-every-five-minutes": {
         "task": "tasks.scrape_reddit",
-        "schedule": 300.0,  # 5 minutes in seconds
+        "schedule": 300.0,
     },
 }
 
 
 @app.task
-def scrape_reddit():
+def scrape_reddit_new():
     """Scrape Reddit for stock mentions"""
-    print("Scraping Reddit...")
+    print("Scraping Reddit /new...")
     # Your scraping logic here
+    post_filter = "new"
+    posts, comments = reddit.scrape(post_filter=post_filter)
     return "Reddit scraping complete"
 
 
