@@ -38,8 +38,9 @@ services:
       dockerfile: Dockerfile
     container_name: stock-analysis-celery-worker
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
       - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./worker:/app
@@ -56,8 +57,9 @@ services:
       dockerfile: Dockerfile
     container_name: stock-analysis-celery-beat
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
       - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./worker:/app
