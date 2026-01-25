@@ -1,12 +1,18 @@
 import streamlit as st
 
 # Define the pages
-main_page = st.Page("pages/main.py", title="Main Page", icon="🎈")
-page_2 = st.Page("pages/volume_sentiment.py", title="Page 2", icon="❄️")
-page_3 = st.Page("pages/page_3.py", title="Page 3", icon="🎉")
+home_page = st.Page("pages/home.py", title="Home", icon=":material/home:")
+charts_page = st.Page(
+    "pages/charts.py",
+    title="Charts",
+    icon=":material/show_chart:",
+)
+status_page = st.Page(
+    "pages/status.py", title="ETL Status", icon=":material/database_upload:"
+)
 
 # Set up navigation
-pg = st.navigation([main_page, page_2, page_3])
+pg = st.navigation([home_page, charts_page, status_page])
 
 # Run the selected page
 pg.run()
