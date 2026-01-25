@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: stock-sentiment-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stock-sentiment-api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  streamlit:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: stock-sentiment-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://fastapi:8000
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - fastapi
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+
+volumes:
+  redis_data:
+
+networks:
+  default:
+    name: stock-sentiment-network
