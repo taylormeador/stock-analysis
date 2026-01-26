@@ -1,9 +1,9 @@
 import os
 import logging
 
-from celery import Celery
-from celery.schedules import crontab
+from celery import Celery, Task
 from sqlalchemy import insert
+import redis
 
 import database.db as db
 import database.models as models
@@ -31,29 +31,22 @@ app.conf.beat_schedule = {
 }
 
 
-@app.task
-def scrape_reddit_new():
-    """Scrape Reddit /new for stock mentions"""
+class SingleInstanceTask(Task):
+    def __call__(self, *args, **kwargs):
+        lock_id = f"{self.name}-lock"
+        redis_client = redis.Redis.from_url(os.environ["REDIS_URL"])
+        lock_acquired = redis_client.set(lock_id, "locked", ex=300, nx=True)
+        if not lock_acquired:
+            logger.info(f"Task {self.name} already running, skipping")
+            return None
 
-    logger.info("scraping Reddit /new...")
-
-    post_filter = "new"
-    post_limit = 10
-    posts, comments = reddit.scrape(post_filter=post_filter, post_limit=post_limit)
-
-    posts_statement = insert(models.reddit_posts)
-    comments_statement = insert(models.reddit_comments)
-    with db.get_connection() as conn:
-        logger.info(f"inserting {len(posts)} posts and {len(comments)} comments")
-        conn.execute(posts_statement, posts)
-        conn.execute(comments_statement, comments)
-        conn.commit()
-
-    logger.info("Reddit /new scraping complete")
-    return
+        try:
+            return super().__call__(*args, **kwargs)
+        finally:
+            redis_client.delete(lock_id)
 
 
-@app.task
+@app.task(base=SingleInstanceTask)
 def scrape_reddit_hot():
     """Scrape Reddit /hot for stock mentions"""
 
@@ -61,6 +54,8 @@ def scrape_reddit_hot():
 
     post_filter = "hot"
     post_limit = 10
+
+    # TODO refactor to insert to db between posts/comments since rate limit is bottleneck
     posts, comments = reddit.scrape(post_filter=post_filter, post_limit=post_limit)
 
     posts_statement = insert(models.reddit_posts)
