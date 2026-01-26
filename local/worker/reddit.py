@@ -2,6 +2,8 @@ import requests
 from datetime import datetime, timezone
 from typing import Any
 import logging
+import time
+import random
 
 from rate_limiter import DistributedRateLimiter
 
@@ -12,14 +14,34 @@ def get_json(url: str, rate_limiter: DistributedRateLimiter) -> Any:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
-    logger.info(f"GET {url}")
 
-    rate_limiter.acquire()
-    response = requests.get(url, headers=headers)
+    attempt, max_attempt = 1, 3
+    while attempt <= 3:
+        rate_limiter.acquire()
+        time.sleep(random.uniform(0.2, 5.0))  # jitter
+        logger.info(f"GET {url}")
+        response = requests.get(url, headers=headers)
+        if not response.ok:
+            if attempt == max_attempt:
+                logger.warning(
+                    f"max retries reached while getting {url}: status_code={response.status_code}"
+                )
+                return
 
-    response.raise_for_status()
-    logger.info(f"response received status_code={response.status_code}")
-    return response.json()
+            # reddit will throw 429, read headers to figure when to try again.
+            if response.status_code == 429:
+                reset_time = int(response.headers.get("x-ratelimit-reset", 60))
+                logger.warning(f"rate limited - sleeping {reset_time}s")
+                time.sleep(reset_time + 1)
+                continue
+
+            # status_code >=400 but not 429 - could be anything. Back off and try again
+            logger.info(f"GET {url} attempt #{attempt} failed, trying again")
+            attempt += 1
+            time.sleep((attempt + 1) ** 3)
+
+        logger.info(f"response received status_code={response.status_code}")
+        return response.json()
 
 
 def extract_comments(comment_list, depth=0, max_depth=3):
@@ -67,8 +89,8 @@ def extract_comments(comment_list, depth=0, max_depth=3):
 
 
 def scrape(
-    post_filter: str = "new",
-    post_limit: int = 5,
+    post_filter: str,
+    post_limit: int,
 ):
     """
     Get post and comment data from predetermined list of subreddits.
@@ -77,7 +99,7 @@ def scrape(
     rate_limiter = DistributedRateLimiter(
         name="reddit",
         max_requests=1,
-        window_seconds=2,
+        window_seconds=3,
     )
 
     all_posts = []
@@ -90,15 +112,17 @@ def scrape(
     comments_url = f"http://www.reddit.com/r/{{subreddit}}/comments/{{post_id}}.json"
     subreddits = [
         "wallstreetbets",
-        # "stocks",
-        # "stockmarket",
-        # "investing",
-        # "options",
-        # "thetagang",
+        "stocks",
+        "stockmarket",
+        "investing",
+        "options",
+        "thetagang",
     ]
     for subreddit in subreddits:
         subreddit_posts_url = posts_url.format(subreddit=subreddit)
         response = get_json(subreddit_posts_url, rate_limiter)
+        if not response:
+            break
 
         posts = response["data"]["children"]
         for child in posts:
@@ -123,6 +147,10 @@ def scrape(
                 post_id=post_data["id"],
             )
             response = get_json(post_comments_url, rate_limiter)
+            if not response:
+                logger.warning(f"unable to get comments for {post_data['id']}")
+                continue
+
             top_level_comments = response[1]["data"]["children"]
             all_comments.extend(extract_comments(top_level_comments))
 

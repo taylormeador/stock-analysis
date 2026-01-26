@@ -62,5 +62,4 @@ class DistributedRateLimiter:
             if result == 1:
                 return True
 
-            logger.info(f"Rate limit {self.name}: sleeping 0.5s")
             time.sleep(1)
