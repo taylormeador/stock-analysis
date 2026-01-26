@@ -11,9 +11,9 @@ CREATE TABLE reddit_posts (
     UNIQUE(post_id, scraped_at)
 );
 
-CREATE INDEX idx_posts_score ON raw_reddit_posts(score);
-CREATE INDEX idx_posts_created ON raw_reddit_posts(created_utc);
-CREATE INDEX idx_posts_scraped ON raw_reddit_posts(scraped_at);
+CREATE INDEX idx_posts_score ON reddit_posts(score);
+CREATE INDEX idx_posts_created ON reddit_posts(created_utc);
+CREATE INDEX idx_posts_scraped ON reddit_posts(scraped_at);
 
 CREATE TABLE reddit_comments (
     id SERIAL PRIMARY KEY,
