@@ -2,11 +2,11 @@ import logging
 
 from sqlalchemy import insert
 
-from celery_app import app
-import database.db as db
-import database.models as models
-import logic.reddit as reddit
-from tasks.utils import SingleInstanceTask
+from app.celery_app import app
+import app.database.db as db
+import app.database.models as models
+import app.logic.reddit as reddit
+from app.tasks.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
 

@@ -3,6 +3,11 @@ import logging
 import os
 
 import redis
+from dotenv import load_dotenv
+
+load_dotenv()
+
+REDIS_URL = os.getenv("REDIS_URL")
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +41,7 @@ class DistributedRateLimiter:
         self.name = name
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self.redis_client = redis.from_url(os.getenv("REDIS_URL"))
+        self.redis_client = redis.from_url(REDIS_URL)
         self.key = f"rate_limit:{name}"
         self.lua_script = self.redis_client.register_script(lua_script)
 

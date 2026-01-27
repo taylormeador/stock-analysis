@@ -1,7 +1,7 @@
 import logging
 
-from celery_app import app
-from tasks import scraping
+from app.celery_app import app
+from app.tasks import scraping
 
 logging.basicConfig(
     level=logging.INFO,

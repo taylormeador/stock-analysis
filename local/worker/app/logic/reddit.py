@@ -5,7 +5,7 @@ import logging
 import time
 import random
 
-from logic.rate_limiter import DistributedRateLimiter
+from app.logic.rate_limiter import DistributedRateLimiter
 
 logger = logging.getLogger(__name__)
 

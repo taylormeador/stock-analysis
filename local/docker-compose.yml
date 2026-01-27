@@ -40,15 +40,12 @@ services:
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
       - DATABASE_URL=${DATABASE_URL}
-    volumes:
-      - ./worker/app:/app
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    command: celery -A main worker --loglevel=info
-    working_dir: /app
+    command: celery -A app.main worker --loglevel=info
 
   celery-beat:
     build:
@@ -60,15 +57,12 @@ services:
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
       - DATABASE_URL=${DATABASE_URL}
-    volumes:
-      - ./worker/app:/app
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    command: celery -A main beat --loglevel=info
-    working_dir: /app
+    command: celery -A app.main beat --loglevel=info
 
   flower:
     build:
@@ -81,13 +75,10 @@ services:
       - DATABASE_URL=${DATABASE_URL}
     ports:
       - "5555:5555"
-    volumes:
-    - ./worker/app:/app
     depends_on:
       - redis
       - celery-worker
-    command: celery -A main flower --port=5555
-    working_dir: /app
+    command: celery -A app.main flower --port=5555
 
 volumes:
   postgres_stock_analysis_data:
