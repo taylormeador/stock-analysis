@@ -1,49 +1,14 @@
-import os
 import logging
 
-from celery import Celery, Task
 from sqlalchemy import insert
-import redis
 
+from celery_app import app
 import database.db as db
 import database.models as models
-import reddit
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+import logic.reddit as reddit
+from tasks.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
-
-# Celery configuration
-app = Celery("tasks")
-app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
-
-# Celery Beat schedule
-app.conf.beat_schedule = {
-    "scrape-reddit-hot": {
-        "task": "tasks.scrape_reddit_hot",
-        "schedule": 300.0,
-    },
-}
-
-
-class SingleInstanceTask(Task):
-    def __call__(self, *args, **kwargs):
-        lock_id = f"{self.name}-lock"
-        redis_client = redis.Redis.from_url(os.environ["REDIS_URL"])
-        lock_acquired = redis_client.set(lock_id, "locked", ex=300, nx=True)
-        if not lock_acquired:
-            logger.info(f"Task {self.name} already running, skipping")
-            return None
-
-        try:
-            return super().__call__(*args, **kwargs)
-        finally:
-            redis_client.delete(lock_id)
 
 
 @app.task(base=SingleInstanceTask)
