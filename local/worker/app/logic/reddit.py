@@ -4,8 +4,10 @@ from typing import Any
 import logging
 import time
 import random
+import re
 
 from app.logic.rate_limiter import DistributedRateLimiter
+from app.logic.tickers import TICKERS
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,9 @@ def get_json(url: str, rate_limiter: DistributedRateLimiter) -> Any:
         return response.json()
 
 
-def extract_comments(comment_list, post_id: str, depth=0, max_depth=3):
+def extract_comments(
+    comment_list, post_id: str, parent_ticker: str | None, depth=0, max_depth=3
+):
     """Recursively extract comments up to max_depth levels"""
     comments = []
     scraped_at = datetime.now(timezone.utc)
@@ -56,6 +60,12 @@ def extract_comments(comment_list, post_id: str, depth=0, max_depth=3):
 
         if item["kind"] == "t1":  # This is a comment
             comment_data = item["data"]
+
+            # If the comment has a ticker, we want to use it for sentiment.
+            # Otherwise, use the parent's ticker (comment or post).
+            comment_ticker = extract_ticker(comment_data["body"])
+            ticker = comment_ticker or parent_ticker
+
             created_utc = datetime.fromtimestamp(
                 comment_data["created_utc"],
                 tz=timezone.utc,
@@ -69,6 +79,7 @@ def extract_comments(comment_list, post_id: str, depth=0, max_depth=3):
                     "body": comment_data["body"],
                     "score": comment_data["score"],
                     "controversiality": comment_data["controversiality"],
+                    "ticker": ticker,
                     "author": comment_data["author"],
                     "depth": comment_data["depth"],
                     "created_utc": created_utc,
@@ -85,10 +96,21 @@ def extract_comments(comment_list, post_id: str, depth=0, max_depth=3):
                 if isinstance(comment_data["replies"], dict):
                     replies = comment_data["replies"]["data"]["children"]
                     comments.extend(
-                        extract_comments(replies, post_id, depth + 1, max_depth)
+                        extract_comments(replies, post_id, ticker, depth + 1, max_depth)
                     )
 
     return comments
+
+
+def extract_ticker(text: str):
+    """Returns single ticker or None"""
+    words = set(re.findall(r"\b[A-Z]{2,5}\b", text.upper()))
+    found_tickers = words & TICKERS
+
+    if len(found_tickers) == 1:
+        return found_tickers.pop()
+
+    return None
 
 
 def scrape(
@@ -130,6 +152,10 @@ def scrape(
         posts = response["data"]["children"]
         for child in posts:
             post_data = child["data"]
+
+            post_text = f"{post_data['title']} {post_data.get('selftext', '')}"
+            ticker = extract_ticker(post_text)
+
             created_utc = datetime.fromtimestamp(
                 post_data["created_utc"],
                 tz=timezone.utc,
@@ -138,6 +164,7 @@ def scrape(
                 "post_id": post_data["id"],
                 "subreddit": subreddit,
                 "score": post_data["score"],
+                "ticker": ticker,
                 "author": post_data["author"],
                 "num_comments": post_data["num_comments"],
                 "created_utc": created_utc,
@@ -155,6 +182,8 @@ def scrape(
                 continue
 
             top_level_comments = response[1]["data"]["children"]
-            all_comments.extend(extract_comments(top_level_comments, post_data["id"]))
+            all_comments.extend(
+                extract_comments(top_level_comments, post_data["id"], ticker)
+            )
 
     return all_posts, all_comments
