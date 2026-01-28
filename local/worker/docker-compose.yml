@@ -40,8 +40,6 @@ services:
       - DATABASE_URL=${DATABASE_URL}
     ports:
       - "5555:5555"
-    depends_on:
-      - celery-worker
     command: celery -A app.main flower --port=5555 --unauthenticated_allow_terminate
 
 volumes:
