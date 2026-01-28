@@ -7,7 +7,7 @@ import time
 from app.celery_app import app
 from app.database.db import get_connection
 from app.database import models
-
+from app.tasks.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
 model = AutoModelForSequenceClassification.from_pretrained("ProsusAI/finbert")
 
 
-@app.task
+@app.task(base=SingleInstanceTask)
 def run_sentiment_analysis():
     logger.info("running sentiment analysis for reddit comments")
     with get_connection() as db:
