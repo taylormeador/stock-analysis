@@ -19,17 +19,7 @@ def scrape_reddit_hot():
 
     post_filter = "hot"
     post_limit = 10
-
-    # TODO refactor to insert to db between posts/comments since rate limit is bottleneck
-    posts, comments = reddit.scrape(post_filter=post_filter, post_limit=post_limit)
-
-    posts_statement = insert(models.reddit_posts)
-    comments_statement = insert(models.reddit_comments)
-    with db.get_connection() as conn:
-        logger.info(f"inserting {len(posts)} posts and {len(comments)} comments")
-        conn.execute(posts_statement, posts)
-        conn.execute(comments_statement, comments)
-        conn.commit()
+    reddit.scrape(post_filter=post_filter, post_limit=post_limit)
 
     logger.info("Reddit /hot scraping complete")
     return

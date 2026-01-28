@@ -18,6 +18,8 @@ reddit_posts = Table(
     Column("post_id", String(20)),
     Column("subreddit", String(100)),
     Column("score", Integer),
+    Column("title", Text),
+    Column("body", Text),
     Column("ticker", String(4)),
     Column("author", String(20)),
     Column("num_comments", Integer),

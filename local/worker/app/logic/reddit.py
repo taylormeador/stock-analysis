@@ -1,11 +1,15 @@
-import requests
-from datetime import datetime, timezone
-from typing import Any
 import logging
-import time
 import random
 import re
+import time
+from datetime import datetime, timezone
+from typing import Any
 
+import requests
+from sqlalchemy import insert
+
+import app.database.db as db
+import app.database.models as models
 from app.logic.rate_limiter import DistributedRateLimiter
 from app.logic.tickers import TICKERS
 
@@ -113,6 +117,22 @@ def extract_ticker(text: str):
     return None
 
 
+def insert_post(post):
+    posts_statement = insert(models.reddit_posts)
+    with db.get_connection() as conn:
+        logger.info(f"inserting post {post['post_id']}")
+        conn.execute(posts_statement, [post])
+        conn.commit()
+
+
+def insert_comments(comments):
+    comments_statement = insert(models.reddit_comments)
+    with db.get_connection() as conn:
+        logger.info(f"inserting {len(comments)} comments")
+        conn.execute(comments_statement, comments)
+        conn.commit()
+
+
 def scrape(
     post_filter: str,
     post_limit: int,
@@ -127,8 +147,6 @@ def scrape(
         window_seconds=3,
     )
 
-    all_posts = []
-    all_comments = []
     scraped_at = datetime.now(timezone.utc)
 
     posts_url = (
@@ -164,13 +182,15 @@ def scrape(
                 "post_id": post_data["id"],
                 "subreddit": subreddit,
                 "score": post_data["score"],
+                "title": post_data["title"],
+                "body": post_data.get("selftext"),
                 "ticker": ticker,
                 "author": post_data["author"],
                 "num_comments": post_data["num_comments"],
                 "created_utc": created_utc,
                 "scraped_at": scraped_at,
             }
-            all_posts.append(post)
+            insert_post(post)
 
             post_comments_url = comments_url.format(
                 subreddit=subreddit,
@@ -182,8 +202,5 @@ def scrape(
                 continue
 
             top_level_comments = response[1]["data"]["children"]
-            all_comments.extend(
-                extract_comments(top_level_comments, post_data["id"], ticker)
-            )
-
-    return all_posts, all_comments
+            comments = extract_comments(top_level_comments, post_data["id"], ticker)
+            insert_comments(comments)
