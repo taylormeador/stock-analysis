@@ -6,11 +6,14 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy setup.py and app directory
+# Download model at build time (so it's in the image)
+RUN python -c "from transformers import AutoTokenizer, AutoModelForSequenceClassification; \
+    AutoTokenizer.from_pretrained('ProsusAI/finbert'); \
+    AutoModelForSequenceClassification.from_pretrained('ProsusAI/finbert')"
+
+# Copy app code and install
 COPY setup.py .
 COPY app/ ./app/
-
-# Install the package
 RUN pip install -e .
 
 CMD ["celery", "-A", "app.main", "worker", "--loglevel=info"]
