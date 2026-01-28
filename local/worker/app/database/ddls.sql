@@ -37,6 +37,24 @@ CREATE INDEX idx_comments_scraped ON reddit_comments(scraped_at);
 CREATE INDEX idx_comments_subreddit ON reddit_comments(subreddit);
 
 
+CREATE VIEW first_reddit_comments AS
+SELECT DISTINCT ON (comment_id)
+    id,
+    comment_id,
+    parent_id,
+    subreddit,
+    body,
+    score,
+    controversiality,
+    author,
+    depth,
+    created_utc,
+    scraped_at,
+    ticker
+FROM reddit_comments
+ORDER BY comment_id, scraped_at ASC;
+
+
 CREATE TABLE reddit_comment_sentiment_predictions (
 	id serial4 NOT NULL,
 	reddit_comments_id int4 NULL,

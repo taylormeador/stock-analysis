@@ -22,19 +22,15 @@ def run_sentiment_analysis():
 
         # Get reddit comments that don't have inferences yet
         sql = """
-            SELECT DISTINCT ON (c.comment_id)
+            SELECT 
                 c.id,
                 c.body,
                 c.comment_id
-            FROM reddit_comments c
-            WHERE c.ticker IS NOT NULL
-            AND NOT EXISTS (
-                SELECT 1 
-                FROM reddit_comment_sentiment_predictions s
-                JOIN reddit_comments c2 ON c2.id = s.reddit_comments_id
-                WHERE c2.comment_id = c.comment_id
-            )
-            ORDER BY c.comment_id, c.scraped_at ASC
+            FROM first_reddit_comments c
+            LEFT JOIN reddit_comment_sentiment_predictions s ON s.reddit_comments_id = c.id
+            WHERE
+                c.ticker IS NOT NULL AND
+                s.id IS NULL
             LIMIT 1000;
         """
         need_inference = db.execute(text(sql)).fetchall()
