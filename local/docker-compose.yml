@@ -30,56 +30,6 @@ services:
       timeout: 3s
       retries: 5
 
-  celery-worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    container_name: stock-analysis-celery-worker
-    environment:
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${REDIS_URL}
-      - CELERY_RESULT_BACKEND=${REDIS_URL}
-      - DATABASE_URL=${DATABASE_URL}
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    command: celery -A app.main worker --loglevel=info
-
-  celery-beat:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    container_name: stock-analysis-celery-beat
-    environment:
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${REDIS_URL}
-      - CELERY_RESULT_BACKEND=${REDIS_URL}
-      - DATABASE_URL=${DATABASE_URL}
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    command: celery -A app.main beat --loglevel=info
-
-  flower:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    container_name: stock-analysis-flower
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=${DATABASE_URL}
-    ports:
-      - "5555:5555"
-    depends_on:
-      - redis
-      - celery-worker
-    command: celery -A app.main flower --port=5555
-
 volumes:
   postgres_stock_analysis_data:
   redis_stock_analysis_data:

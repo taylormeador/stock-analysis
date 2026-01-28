@@ -1,0 +1,52 @@
+services:
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-analysis-celery-worker
+    networks:
+      - stock-analysis-network
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
+    command: celery -A app.main worker --loglevel=info
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-analysis-celery-beat
+    networks:
+      - stock-analysis-network
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
+    command: celery -A app.main beat --loglevel=info
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-analysis-flower
+    networks:
+      - stock-analysis-network
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+    ports:
+      - "5555:5555"
+    depends_on:
+      - celery-worker
+    command: celery -A app.main flower --port=5555
+
+volumes:
+  redis_stock_analysis_data:
+
+networks:
+  stock-analysis-network:
+    external: true
