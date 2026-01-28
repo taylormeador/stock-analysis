@@ -1,13 +1,28 @@
 import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
+import requests
+import os
+import logging
 
-# Your data
-hours = ["10am", "11am", "12pm", "1pm", "2pm"]
-positive_counts = [30, 45, 40, 60, 55]
-neutral_counts = [20, 15, 25, 20, 25]
-negative_counts = [10, 15, 10, 5, 20]
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
 
+logger = logging.getLogger(__name__)
+
+API_URL = os.environ["API_URL"]
+
+logger.info("getting data")
+response = requests.get(API_URL + "/sentiment_volume")
+data = response.json()["data"]
+
+hours = data["hours"]
+positive_counts = data["positive_counts"]
+neutral_counts = data["neutral_counts"]
+negative_counts = data["negative_counts"]
 
 fig = make_subplots(specs=[[{"secondary_y": True}]])
 
