@@ -35,12 +35,13 @@ services:
     networks:
       - stock-analysis-network
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
       - DATABASE_URL=${DATABASE_URL}
+      - FLOWER_UNAUTHENTICATED_API=${FLOWER_UNAUTHENTICATED_API}
     ports:
       - "5555:5555"
-    command: celery -A app.main flower --port=5555 --unauthenticated_allow_terminate
+    command: celery -A app.main flower --port=5555
 
 volumes:
   redis_stock_analysis_data:
