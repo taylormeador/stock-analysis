@@ -94,6 +94,11 @@ TICKERS = {
     "SOFI",
     "UPST",
     "AFRM",
+    # Crypto
+    "BTC",
+    "ETH",
+    "MSTR",
+    "IBIT",
     # Aerospace & Defense
     "BA",
     "LMT",
@@ -102,6 +107,7 @@ TICKERS = {
     "GD",
     "RKLB",
     "SPCE",
+    "ASTS",
     # Biotech / Healthcare
     "MRNA",
     "BNTX",
@@ -110,7 +116,10 @@ TICKERS = {
     "REGN",
     "VRTX",
     "BIIB",
+    # Data / AI
     "NBIS",
+    "CRWV",
+    "IREN",
     # ETFs (commonly discussed)
     "SPY",
     "QQQ",
@@ -122,4 +131,17 @@ TICKERS = {
     "SQQQ",
     "TQQQ",
     "UVXY",
+    # Commodities
+    "SLV",
+    "GLD",
+    "COPX",
+    "NG",
+    "WTI",
+    "USO",
+    "CL",
+    # Energy
+    "UUUU",
+    "NLR",
+    "OKLO",
+    "SMR",
 }
