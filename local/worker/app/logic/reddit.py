@@ -44,7 +44,7 @@ def get_json(url: str, rate_limiter: DistributedRateLimiter) -> Any:
         return response.json()
 
 
-def extract_comments(comment_list, depth=0, max_depth=3):
+def extract_comments(comment_list, post_id: str, depth=0, max_depth=3):
     """Recursively extract comments up to max_depth levels"""
     comments = []
     scraped_at = datetime.now(timezone.utc)
@@ -64,6 +64,7 @@ def extract_comments(comment_list, depth=0, max_depth=3):
                 {
                     "comment_id": comment_data["id"],
                     "parent_id": comment_data["parent_id"],
+                    "post_id": post_id,
                     "subreddit": comment_data["subreddit"],
                     "body": comment_data["body"],
                     "score": comment_data["score"],
@@ -83,7 +84,9 @@ def extract_comments(comment_list, depth=0, max_depth=3):
             ):
                 if isinstance(comment_data["replies"], dict):
                     replies = comment_data["replies"]["data"]["children"]
-                    comments.extend(extract_comments(replies, depth + 1, max_depth))
+                    comments.extend(
+                        extract_comments(replies, post_id, depth + 1, max_depth)
+                    )
 
     return comments
 
@@ -109,7 +112,7 @@ def scrape(
     posts_url = (
         f"http://reddit.com/r/{{subreddit}}/{post_filter}.json?limit={post_limit}"
     )
-    comments_url = f"http://www.reddit.com/r/{{subreddit}}/comments/{{post_id}}.json"
+    comments_url = "http://www.reddit.com/r/{subreddit}/comments/{post_id}.json"
     subreddits = [
         "wallstreetbets",
         "stocks",
@@ -152,6 +155,6 @@ def scrape(
                 continue
 
             top_level_comments = response[1]["data"]["children"]
-            all_comments.extend(extract_comments(top_level_comments))
+            all_comments.extend(extract_comments(top_level_comments, post_data["id"]))
 
     return all_posts, all_comments

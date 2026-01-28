@@ -35,3 +35,12 @@ CREATE INDEX idx_comments_parent_id ON reddit_comments(parent_id);
 CREATE INDEX idx_comments_created ON reddit_comments(created_utc);
 CREATE INDEX idx_comments_scraped ON reddit_comments(scraped_at);
 CREATE INDEX idx_comments_subreddit ON reddit_comments(subreddit);
+
+CREATE TABLE reddit_comment_sentiment_predictions (
+    id SERIAL PRIMARY KEY,
+    reddit_comments_id INTEGER references reddit_comments(id),
+    label VARCHAR(20),
+    confidence FLOAT,
+    model_version VARCHAR(50),
+    predicted_at TIMESTAMPTZ DEFAULT NOW()
+);
