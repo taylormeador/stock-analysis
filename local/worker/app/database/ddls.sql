@@ -36,11 +36,15 @@ CREATE INDEX idx_comments_created ON reddit_comments(created_utc);
 CREATE INDEX idx_comments_scraped ON reddit_comments(scraped_at);
 CREATE INDEX idx_comments_subreddit ON reddit_comments(subreddit);
 
+
 CREATE TABLE reddit_comment_sentiment_predictions (
-    id SERIAL PRIMARY KEY,
-    reddit_comments_id INTEGER references reddit_comments(id),
-    label VARCHAR(20),
-    confidence FLOAT,
-    model_version VARCHAR(50),
-    predicted_at TIMESTAMPTZ DEFAULT NOW()
+	id serial4 NOT NULL,
+	reddit_comments_id int4 NULL,
+	"label" varchar(20) NULL,
+	confidence float8 NULL,
+	model_version varchar(50) NULL,
+	predicted_at timestamptz DEFAULT now() NULL,
+	CONSTRAINT reddit_comment_sentiment_predictions_pkey PRIMARY KEY (id)
 );
+
+ALTER TABLE reddit_comment_sentiment_predictions ADD CONSTRAINT reddit_comment_sentiment_predictions_reddit_comments_id_fkey FOREIGN KEY (reddit_comments_id) REFERENCES public.reddit_comments(id);

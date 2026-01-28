@@ -3,6 +3,7 @@ from sqlalchemy import (
     Text,
     Column,
     Integer,
+    Float,
     String,
     MetaData,
     TIMESTAMP,
@@ -43,4 +44,15 @@ reddit_comments = Table(
     Column("depth", Integer),
     Column("created_utc", TIMESTAMP(timezone=True)),
     Column("scraped_at", TIMESTAMP(timezone=True)),
+)
+
+reddit_comment_sentiment_predictions = Table(
+    "reddit_comment_sentiment_predictions",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("reddit_comments_id", Integer),
+    Column("label", String(20)),
+    Column("confidence", Float),
+    Column("model_version", Text(50)),
+    Column("predicted_at", TIMESTAMP(timezone=True)),
 )
