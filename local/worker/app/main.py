@@ -2,6 +2,7 @@ import logging
 
 from app.celery_app import app
 from app.tasks import scraping
+from app.tasks import inference
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,5 +17,9 @@ app.conf.beat_schedule = {
     "scrape-reddit-hot": {
         "task": "app.tasks.scraping.scrape_reddit_hot",
         "schedule": 300.0,
+    },
+    "run-reddit-comment-inference": {
+        "task": "app.tasks.inference.run_sentiment_analysis",
+        "schedule": 30.0,
     },
 }
