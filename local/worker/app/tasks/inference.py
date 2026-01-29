@@ -1,12 +1,13 @@
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
-from sqlalchemy import text, insert
 import logging
 import time
 
+import torch
+from sqlalchemy import insert, text
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
 from app.celery_app import app
-from app.database.db import get_connection
 from app.database import models
+from app.database.db import get_connection
 from app.tasks.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)

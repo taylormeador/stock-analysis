@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 app.conf.beat_schedule = {
     "scrape-reddit-hot": {
         "task": "app.tasks.scraping.scrape_reddit_hot",
-        "schedule": 300.0,
+        "schedule": 900.0,
     },
     "run-reddit-comment-inference": {
         "task": "app.tasks.inference.run_sentiment_analysis",
