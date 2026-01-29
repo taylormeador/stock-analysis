@@ -6,3 +6,4 @@ praw==7.7.1
 flower==2.0.1
 torch==2.10.0
 transformers==5.0.0
+yfinance==0.2.49

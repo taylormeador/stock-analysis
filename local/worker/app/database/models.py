@@ -2,6 +2,7 @@ from sqlalchemy import (
     Table,
     Text,
     Column,
+    Date,
     Integer,
     Float,
     String,
@@ -55,4 +56,19 @@ reddit_comment_sentiment_predictions = Table(
     Column("confidence", Float),
     Column("model_version", Text(50)),
     Column("predicted_at", TIMESTAMP(timezone=True)),
+)
+
+
+stock_prices = Table(
+    "stock_prices",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("ticker", String(10)),
+    Column("date", Date),
+    Column("open", Float),
+    Column("high", Float),
+    Column("low", Float),
+    Column("close", Float),
+    Column("volume", Integer),
+    Column("created_at", TIMESTAMP(timezone=True)),
 )

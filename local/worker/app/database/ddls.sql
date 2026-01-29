@@ -66,3 +66,22 @@ CREATE TABLE reddit_comment_sentiment_predictions (
 );
 
 ALTER TABLE reddit_comment_sentiment_predictions ADD CONSTRAINT reddit_comment_sentiment_predictions_reddit_comments_id_fkey FOREIGN KEY (reddit_comments_id) REFERENCES public.reddit_comments(id);
+
+-- Historical stock price data table
+CREATE TABLE stock_prices (
+    id SERIAL PRIMARY KEY,
+    ticker VARCHAR(10) NOT NULL,
+    date DATE NOT NULL,
+    open DECIMAL(10, 2),
+    high DECIMAL(10, 2),
+    low DECIMAL(10, 2),
+    close DECIMAL(10, 2),
+    volume BIGINT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    UNIQUE(ticker, date)
+);
+
+CREATE INDEX idx_stock_prices_ticker ON stock_prices(ticker);
+CREATE INDEX idx_stock_prices_date ON stock_prices(date);
+CREATE INDEX idx_stock_prices_ticker_date ON stock_prices(ticker, date);
