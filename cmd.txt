@@ -1,1 +1,1 @@
-docker compose --env-file worker/.env exec celery-worker celery -A app.main call app.tasks.scraping.scrape_reddit_hot
+docker compose exec celery-worker celery -A app.main call app.tasks.scraping.scrape_reddit_hot
