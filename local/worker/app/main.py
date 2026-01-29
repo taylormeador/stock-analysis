@@ -1,8 +1,10 @@
 import logging
+from celery.schedules import crontab
 
 from app.celery_app import app
 from app.tasks import scraping
 from app.tasks import inference
+from app.tasks import stock_data
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,5 +23,9 @@ app.conf.beat_schedule = {
     "run-reddit-comment-inference": {
         "task": "app.tasks.inference.run_sentiment_analysis",
         "schedule": 30.0,
+    },
+    "fetch-daily-stock-prices": {
+        "task": "app.tasks.stock_data.fetch_daily_stock_prices",
+        "schedule": crontab(hour="1", minute="0"),  # Run at 1:00 AM
     },
 }
