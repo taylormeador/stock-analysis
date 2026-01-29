@@ -14,6 +14,8 @@ from app.tasks.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
 
+# TODO move this to logic folder
+
 
 def fetch_historical_data(
     ticker: str,
