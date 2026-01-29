@@ -24,8 +24,8 @@ app.conf.beat_schedule = {
         "task": "app.tasks.inference.run_sentiment_analysis",
         "schedule": 30.0,
     },
-    "fetch-daily-stock-prices": {
-        "task": "app.tasks.stock_data.fetch_daily_stock_prices",
+    "fetch-daily-stock-data": {
+        "task": "app.tasks.stock_data.fetch_stock_data",
         "schedule": crontab(hour="1", minute="0"),  # Run at 1:00 AM
     },
 }
