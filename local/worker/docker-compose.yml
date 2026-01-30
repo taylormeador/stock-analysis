@@ -10,7 +10,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
-      - DATABASE_URL=${STOCK_ANALYSIS_DB}
+      - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
     volumes:
       - ./data:/data
@@ -27,7 +27,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
-      - DATABASE_URL=${STOCK_ANALYSIS_DB}
+      - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
     command: celery -A app.main beat --loglevel=info
 
   flower:
@@ -40,7 +40,7 @@ services:
     environment:
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
-      - DATABASE_URL=${STOCK_ANALYSIS_DB}
+      - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
       - FLOWER_UNAUTHENTICATED_API=${FLOWER_UNAUTHENTICATED_API}
     ports:
       - "5555:5555"
@@ -49,4 +49,3 @@ services:
 networks:
   stock-analysis-network:
     external: true
-    

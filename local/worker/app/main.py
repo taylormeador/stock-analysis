@@ -5,6 +5,8 @@ from app.celery_app import app
 from app.tasks import scraping
 from app.tasks import inference
 from app.tasks import stock_data
+from app.tasks import data_prep
+from app.tasks import model_training
 
 logging.basicConfig(
     level=logging.INFO,
