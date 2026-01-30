@@ -72,6 +72,7 @@ TICKERS = {
     "PYPL",
     "ADYEN",
     "AFRM",
+    "RDDT",
     # Meme stocks / WSB favorites
     "GME",
     "AMC",
