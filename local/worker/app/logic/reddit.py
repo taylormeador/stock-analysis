@@ -51,11 +51,15 @@ def get_json(url: str, rate_limiter: DistributedRateLimiter) -> Any:
 
 
 def extract_comments(
-    comment_list, post_id: str, parent_ticker: str | None, depth=0, max_depth=3
+    comment_list,
+    post_id: str,
+    parent_ticker: str | None,
+    scraped_at,
+    depth=0,
+    max_depth=3,
 ):
     """Recursively extract comments up to max_depth levels"""
     comments = []
-    scraped_at = datetime.now(timezone.utc)
 
     for item in comment_list:
         if item["kind"] == "more":
@@ -100,7 +104,14 @@ def extract_comments(
                 if isinstance(comment_data["replies"], dict):
                     replies = comment_data["replies"]["data"]["children"]
                     comments.extend(
-                        extract_comments(replies, post_id, ticker, depth + 1, max_depth)
+                        extract_comments(
+                            comment_list=replies,
+                            post_id=post_id,
+                            parent_ticker=ticker,
+                            scraped_at=scraped_at,
+                            depth=depth + 1,
+                            max_depth=max_depth,
+                        )
                     )
 
     return comments
@@ -259,7 +270,12 @@ def scrape_reddit_wsb_daily_thread():
                 continue
 
             top_level_comments = response[1]["data"]["children"]
-            comments = extract_comments(top_level_comments, post_data["id"], None)
+            comments = extract_comments(
+                comment_list=top_level_comments,
+                post_id=post_data["id"],
+                parent_ticker=None,
+                scraped_at=scraped_at,
+            )
             insert_comments(comments)
             break
 
