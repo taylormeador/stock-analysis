@@ -5,6 +5,7 @@ CREATE TABLE reddit_posts (
     score INTEGER,
     author VARCHAR(20),
     num_comments INTEGER,
+    is_daily_thread BOOLEAN, 
     created_utc TIMESTAMPTZ,
     scraped_at TIMESTAMPTZ DEFAULT NOW(),
 

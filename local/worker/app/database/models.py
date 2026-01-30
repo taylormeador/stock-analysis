@@ -10,6 +10,7 @@ from sqlalchemy import (
     TIMESTAMP,
     BigInteger,
     Numeric,
+    Boolean,
 )
 
 # Define schema
@@ -27,6 +28,7 @@ reddit_posts = Table(
     Column("ticker", String(4)),
     Column("author", String(20)),
     Column("num_comments", Integer),
+    Column("is_daily_thread", Boolean),
     Column("created_utc", TIMESTAMP(timezone=True)),
     Column("scraped_at", TIMESTAMP(timezone=True)),
 )

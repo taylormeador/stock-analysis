@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 
 # Celery Beat schedule
 app.conf.beat_schedule = {
-    "scrape-reddit-hot": {
-        "task": "app.tasks.scraping.scrape_reddit_hot",
-        "schedule": 900.0,
+    "scrape-reddit-wsb-daily-thread": {
+        "task": "app.tasks.scraping.scrape_reddit_wsb_daily_thread",
+        "schedule": 300.0,
     },
     "run-reddit-comment-inference": {
         "task": "app.tasks.inference.run_sentiment_analysis",
-        "schedule": 30.0,
+        "schedule": 150.0,
     },
     "fetch-daily-stock-data": {
         "task": "app.tasks.stock_data.fetch_stock_data",

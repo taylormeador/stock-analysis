@@ -20,6 +20,15 @@ def scrape_reddit_hot():
     return
 
 
+@app.task(base=SingleInstanceTask)
+def scrape_reddit_wsb_daily_thread():
+    """Scrape Reddit WSB daily thread for ticker mentions."""
+
+    reddit.scrape_reddit_wsb_daily_thread()
+
+    return
+
+
 @app.task
 def scrape_stocktwits():
     """Scrape StockTwits for stock mentions"""

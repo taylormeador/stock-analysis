@@ -187,6 +187,7 @@ def scrape(
                 "ticker": ticker,
                 "author": post_data["author"],
                 "num_comments": post_data["num_comments"],
+                "is_daily_thread": True,  # TODO this is technically not right but it does what it needs to do for now
                 "created_utc": created_utc,
                 "scraped_at": scraped_at,
             }
@@ -204,3 +205,67 @@ def scrape(
             top_level_comments = response[1]["data"]["children"]
             comments = extract_comments(top_level_comments, post_data["id"], ticker)
             insert_comments(comments)
+
+
+def scrape_reddit_wsb_daily_thread():
+    """Scrape Reddit WSB daily thread for ticker mentions."""
+    logger.info("scraping Reddit WSB daily thread...")
+
+    rate_limiter = DistributedRateLimiter(
+        name="reddit",
+        max_requests=1,
+        window_seconds=2,
+    )
+
+    url = "https://www.reddit.com/r/wallstreetbets/hot.json?limit=5"
+    json_response = get_json(url, rate_limiter)
+    posts = json_response["data"]["children"]
+    for post in posts:
+        post_title = post["data"]["title"]
+        if post_title.startswith("Daily Discussion Thread") or post_title.startswith(
+            "Weekend Discussion Thread"
+        ):
+            logger.info("found WSB daily thread")
+            post_data = post["data"]
+
+            scraped_at = datetime.now(timezone.utc)
+            created_utc = datetime.fromtimestamp(
+                post_data["created_utc"],
+                tz=timezone.utc,
+            )
+            post = {
+                "post_id": post_data["id"],
+                "subreddit": "wallstreetbets",
+                "score": post_data["score"],
+                "title": post_data["title"],
+                "body": post_data.get("selftext"),
+                "ticker": None,
+                "author": post_data["author"],
+                "num_comments": post_data["num_comments"],
+                "is_daily_thread": True,
+                "created_utc": created_utc,
+                "scraped_at": scraped_at,
+            }
+            insert_post(post)
+
+            comments_url = f"http://www.reddit.com/r/wallstreetbets/comments/{post_data['id']}.json"
+            post_comments_url = comments_url.format(
+                subreddit="wallstreetbets",
+                post_id=post_data["id"],
+            )
+            response = get_json(post_comments_url, rate_limiter)
+            if not response:
+                logger.warning(f"unable to get comments for {post_data['id']}")
+                continue
+
+            top_level_comments = response[1]["data"]["children"]
+            comments = extract_comments(top_level_comments, post_data["id"], None)
+            insert_comments(comments)
+            break
+
+    logger.info("Reddit WSB daily thread scraping complete")
+    return
+
+
+if __name__ == "__main__":
+    scrape_reddit_wsb_daily_thread()
