@@ -3,9 +3,8 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from app.celery_app import app
-import app.database.db as db
 from app.logic.tickers import TICKERS
-from app.logic.stock_data import fetch_historical_data, batch_insert
+import app.logic.stock_data as logic
 from app.tasks.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
@@ -32,28 +31,25 @@ def fetch_stock_data(start_date: str | None = None, end_date: str | None = None)
 
     total_records = 0
     failed_tickers = []
-
     for idx, ticker in enumerate(sorted(TICKERS), 1):
         try:
             # Add small delay between tickers to avoid rate limiting
             if idx > 1:
-                time.sleep(1.5)
+                time.sleep(0.5)
 
-            records = fetch_historical_data(ticker, start_date, end_date)
-
-            if records:
-                with db.get_connection() as conn:
-                    inserted = batch_insert(conn, records)
-                    conn.commit()
-                    total_records += inserted
-                    logger.info(f"✓ {ticker}: Inserted {inserted} records")
-            else:
-                logger.warning(f"✗ {ticker}: No records to insert")
+            df = logic.fetch_historical_data(ticker, start_date, end_date)
+            if df.empty:
+                logger.warning(f"{ticker}: No records to insert")
                 failed_tickers.append(ticker)
+                continue
+
+            df = logic.calculate_indicators(df)
+            logic.load_price_data(df, ticker, start_date, end_date)
 
         except Exception as e:
             logger.error(f"Failed to process {ticker}: {str(e)}")
             failed_tickers.append(ticker)
+            continue
 
     logger.info(f"Stock price fetch complete. Total records: {total_records}")
 
@@ -67,4 +63,5 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    fetch_stock_data()
+    start_date = "2023-01-01"
+    fetch_stock_data(start_date)

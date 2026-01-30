@@ -1,9 +1,10 @@
 import logging
-from typing import List
 
 import pandas as pd
+import pandas_ta as ta
 import yfinance as yf
-from sqlalchemy import text
+
+import app.database.db as db
 
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ def fetch_historical_data(
     start_date: str,
     end_date: str,
     max_retries: int = 3,
-) -> List[dict]:
+) -> pd.DataFrame:
     """
     Fetch historical stock data from yfinance with retry logic.
 
@@ -48,92 +49,76 @@ def fetch_historical_data(
                 progress=False,
             )
 
-            if df.empty:
+            if df is None or df.empty:
                 logger.warning(f"No data returned for {ticker}")
-                return []
+                return pd.DataFrame()
 
-            records = []
-            for date, row in df.iterrows():
-                try:
-                    logger.info(ticker)
-                    records.append(
-                        {
-                            "ticker": ticker,
-                            "date": date.date(),
-                            "open": (
-                                round(float(row.Open.iloc[0]), 2)
-                                if not pd.isna(row.Open).all()
-                                else None
-                            ),
-                            "high": (
-                                round(float(row.High.iloc[0]), 2)
-                                if not pd.isna(row.High).all()
-                                else None
-                            ),
-                            "low": (
-                                round(float(row.Low.iloc[0]), 2)
-                                if not pd.isna(row.Low).all()
-                                else None
-                            ),
-                            "close": (
-                                round(float(row.Close.iloc[0]), 2)
-                                if not pd.isna(row.Close).all()
-                                else None
-                            ),
-                            "volume": (
-                                int(row.Volume.iloc[0])
-                                if not pd.isna(row.Volume).all()
-                                else None
-                            ),
-                        }
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Error processing row for {ticker} on {date}: {str(e)}"
-                    )
-                    continue
+            df["ticker"] = ticker
+            df.columns = df.columns.get_level_values(0)
 
-            logger.info(f"Fetched {len(records)} historical records for {ticker}")
-            return records
+            logger.info(f"Fetched {len(df.index)} historical records for {ticker}")
+            return df
 
         except Exception as e:
             logger.error(
                 f"Error fetching historical data for {ticker} (attempt {attempt + 1}/{max_retries}): {str(e)}"
             )
             if attempt == max_retries - 1:
-                return []
+                return pd.DataFrame()
 
-    return []
-
-
-def calculate_indicators():
-    pass
+    return pd.DataFrame()
 
 
-def batch_insert(conn, records: List[dict], batch_size: int = 1000):
-    """
-    Insert records in batches for better performance.
+def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    # EMA and SMA
+    lengths = (9, 10, 12, 26, 50, 100, 200)
+    for length in lengths:
+        column_name = f"ema_{length}"
+        df[column_name] = ta.ema(df.Close, length=length)
 
-    Args:
-        conn: Database connection
-        records: List of records to insert
-        batch_size: Number of records per batch
-    """
-    stmt = text(
-        """
-        INSERT INTO stock_prices (ticker, date, open, high, low, close, volume)
-        VALUES (:ticker, :date, :open, :high, :low, :close, :volume)
-        ON CONFLICT (ticker, date) DO NOTHING
-    """
+        column_name = f"sma_{length}"
+        df[column_name] = ta.sma(df.Close, length=length)
+
+    # RSI
+    df["rsi_14"] = ta.rsi(df.Close, length=14)
+
+    # MACD
+    df[["macd_12_26_9", "macdh_12_26_9", "macds_12_26_9"]] = ta.macd(
+        df.Close,
+        fast=12,
+        slow=26,
+        signal=9,
     )
 
-    total_inserted = 0
-    for i in range(0, len(records), batch_size):
-        batch = records[i : i + batch_size]
-        conn.execute(stmt, batch)
-        total_inserted += len(batch)
+    # Bollinger Bands
+    df[["bbl_20", "bbm_20", "bbu_20", "bbb_20", "bbp_20"]] = ta.bbands(
+        df.Close,
+        length=2,
+    )
 
-        if total_inserted % 5000 == 0:
-            logger.info(f"Inserted {total_inserted}/{len(records)} records")
+    return df
 
-    return total_inserted
+
+def load_price_data(df: pd.DataFrame, ticker: str, start_date: str, end_date: str):
+    columns = {
+        "Open": "open",
+        "Close": "close",
+        "High": "high",
+        "Low": "low",
+        "Volume": "volume",
+    }
+    df = df.rename(columns=columns)
+    df["date"] = df.index
+    with db.get_connection() as conn:
+        # Load the existing indicator data and fill it in this dataframe so that it doesn't get overwritten
+        existing_sql = f"""
+            SELECT * FROM stock_prices
+            WHERE
+                ticker = '{ticker}' AND
+                date BETWEEN '{start_date}' AND '{end_date}';
+        """
+        existing = pd.read_sql(existing_sql, conn)
+        filled = df.fillna(existing, axis=1)
+        filled.to_sql("stock_prices", conn, if_exists="append")
+        conn.commit()
+    logger.info(f"wrote {len(df.index)} records for {df.ticker.iloc[0]}")
