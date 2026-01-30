@@ -1,3 +1,5 @@
+# Persistent services
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -30,9 +32,25 @@ services:
       timeout: 3s
       retries: 5
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.9.0
+    container_name: stock-analysis-mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=${MLFLOW_DB}
+      - MLFLOW_ARTIFACT_ROOT=/mlflow-artifacts
+    volumes:
+      - mlflow_artifacts:/mlflow-artifacts
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ${MLFLOW_DB} --default-artifact-root /mlflow-artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_stock_analysis_data:
   redis_stock_analysis_data:
+  mlflow_artifacts:
 
 networks:
   default:
