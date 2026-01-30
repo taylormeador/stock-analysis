@@ -10,7 +10,7 @@ from app.tasks.utils import SingleInstanceTask
 logger = logging.getLogger(__name__)
 
 
-# @app.task(base=SingleInstanceTask)
+@app.task(base=SingleInstanceTask)
 def fetch_stock_data(start_date: str | None = None, end_date: str | None = None):
     """
     Fetch stock prices for all tracked tickers.
@@ -63,5 +63,5 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    start_date = "2023-01-01"
+    start_date = "2000-01-01"
     fetch_stock_data(start_date)

@@ -119,6 +119,6 @@ def load_price_data(df: pd.DataFrame, ticker: str, start_date: str, end_date: st
         """
         existing = pd.read_sql(existing_sql, conn)
         filled = df.fillna(existing, axis=1)
-        filled.to_sql("stock_prices", conn, if_exists="append")
+        filled.to_sql("stock_prices", conn, if_exists="append", index=False)
         conn.commit()
     logger.info(f"wrote {len(df.index)} records for {df.ticker.iloc[0]}")
