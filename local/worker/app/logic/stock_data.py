@@ -3,9 +3,10 @@ import logging
 import pandas as pd
 import pandas_ta as ta
 import yfinance as yf
+from sqlalchemy.dialects.postgresql import insert
 
 import app.database.db as db
-
+import app.database.models as models
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,11 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_price_data(df: pd.DataFrame, ticker: str, start_date: str, end_date: str):
+    """
+    Load price data into the database using upsert to handle duplicates.
+    Updates existing records if ticker+date already exists.
+    """
+    # Rename columns to match database schema
     columns = {
         "Open": "open",
         "Close": "close",
@@ -109,16 +115,58 @@ def load_price_data(df: pd.DataFrame, ticker: str, start_date: str, end_date: st
     }
     df = df.rename(columns=columns)
     df["date"] = df.index
+
+    # Convert DataFrame to list of dicts for upsert
+    records = df.to_dict("records")
+
+    if not records:
+        logger.warning(f"No records to upsert for {ticker}")
+        return
+
     with db.get_connection() as conn:
-        # Load the existing indicator data and fill it in this dataframe so that it doesn't get overwritten
-        existing_sql = f"""
-            SELECT * FROM stock_prices
-            WHERE
-                ticker = '{ticker}' AND
-                date BETWEEN '{start_date}' AND '{end_date}';
-        """
-        existing = pd.read_sql(existing_sql, conn)
-        filled = df.fillna(existing, axis=1)
-        filled.to_sql("stock_prices", conn, if_exists="append", index=False)
+        # Create upsert statement
+        stmt = insert(models.stock_prices).values(records)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["ticker", "date"],  # The unique constraint columns
+            set_={
+                # Price data
+                "open": stmt.excluded.open,
+                "high": stmt.excluded.high,
+                "low": stmt.excluded.low,
+                "close": stmt.excluded.close,
+                "volume": stmt.excluded.volume,
+                # SMA indicators
+                "sma_9": stmt.excluded.sma_9,
+                "sma_10": stmt.excluded.sma_10,
+                "sma_12": stmt.excluded.sma_12,
+                "sma_26": stmt.excluded.sma_26,
+                "sma_50": stmt.excluded.sma_50,
+                "sma_100": stmt.excluded.sma_100,
+                "sma_200": stmt.excluded.sma_200,
+                # EMA indicators
+                "ema_9": stmt.excluded.ema_9,
+                "ema_10": stmt.excluded.ema_10,
+                "ema_12": stmt.excluded.ema_12,
+                "ema_26": stmt.excluded.ema_26,
+                "ema_50": stmt.excluded.ema_50,
+                "ema_100": stmt.excluded.ema_100,
+                "ema_200": stmt.excluded.ema_200,
+                # Other indicators
+                "rsi_14": stmt.excluded.rsi_14,
+                "macd_12_26_9": stmt.excluded.macd_12_26_9,
+                "macdh_12_26_9": stmt.excluded.macdh_12_26_9,
+                "macds_12_26_9": stmt.excluded.macds_12_26_9,
+                # Bollinger Bands
+                "bbl_20": stmt.excluded.bbl_20,
+                "bbm_20": stmt.excluded.bbm_20,
+                "bbu_20": stmt.excluded.bbu_20,
+                "bbb_20": stmt.excluded.bbb_20,
+                "bbp_20": stmt.excluded.bbp_20,
+                # created_at is NOT updated - keeps original timestamp
+            },
+        )
+
+        conn.execute(stmt)
         conn.commit()
-    logger.info(f"wrote {len(df.index)} records for {df.ticker.iloc[0]}")
+
+    logger.info(f"Upserted {len(records)} records for {ticker}")
