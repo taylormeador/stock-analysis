@@ -10,14 +10,22 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(base=SingleInstanceTask)
-def calculate_whats_hot_data(post_id: str):
+def calculate_whats_hot_data():
     """Calculate the data for the `What's Hot?` dashboard and upload the JSON to S3"""
     logger.info("calculating data for hot dashboard")
-    sql = f"""
+
+    sql = """
+        WITH daily_thread AS (
+            SELECT post_id
+            FROM reddit_posts
+            WHERE is_daily_thread IS TRUE
+            ORDER BY created_utc DESC
+            LIMIT 1
+        )
         SELECT ticker, COUNT(*) as mention_count
         FROM first_reddit_comments
         WHERE
-            post_id = '{post_id}' AND
+            post_id = (SELECT post_id FROM daily_thread) AND
             ticker IS NOT NULL
         GROUP BY ticker
         ORDER BY mention_count DESC
@@ -34,5 +42,8 @@ def calculate_whats_hot_data(post_id: str):
 
 
 if __name__ == "__main__":
-    post_id = "1qrhst1"
-    calculate_whats_hot_data(post_id)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    calculate_whats_hot_data()
