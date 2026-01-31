@@ -28,7 +28,7 @@ class SingleInstanceTask(Task):
 
 
 # AWS Configuration
-S3_BUCKET = os.getenv("S3_BUCKET_NAME")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_REGION = os.getenv("S3_REGION", "us-east-2")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -57,13 +57,13 @@ def write_to_s3(data: Dict[str, Any], s3_key: str) -> bool:
         json_str = json.dumps(data)
 
         s3_client.put_object(
-            Bucket=S3_BUCKET,
+            Bucket=S3_BUCKET_NAME,
             Key=s3_key,
             Body=json_str,
             ContentType="application/json",
         )
 
-        logger.info(f"Uploaded to s3://{S3_BUCKET}/{s3_key}")
+        logger.info(f"Uploaded to s3://{S3_BUCKET_NAME}/{s3_key}")
         return True
 
     except ClientError as e:
