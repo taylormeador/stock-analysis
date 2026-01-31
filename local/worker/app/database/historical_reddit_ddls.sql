@@ -1,6 +1,5 @@
 CREATE TABLE historical_reddit_posts (
-    id SERIAL PRIMARY KEY,
-    post_id VARCHAR(20) NOT NULL,
+    post_id VARCHAR(20) PRIMARY KEY NOT NULL,
     subreddit VARCHAR(100),
     score INTEGER,
     title TEXT,
@@ -8,8 +7,7 @@ CREATE TABLE historical_reddit_posts (
     ticker VARCHAR(10),
     author VARCHAR(20),
     num_comments INTEGER,
-    created_utc TIMESTAMPTZ,
-    UNIQUE(post_id)
+    created_utc TIMESTAMPTZ
 );
 
 CREATE INDEX idx_historical_posts_ticker ON historical_reddit_posts(ticker);
@@ -18,8 +16,7 @@ CREATE INDEX idx_historical_posts_post_id ON historical_reddit_posts(post_id);
 
 
 CREATE TABLE historical_reddit_comments (
-    id SERIAL PRIMARY KEY,
-    comment_id VARCHAR(20) NOT NULL,
+    comment_id VARCHAR(20) PRIMARY KEY NOT NULL,
     parent_id VARCHAR(20),
     post_id VARCHAR(20),
     subreddit VARCHAR(100),
@@ -29,8 +26,7 @@ CREATE TABLE historical_reddit_comments (
     controversiality INTEGER,
     author VARCHAR(100),
     depth INTEGER,
-    created_utc TIMESTAMPTZ,
-    UNIQUE(comment_id)
+    created_utc TIMESTAMPTZ
 );
 
 CREATE INDEX idx_historical_comments_comment_id ON historical_reddit_comments(comment_id);
