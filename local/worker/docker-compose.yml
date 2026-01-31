@@ -4,8 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: stock-analysis-celery-worker
-    networks:
-      - stock-analysis-network
     environment:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
@@ -22,8 +20,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: stock-analysis-celery-beat
-    networks:
-      - stock-analysis-network
     environment:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
@@ -38,8 +34,6 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: stock-analysis-flower
-    networks:
-      - stock-analysis-network
     environment:
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
@@ -52,5 +46,6 @@ services:
     command: celery -A app.main flower --port=5555
 
 networks:
-  stock-analysis-network:
+  default:
+    name: stock-analysis-network
     external: true
