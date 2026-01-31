@@ -61,7 +61,6 @@ def write_to_s3(data: Dict[str, Any], s3_key: str) -> bool:
             Key=s3_key,
             Body=json_str,
             ContentType="application/json",
-            ACL="public-read",
         )
 
         logger.info(f"Uploaded to s3://{S3_BUCKET}/{s3_key}")
