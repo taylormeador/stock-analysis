@@ -5,6 +5,7 @@ setup(
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
+        "boto3==1.42.39",
         "celery==5.6.2",
         "dotenv==0.9.9",
         "redis==7.1.0",

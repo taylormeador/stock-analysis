@@ -259,7 +259,7 @@ def scrape_reddit_wsb_daily_thread():
             }
             insert_post(post)
 
-            comments_url = f"http://www.reddit.com/r/wallstreetbets/comments/{post_data['id']}.json"
+            comments_url = f"http://www.reddit.com/r/wallstreetbets/comments/{post_data['id']}.json?sort=new&limit=200"
             post_comments_url = comments_url.format(
                 subreddit="wallstreetbets",
                 post_id=post_data["id"],
