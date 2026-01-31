@@ -45,3 +45,16 @@ CREATE TABLE stock_prices (
 CREATE INDEX idx_stock_prices_ticker ON stock_prices(ticker);
 CREATE INDEX idx_stock_prices_date ON stock_prices(date);
 CREATE INDEX idx_stock_prices_ticker_date ON stock_prices(ticker, date);
+
+CREATE TABLE cboe_daily_stats (
+    date DATE PRIMARY KEY,
+    total_put_call_ratio DECIMAL(5,2),
+    equity_put_call_ratio DECIMAL(5,2),
+    index_put_call_ratio DECIMAL(5,2),
+    vix_put_call_ratio DECIMAL(5,2),
+    total_volume BIGINT,
+    total_oi BIGINT,
+    scraped_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_cboe_date ON cboe_daily_stats(date);

@@ -1,5 +1,6 @@
 import logging
 from celery.schedules import crontab
+from datetime import timedelta, date
 
 from app.celery_app import app
 from app.tasks import scraping
@@ -16,6 +17,12 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+date_format = "%Y-%m-%d"
+two_days_ago = date.today() - timedelta(days=2)
+two_days_ago_str = two_days_ago.strftime(date_format)
+today = date.today()
+today_str = today.strftime(date_format)
 
 # Celery Beat schedule
 app.conf.beat_schedule = {
@@ -34,5 +41,12 @@ app.conf.beat_schedule = {
     "refresh-whats-hot": {
         "task": "app.tasks.dashboard.calculate_whats_hot_data",
         "schedule": 300.0,
+    },
+    # I don't know when the data is updated so we look back a couple days
+    # Run at 23:00 UTC = 17:00/18:00 CST/CDT
+    "fetch-daily-cboe-stats": {
+        "task": "app.tasks.scraping.scrape_cboe_daily_stats",
+        "kwargs": {"start_date_str": two_days_ago_str, "end_date_str": today_str},
+        "schedule": crontab(hour="23", minute="0"),
     },
 }

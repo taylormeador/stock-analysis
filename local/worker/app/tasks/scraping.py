@@ -1,5 +1,6 @@
 import logging
 
+import app.logic.cboe as cboe
 import app.logic.reddit as reddit
 from app.celery_app import app
 from app.tasks.utils import SingleInstanceTask
@@ -25,6 +26,15 @@ def scrape_reddit_wsb_daily_thread():
     """Scrape Reddit WSB daily thread for ticker mentions."""
 
     reddit.scrape_reddit_wsb_daily_thread()
+
+    return
+
+
+@app.task(base=SingleInstanceTask)
+def scrape_cboe_daily_stats():
+    """Scrape CBOE website for daily options statistics."""
+
+    cboe.scrape_daily_market_stats()
 
     return
 

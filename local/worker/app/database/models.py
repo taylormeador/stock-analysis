@@ -103,3 +103,16 @@ stock_prices = Table(
     Column("bbp_20", Numeric(10, 2)),
     Column("created_at", TIMESTAMP(timezone=True)),
 )
+
+cboe_daily_stats = Table(
+    "cboe_daily_stats",
+    metadata,
+    Column("date", Date, primary_key=True),
+    Column("total_put_call_ratio", Float),
+    Column("equity_put_call_ratio", Float),
+    Column("index_put_call_ratio", Float),
+    Column("vix_put_call_ratio", Float),
+    Column("total_volume", Integer),
+    Column("total_oi", Integer),
+    Column("scraped_at", TIMESTAMP(timezone=True)),
+)
