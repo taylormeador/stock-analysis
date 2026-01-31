@@ -1,24 +1,4 @@
 services:
-
-  fastapi:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: stock-analysis-api
-    ports:
-      - "8000:8000"
-    environment:
-      - ENVIRONMENT=development
-    volumes:
-      - ./backend/app:/app
-      - /app/__pycache__
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   streamlit:
     build:
       context: ./frontend
@@ -30,8 +10,6 @@ services:
       - API_URL=http://fastapi:8000
     volumes:
       - ./frontend:/app
-    depends_on:
-      - fastapi
     command: streamlit run app/app.py --server.port=8501 --server.address=0.0.0.0
 
 networks:
