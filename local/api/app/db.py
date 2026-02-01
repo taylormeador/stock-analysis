@@ -1,32 +1,32 @@
 import os
-import logging
 
-from sqlalchemy import create_engine
-from contextlib import contextmanager
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import declarative_base
+from contextlib import asynccontextmanager
 
+DATABASE_URL = os.getenv("STOCK_ANALYSIS_DB", "")
 
-DATABASE_URL = os.environ["STOCK_ANALYSIS_DB"]
+Base = declarative_base()
 
+# Create the async engine
+engine = create_async_engine(DATABASE_URL, echo=False)
 
-logger = logging.getLogger(__name__)
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
+# Create a session maker
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
 )
 
 
-@contextmanager
-def get_connection():
-    """Get a connection from the pool for this task"""
-    conn = engine.connect()
-    try:
+# Dependency to get the database session
+async def get_db() -> AsyncSession:  # type: ignore
+    async with AsyncSessionLocal() as session:
+        yield session  # type: ignore
+
+
+@asynccontextmanager
+async def get_connection():
+    async with engine.connect() as conn:
         yield conn
-    except Exception as e:
-        logger.error(f"error in db conn: {e}")
-        conn.rollback()
-        raise
-    finally:
-        conn.close()  # Returns connection to pool, doesn't actually close it

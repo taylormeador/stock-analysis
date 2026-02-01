@@ -88,3 +88,13 @@ CREATE TABLE reddit_comment_sentiment_predictions (
 );
 
 ALTER TABLE reddit_comment_sentiment_predictions ADD CONSTRAINT reddit_comment_sentiment_predictions_reddit_comments_id_fkey FOREIGN KEY (reddit_comments_id) REFERENCES public.reddit_comments(id);
+
+
+CREATE TABLE current_top_reddit_comments (
+	id SERIAL NOT NULL,
+	comment_id varchar(20) NULL,
+	body text NULL,
+	score int4 NULL,
+	CONSTRAINT current_top_comments_pkey PRIMARY KEY (id)
+);
+

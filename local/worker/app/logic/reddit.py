@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
-from sqlalchemy import insert
+from sqlalchemy import insert, text
 
 import app.database.db as db
 import app.database.models as models
@@ -276,8 +276,41 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
             break
 
     logger.info("Reddit WSB daily thread scraping complete")
+    refresh_top_comments()
     return
 
 
+def refresh_top_comments():
+    """The query to get the top comments in the daily thread hangs when run from FastAPI so we prepopulate."""
+    sql = """
+        TRUNCATE TABLE current_top_reddit_comments;
+
+        WITH daily_thread AS (
+            SELECT post_id
+            FROM reddit_posts
+            WHERE is_daily_thread IS TRUE
+            ORDER BY created_utc DESC
+            LIMIT 1
+        ),
+        top_comments AS (
+            SELECT comment_id, body, score
+            FROM reddit_comments
+            WHERE id IN (
+                SELECT id
+                FROM last_reddit_comments
+                WHERE post_id = (SELECT post_id FROM daily_thread)
+            )
+            ORDER BY score DESC
+            LIMIT 25
+        )
+        INSERT INTO current_top_reddit_comments (comment_id, body, score)
+        SELECT * FROM top_comments;
+    """
+    with db.get_connection() as conn:
+        conn.execute(text(sql))
+
+    logger.info("refreshed current_top_reddit_comments")
+
+
 if __name__ == "__main__":
-    scrape_reddit_wsb_daily_thread()
+    pass

@@ -15,10 +15,10 @@ app.include_router(routes.router)
 
 
 @app.get("/")
-def index():
+async def index():
     return {"hello": "world"}
 
 
 @app.get("/health")
-def health():
+async def health():
     return {"status": "up"}

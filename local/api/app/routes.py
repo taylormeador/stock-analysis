@@ -8,17 +8,17 @@ router = APIRouter(prefix="/api")
 
 
 @router.get("/whats-hot")
-def get_whats_hot():
+async def get_whats_hot():
     logger.info("calculating data for hot dashboard")
 
-    ticker_mentions = logic.get_ticker_mentions()
-    top_comments = logic.get_top_comments()
+    top_comments = await logic.get_top_comments()
+    ticker_mentions = await logic.get_ticker_mentions()
 
     logger.info("got whats hot data")
 
     dfs = {
         "ticker_mentions": ticker_mentions.to_dict("records"),
-        "top_comments": top_comments.to_dict("records"),
+        "top_comments": top_comments,
     }
 
     return {"data": dfs}

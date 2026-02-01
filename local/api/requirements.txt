@@ -3,6 +3,6 @@ uvicorn[standard]==0.32.1
 pydantic==2.10.3
 pydantic-settings==2.6.1
 httpx==0.28.1
-SQLAlchemy==2.0.46
-psycopg2-binary==2.9.11
+sqlalchemy[asyncio]==2.0.46
+asyncpg==0.30.0
 pandas<3.0.0
