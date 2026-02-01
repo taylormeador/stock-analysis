@@ -1,6 +1,7 @@
 import logging
 import db
 import pandas as pd
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,8 @@ def get_top_comments():
         SELECT * FROM top_comments;
     """
     with db.get_connection() as conn:
-        top_comments = pd.read_sql(sql, conn)
+        result = conn.execution_options(timeout=10).execute(text(sql))
+        top_comments = pd.DataFrame(result.fetchall(), columns=result.keys())
 
     logger.info(f"got {len(top_comments)} top comments")
 
