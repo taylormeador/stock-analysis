@@ -36,6 +36,7 @@ CREATE INDEX idx_comments_parent_id ON reddit_comments(parent_id);
 CREATE INDEX idx_comments_created ON reddit_comments(created_utc);
 CREATE INDEX idx_comments_scraped ON reddit_comments(scraped_at);
 CREATE INDEX idx_comments_subreddit ON reddit_comments(subreddit);
+CREATE INDEX idx_reddit_comments_score ON reddit_comments(score DESC);
 
 
 CREATE VIEW first_reddit_comments AS
