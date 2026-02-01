@@ -1,1 +1,26 @@
 docker compose exec celery-worker celery -A app.main call app.tasks.scraping.scrape_reddit_hot
+
+-- First, see what's running and get the PIDs
+SELECT 
+    pid, 
+    state, 
+    LEFT(query, 100) as query_preview,
+    query_start,
+    NOW() - query_start as duration
+FROM pg_stat_activity 
+WHERE state != 'idle' 
+AND query NOT LIKE '%pg_stat_activity%'
+ORDER BY query_start;
+
+-- Kill specific queries by their PID
+-- Use pg_cancel_backend() to gracefully cancel (preferred)
+SELECT pg_cancel_backend(<pid>);
+
+-- If that doesn't work after ~10 seconds, force terminate
+SELECT pg_terminate_backend(<pid>);
+
+-- Or kill multiple at once (be careful!)
+SELECT pg_cancel_backend(pid)
+FROM pg_stat_activity 
+WHERE state != 'idle' 
+AND query ILIKE '%last_reddit_comments%';
