@@ -116,3 +116,14 @@ cboe_daily_stats = Table(
     Column("total_oi", Integer),
     Column("scraped_at", TIMESTAMP(timezone=True)),
 )
+
+fred_macro_data = Table(
+    "fred_macro_data",
+    metadata,
+    Column("date", Date, primary_key=True, nullable=False),
+    Column("treasury_ten_year", Numeric(6, 4)),
+    Column("fed_funds_rate", Numeric(6, 4)),
+    Column("dollar_index", Numeric(8, 4)),
+    Column("unemployment_rate", Numeric(5, 2)),
+    Column("scraped_at", TIMESTAMP(timezone=True)),
+)

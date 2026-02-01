@@ -5,7 +5,7 @@ from datetime import timedelta, date
 from app.celery_app import app
 from app.tasks import scraping
 from app.tasks import inference
-from app.tasks import stock_data
+from app.tasks import apis
 from app.tasks import data_prep
 from app.tasks import model_training
 from app.tasks import dashboard
@@ -35,8 +35,8 @@ app.conf.beat_schedule = {
         "schedule": 150.0,
     },
     "fetch-daily-stock-data": {
-        "task": "app.tasks.stock_data.fetch_stock_data",
-        "schedule": crontab(hour="1", minute="0"),  # Run at 1:00 AM
+        "task": "app.tasks.apis.fetch_stock_data",
+        "schedule": crontab(hour="1", minute="0"),
     },
     "refresh-whats-hot": {
         "task": "app.tasks.dashboard.calculate_whats_hot_data",
@@ -48,5 +48,9 @@ app.conf.beat_schedule = {
         "task": "app.tasks.scraping.scrape_cboe_daily_stats",
         "kwargs": {"start_date_str": two_days_ago_str, "end_date_str": today_str},
         "schedule": crontab(hour="23", minute="0"),
+    },
+    "get-fred-data": {
+        "task": "app.tasks.apis.get_fred_data",
+        "schedule": crontab(hour="1", minute="0"),
     },
 }

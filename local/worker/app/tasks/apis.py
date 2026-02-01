@@ -2,9 +2,10 @@ import logging
 import time
 from datetime import datetime, timedelta, timezone
 
+import app.logic.fred as fred
+import app.logic.stock_data as stocks
 from app.celery_app import app
 from app.logic.tickers import TICKERS
-import app.logic.stock_data as logic
 from app.tasks.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
@@ -37,14 +38,14 @@ def fetch_stock_data(start_date: str | None = None, end_date: str | None = None)
             if idx > 1:
                 time.sleep(0.5)
 
-            df = logic.fetch_historical_data(ticker, start_date, end_date)
+            df = stocks.fetch_historical_data(ticker, start_date, end_date)
             if df.empty:
                 logger.warning(f"{ticker}: No records to insert")
                 failed_tickers.append(ticker)
                 continue
 
-            df = logic.calculate_indicators(df)
-            logic.load_price_data(df, ticker, start_date, end_date)
+            df = stocks.calculate_indicators(df)
+            stocks.load_price_data(df, ticker, start_date, end_date)
 
         except Exception as e:
             logger.error(f"Failed to process {ticker}: {str(e)}")
@@ -57,11 +58,15 @@ def fetch_stock_data(start_date: str | None = None, end_date: str | None = None)
         logger.warning(f"Failed tickers: {', '.join(failed_tickers)}")
 
 
+@app.task
+def get_fred_data():
+    """Get macro data from FRED API."""
+    fred.get_fred_data()
+
+
 if __name__ == "__main__":
     # Configure logging for standalone execution
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    start_date = "2000-01-01"
-    fetch_stock_data(start_date)

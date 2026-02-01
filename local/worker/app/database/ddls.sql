@@ -58,3 +58,15 @@ CREATE TABLE cboe_daily_stats (
 );
 
 CREATE INDEX idx_cboe_date ON cboe_daily_stats(date);
+
+-- FRED macro economic indicators table
+CREATE TABLE fred_macro_data (
+    date DATE PRIMARY KEY,
+    treasury_ten_year DECIMAL(6, 4),
+    fed_funds_rate DECIMAL(6, 4),
+    dollar_index DECIMAL(8, 4),
+    unemployment_rate DECIMAL(5, 2),
+    scraped_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_fred_macro_date ON fred_macro_data(date);

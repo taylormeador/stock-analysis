@@ -24,5 +24,6 @@ setup(
         "matplotlib==3.10.0",
         "seaborn==0.13.2",
         "pyarrow==22.0.0",
+        "fredapi==0.5.2",
     ],
 )
