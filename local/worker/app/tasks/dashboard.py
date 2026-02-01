@@ -14,7 +14,7 @@ def calculate_whats_hot_data():
     """Calculate the data for the `What's Hot?` dashboard and upload the JSON to S3"""
     logger.info("calculating data for hot dashboard")
 
-    today_sql = """
+    todays_mentions = """
         WITH daily_thread AS (
             SELECT post_id
             FROM reddit_posts
@@ -25,7 +25,7 @@ def calculate_whats_hot_data():
         ticker_sentiment AS (
             SELECT 
                 ticker,
-                COUNT(*) as total_mentions,
+                COUNT(*) as todays_mentions,
                 ROUND(100.0 * SUM(CASE WHEN label = 'positive' THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_positive,
                 ROUND(100.0 * SUM(CASE WHEN label = 'neutral' THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_neutral,
                 ROUND(100.0 * SUM(CASE WHEN label = 'negative' THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_negative,
@@ -44,15 +44,45 @@ def calculate_whats_hot_data():
                 AND ticker IS NOT NULL
             )
             GROUP BY ticker
-            ORDER BY total_mentions DESC
+            ORDER BY todays_mentions DESC
             LIMIT 25
         )
         SELECT * FROM ticker_sentiment;
     """
-    with db.get_connection() as conn:
-        df = pd.read_sql(today_sql, conn)
 
-    logger.info(f"got {len(df.index)} tickers for hot dashboard")
+    yesterdays_mentions = """
+        WITH daily_thread AS (
+            SELECT distinct post_id, created_utc
+            FROM reddit_posts
+            WHERE is_daily_thread IS TRUE
+            ORDER BY created_utc DESC
+            OFFSET 1 LIMIT 1
+        ),
+        yesterdays_mentions AS (
+            SELECT 
+                ticker,
+                COUNT(*) as previous_mentions
+            FROM reddit_comments
+            WHERE id IN (
+                SELECT id
+                FROM first_reddit_comments
+                WHERE post_id = (SELECT post_id FROM daily_thread) 
+                AND ticker IS NOT NULL
+            )
+            GROUP BY ticker
+            ORDER BY previous_mentions DESC
+            LIMIT 25
+        )
+        SELECT * FROM yesterdays_mentions;
+    """
+    with db.get_connection() as conn:
+        today = pd.read_sql(todays_mentions, conn)
+        yesterday = pd.read_sql(yesterdays_mentions, conn)
+
+    logger.info(f"got {len(today.index)} tickers for hot dashboard")
+
+    df = today.merge(right=yesterday, how="left", on=["ticker"])
+    df["pct_change"] = (df["todays_mentions"] / df["previous_mentions"] - 1) * 100
 
     data = {"data": df.to_dict("records")}
     key = "dashboard/whats_hot.json"
