@@ -1,8 +1,7 @@
 import logging
-import pandas as pd
 
 from app.celery_app import app
-import app.database.db as db
+import app.logic.dashboard as logic
 from app.tasks.utils import SingleInstanceTask, write_to_s3
 
 
@@ -14,77 +13,9 @@ def calculate_whats_hot_data():
     """Calculate the data for the `What's Hot?` dashboard and upload the JSON to S3"""
     logger.info("calculating data for hot dashboard")
 
-    todays_mentions = """
-        WITH daily_thread AS (
-            SELECT post_id
-            FROM reddit_posts
-            WHERE is_daily_thread IS TRUE
-            ORDER BY created_utc DESC
-            LIMIT 1
-        ),
-        ticker_sentiment AS (
-            SELECT 
-                ticker,
-                COUNT(*) as todays_mentions,
-                ROUND(100.0 * SUM(CASE WHEN label = 'positive' THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_positive,
-                ROUND(100.0 * SUM(CASE WHEN label = 'neutral' THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_neutral,
-                ROUND(100.0 * SUM(CASE WHEN label = 'negative' THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_negative,
-                -- Aggregate sentiment score (-1 to 1)
-                ROUND(
-                    (SUM(CASE WHEN label = 'positive' THEN 1 ELSE 0 END) - 
-                    SUM(CASE WHEN label = 'negative' THEN 1 ELSE 0 END))::NUMERIC / COUNT(*),
-                    3
-                ) as sentiment_score
-            FROM reddit_comment_sentiment_predictions predictions
-            LEFT JOIN reddit_comments ON predictions.reddit_comments_id = reddit_comments.id
-            WHERE reddit_comments_id IN (
-                SELECT id
-                FROM first_reddit_comments
-                WHERE post_id = (SELECT post_id FROM daily_thread) 
-                AND ticker IS NOT NULL
-            )
-            GROUP BY ticker
-            ORDER BY todays_mentions DESC
-            LIMIT 25
-        )
-        SELECT * FROM ticker_sentiment;
-    """
+    ticker_mentions = logic.get_ticker_mention_df()
 
-    yesterdays_mentions = """
-        WITH daily_thread AS (
-            SELECT distinct post_id, created_utc
-            FROM reddit_posts
-            WHERE is_daily_thread IS TRUE
-            ORDER BY created_utc DESC
-            OFFSET 1 LIMIT 1
-        ),
-        yesterdays_mentions AS (
-            SELECT 
-                ticker,
-                COUNT(*) as previous_mentions
-            FROM reddit_comments
-            WHERE id IN (
-                SELECT id
-                FROM first_reddit_comments
-                WHERE post_id = (SELECT post_id FROM daily_thread) 
-                AND ticker IS NOT NULL
-            )
-            GROUP BY ticker
-            ORDER BY previous_mentions DESC
-            LIMIT 25
-        )
-        SELECT * FROM yesterdays_mentions;
-    """
-    with db.get_connection() as conn:
-        today = pd.read_sql(todays_mentions, conn)
-        yesterday = pd.read_sql(yesterdays_mentions, conn)
-
-    logger.info(f"got {len(today.index)} tickers for hot dashboard")
-
-    df = today.merge(right=yesterday, how="left", on=["ticker"])
-    df["pct_change"] = (df["todays_mentions"] / df["previous_mentions"] - 1) * 100
-
-    data = {"data": df.to_dict("records")}
+    data = {"data": ticker_mentions.to_dict("records")}
     key = "dashboard/whats_hot.json"
     write_to_s3(data, key)
 
