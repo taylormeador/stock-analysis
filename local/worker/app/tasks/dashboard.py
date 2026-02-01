@@ -13,9 +13,15 @@ def calculate_whats_hot_data():
     """Calculate the data for the `What's Hot?` dashboard and upload the JSON to S3"""
     logger.info("calculating data for hot dashboard")
 
-    ticker_mentions = logic.get_ticker_mention_df()
+    ticker_mentions = logic.get_ticker_mentions()
+    top_comments = logic.get_top_comments()
 
-    data = {"data": ticker_mentions.to_dict("records")}
+    dfs = {
+        "ticker_mentions": ticker_mentions.to_dict("records"),
+        "top_comments": top_comments.to_dict("records"),
+    }
+
+    data = {"data": dfs}
     key = "dashboard/whats_hot.json"
     write_to_s3(data, key)
 

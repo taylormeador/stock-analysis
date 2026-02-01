@@ -82,7 +82,7 @@ def get_ticker_sentiment_df():
     return df
 
 
-def get_ticker_mention_df():
+def get_ticker_mentions():
     """Gets the ticker mention data for today's + yesterday's daily discussion thread."""
     todays_mentions = """
         WITH daily_thread AS (
@@ -147,8 +147,38 @@ def get_ticker_mention_df():
     return df
 
 
+def get_top_comments():
+    """Get the top comments for the current daily discussion thread."""
+    sql = """
+        WITH daily_thread AS (
+            SELECT post_id
+            FROM reddit_posts
+            WHERE is_daily_thread IS TRUE
+            ORDER BY created_utc DESC
+            LIMIT 1
+        ),
+        top_comments AS (
+            SELECT body, score, controversiality
+            FROM reddit_comments
+            WHERE id IN (
+                SELECT id
+                FROM last_reddit_comments
+                WHERE post_id = (SELECT post_id FROM daily_thread)
+            )
+            ORDER BY score DESC
+            LIMIT 25
+        )
+        SELECT * FROM top_comments;
+    """
+    with db.get_connection() as conn:
+        top_comments = pd.read_sql(sql, conn)
+
+    return top_comments
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    get_top_comments()
