@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 import logging
+import routes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -10,6 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+app.include_router(routes.router)
 
 
 @app.get("/")
