@@ -24,7 +24,6 @@ def get_connection():
     conn = engine.connect()
     try:
         yield conn
-        conn.commit()
     except Exception:
         conn.rollback()
         raise
