@@ -98,4 +98,6 @@ def get_top_comments():
     with db.get_connection() as conn:
         top_comments = pd.read_sql(sql, conn)
 
+    logger.info(f"got {len(top_comments)} top comments")
+
     return top_comments
