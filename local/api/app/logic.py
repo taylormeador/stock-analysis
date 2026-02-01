@@ -97,8 +97,7 @@ def get_top_comments():
         SELECT * FROM top_comments;
     """
     with db.get_connection() as conn:
-        result = conn.execution_options(timeout=10).execute(text(sql))
-        top_comments = pd.DataFrame(result.fetchall(), columns=result.keys())
+        top_comments = pd.read_sql(sql, conn)
 
     logger.info(f"got {len(top_comments)} top comments")
 
