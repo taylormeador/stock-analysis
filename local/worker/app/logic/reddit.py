@@ -218,7 +218,7 @@ def scrape(
             insert_comments(comments)
 
 
-def scrape_reddit_wsb_daily_thread():
+def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
     """Scrape Reddit WSB daily thread for ticker mentions."""
     logger.info("scraping Reddit WSB daily thread...")
 
@@ -259,12 +259,8 @@ def scrape_reddit_wsb_daily_thread():
             }
             insert_post(post)
 
-            comments_url = f"http://www.reddit.com/r/wallstreetbets/comments/{post_data['id']}.json?sort=new&limit=200"
-            post_comments_url = comments_url.format(
-                subreddit="wallstreetbets",
-                post_id=post_data["id"],
-            )
-            response = get_json(post_comments_url, rate_limiter)
+            comments_url = f"http://www.reddit.com/r/wallstreetbets/comments/{post_data['id']}.json?sort={filter}&limit={limit}"
+            response = get_json(comments_url, rate_limiter)
             if not response:
                 logger.warning(f"unable to get comments for {post_data['id']}")
                 continue

@@ -43,6 +43,7 @@ SELECT DISTINCT ON (comment_id)
     id,
     comment_id,
     parent_id,
+    post_id,
     subreddit,
     body,
     score,
@@ -54,6 +55,25 @@ SELECT DISTINCT ON (comment_id)
     ticker
 FROM reddit_comments
 ORDER BY comment_id, scraped_at ASC;
+
+
+CREATE VIEW last_reddit_comments AS
+SELECT DISTINCT ON (comment_id)
+    id,
+    comment_id,
+    parent_id,
+    post_id,
+    subreddit,
+    body,
+    score,
+    controversiality,
+    author,
+    depth,
+    created_utc,
+    scraped_at,
+    ticker
+FROM reddit_comments
+ORDER BY comment_id, scraped_at DESC;
 
 
 CREATE TABLE reddit_comment_sentiment_predictions (

@@ -21,11 +21,11 @@ def scrape_reddit_hot():
     return
 
 
-@app.task(base=SingleInstanceTask)
-def scrape_reddit_wsb_daily_thread():
+@app.task
+def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
     """Scrape Reddit WSB daily thread for ticker mentions."""
 
-    reddit.scrape_reddit_wsb_daily_thread()
+    reddit.scrape_reddit_wsb_daily_thread(filter, limit)
 
     return
 

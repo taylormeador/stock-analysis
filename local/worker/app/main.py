@@ -26,9 +26,15 @@ today_str = today.strftime(date_format)
 
 # Celery Beat schedule
 app.conf.beat_schedule = {
-    "scrape-reddit-wsb-daily-thread": {
+    "scrape-reddit-wsb-daily-thread-new": {
         "task": "app.tasks.scraping.scrape_reddit_wsb_daily_thread",
+        "kwargs": {"filter": "new", "limit": 250},
         "schedule": 120.0,
+    },
+    "scrape-reddit-wsb-daily-thread-top": {
+        "task": "app.tasks.scraping.scrape_reddit_wsb_daily_thread",
+        "kwargs": {"filter": "top", "limit": 25},
+        "schedule": 600.0,
     },
     "run-reddit-comment-inference": {
         "task": "app.tasks.inference.run_sentiment_analysis",
@@ -51,6 +57,6 @@ app.conf.beat_schedule = {
     },
     "get-fred-data": {
         "task": "app.tasks.apis.get_fred_data",
-        "schedule": crontab(hour="1", minute="0"),
+        "schedule": crontab(hour="23", minute="0"),
     },
 }
