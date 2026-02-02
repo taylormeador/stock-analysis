@@ -65,7 +65,8 @@ with col2:
 with col3:
     st.caption(":material/schedule: Last run: 2 min ago")
 
-st.progress(1.0)
+st.progress(0.8)
+
 
 # Sentiment Analysis
 st.markdown("#### :material/psychology: Sentiment Analysis")
