@@ -8,7 +8,6 @@ from app.tasks import inference
 from app.tasks import apis
 from app.tasks import data_prep
 from app.tasks import model_training
-from app.tasks import dashboard
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,10 +42,6 @@ app.conf.beat_schedule = {
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",
         "schedule": crontab(hour="1", minute="0"),
-    },
-    "refresh-whats-hot": {
-        "task": "app.tasks.dashboard.calculate_whats_hot_data",
-        "schedule": 300.0,
     },
     # I don't know when the data is updated so we look back a couple days
     # Run at 23:00 UTC = 17:00/18:00 CST/CDT
