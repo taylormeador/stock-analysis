@@ -18,7 +18,13 @@ async def get_whats_hot():
 
     dfs = {
         "ticker_mentions": ticker_mentions.to_dict("records"),
-        "top_comments": top_comments,
+        "top_comments": top_comments.to_dict("records"),
     }
 
     return {"data": dfs}
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(get_whats_hot())

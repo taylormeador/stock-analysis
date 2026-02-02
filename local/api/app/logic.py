@@ -83,7 +83,7 @@ async def get_ticker_mentions():
 
 async def get_top_comments():
     """Get the top comments for the current daily discussion thread."""
-    sql = "SELECT * FROM current_top_reddit_comments;"
+    sql = "SELECT body, score FROM current_top_reddit_comments;"
     async with db.AsyncSessionLocal() as session:
         result = await session.execute(text(sql))
         rows = result.fetchall()
@@ -91,3 +91,9 @@ async def get_top_comments():
     df = pd.DataFrame(rows, columns=result.keys())  # type: ignore
 
     return df
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(get_top_comments())
