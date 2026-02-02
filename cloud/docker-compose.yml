@@ -1,16 +1,46 @@
 services:
+  nginx:
+    image: nginx:alpine
+    container_name: stock-analysis-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Uncomment when setting up SSL with Let's Encrypt
+      # - ./certbot/conf:/etc/letsencrypt:ro
+      # - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - streamlit
+    restart: unless-stopped
+    networks:
+      - default
+
   streamlit:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: stock-analysis-ui
-    ports:
-      - "8501:8501"
+    expose:
+      - "8501"
     environment:
-      - API_URL=http://fastapi:8000
+      - API_URL=${API_URL}
     volumes:
-      - ./frontend:/app
+      - ./frontend/app:/app/app
     command: streamlit run app/app.py --server.port=8501 --server.address=0.0.0.0
+    restart: unless-stopped
+    networks:
+      - default
+
+  # Optional: Certbot for Let's Encrypt SSL certificates
+  # Uncomment when you're ready to set up SSL
+  # certbot:
+  #   image: certbot/certbot
+  #   container_name: stock-analysis-certbot
+  #   volumes:
+  #     - ./certbot/conf:/etc/letsencrypt
+  #     - ./certbot/www:/var/www/certbot
+  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 networks:
   default:

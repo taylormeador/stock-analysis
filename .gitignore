@@ -1,3 +1,25 @@
+# SSL Certificates (NEVER commit these!)
+certbot/
+*.pem
+*.key
+*.crt
+
+# Docker volumes
+volumes/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
 .python-version
 
 # Byte-compiled / optimized / DLL files
