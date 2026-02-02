@@ -3,7 +3,7 @@ import logging
 import app.logic.cboe as cboe
 import app.logic.reddit as reddit
 from app.celery_app import app
-from app.utils import SingleInstanceTask
+from app.utils import SingleInstanceTask, ETLStatusTracker
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +21,20 @@ def scrape_reddit_hot():
     return
 
 
-@app.task
-def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
+@app.task(base=SingleInstanceTask, bind=True)
+def scrape_reddit_wsb_daily_thread(
+    self,
+    filter: str,
+    limit: int,
+):
     """Scrape Reddit WSB daily thread for ticker mentions."""
+    tracker = ETLStatusTracker(
+        task_id=self.request.id,
+        component_name="WSB Daily Thread Scraper",
+        task_description="Scrapes r/wallstreetbets daily discussion",
+    )
 
-    reddit.scrape_reddit_wsb_daily_thread(filter, limit)
+    reddit.scrape_reddit_wsb_daily_thread(filter, limit, tracker)
 
     return
 

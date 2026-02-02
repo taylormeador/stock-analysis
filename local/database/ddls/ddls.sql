@@ -70,3 +70,15 @@ CREATE TABLE fred_macro_data (
 );
 
 CREATE INDEX idx_fred_macro_date ON fred_macro_data(date);
+
+
+CREATE TABLE etl_task_status (
+    id SERIAL PRIMARY KEY,
+    task_id VARCHAR(50),
+    component_name VARCHAR(50),
+    task_description VARCHAR(100),
+    status VARCHAR(20),
+    progress FLOAT,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ
+);

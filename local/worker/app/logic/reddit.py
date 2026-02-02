@@ -10,7 +10,7 @@ from sqlalchemy import insert, text
 
 import app.database.db as db
 import app.database.models as models
-from app.utils import DistributedRateLimiter, TICKERS
+from app.utils import DistributedRateLimiter, TICKERS, ETLStatusTracker
 
 logger = logging.getLogger(__name__)
 
@@ -217,9 +217,10 @@ def scrape(
             insert_comments(comments)
 
 
-def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
+def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTracker):
     """Scrape Reddit WSB daily thread for ticker mentions."""
     logger.info("scraping Reddit WSB daily thread...")
+    tracker.start_task()
 
     rate_limiter = DistributedRateLimiter(
         name="reddit",
@@ -230,6 +231,11 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
     url = "https://www.reddit.com/r/wallstreetbets/hot.json?limit=5"
     json_response = get_json(url, rate_limiter)
     posts = json_response["data"]["children"]
+    if not posts:
+        logger.info("no posts found")
+        tracker.complete_task()
+        return
+
     for post in posts:
         post_title = post["data"]["title"]
         if (
@@ -259,6 +265,7 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
                 "scraped_at": scraped_at,
             }
             insert_post(post)
+            tracker.update_progress(0.3)
 
             comments_url = f"http://www.reddit.com/r/wallstreetbets/comments/{post_data['id']}.json?sort={filter}&limit={limit}"
             response = get_json(comments_url, rate_limiter)
@@ -273,13 +280,17 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
                 parent_ticker=None,
                 scraped_at=scraped_at,
             )
+            tracker.update_progress(0.6)
             insert_comments(comments)
             break
 
     logger.info("Reddit WSB daily thread scraping complete")
+    tracker.update_progress(0.8)
 
     if filter == "top":
         refresh_top_comments()
+
+    tracker.complete_task()
 
     return
 

@@ -127,3 +127,16 @@ fred_macro_data = Table(
     Column("unemployment_rate", Numeric(5, 2)),
     Column("scraped_at", TIMESTAMP(timezone=True)),
 )
+
+etl_task_status = Table(
+    "etl_task_status",
+    metadata,
+    Column("id", Integer, primary_key=True, nullable=False),
+    Column("task_id", String(50)),
+    Column("component_name", String(50)),
+    Column("task_description", String(100)),
+    Column("status", String(20)),
+    Column("progress", Float),
+    Column("start_time", TIMESTAMP(timezone=True)),
+    Column("end_time", TIMESTAMP(timezone=True)),
+)

@@ -41,6 +41,7 @@ services:
       dockerfile: Dockerfile
     container_name: stock-analysis-flower
     environment:
+      - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
       - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
