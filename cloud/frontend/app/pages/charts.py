@@ -6,8 +6,6 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from utils import fetch_s3_json
-
 from styles import (
     create_header,
     create_metric_card,
@@ -16,6 +14,7 @@ from styles import (
     format_percentage,
     style_dataframe,
 )
+from utils import fetch_s3_json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -124,38 +123,56 @@ with tab1:
 
         st.dataframe(
             numeric_df.style.apply(
-                lambda x: ["background-color: #1a1d29; color: #fafafa" for _ in x],
+                lambda x: [
+                    "background-color: #FFFFCC; color: #000000; font-weight: bold;"
+                    for _ in x
+                ],
                 axis=1,
             )
-            .set_properties(**{"text-align": "center", "padding": "10px"})
+            .set_properties(
+                **{
+                    "text-align": "center",
+                    "padding": "12px",
+                    "border": "3px solid #000000",
+                }
+            )
             .set_table_styles(
                 [
                     {
                         "selector": "thead th",
                         "props": [
-                            ("background-color", "#00d4aa"),
-                            ("color", "#0e1117"),
-                            ("font-weight", "bold"),
+                            ("background-color", "#FF00FF"),
+                            ("color", "#FFFFFF"),
+                            ("font-weight", "900"),
                             ("text-align", "center"),
-                            ("padding", "12px"),
-                            ("font-size", "14px"),
+                            ("padding", "15px"),
+                            ("font-size", "16px"),
+                            ("border", "4px solid #000000"),
                         ],
                     },
                     {
                         "selector": "tbody td",
                         "props": [
-                            ("border", "1px solid #2a2e3a"),
-                            ("font-size", "13px"),
+                            ("border", "3px solid #000000"),
+                            ("font-size", "14px"),
                         ],
+                    },
+                    {
+                        "selector": "tr:nth-child(even)",
+                        "props": [("background-color", "#CCFFFF")],
+                    },
+                    {
+                        "selector": "tr:nth-child(odd)",
+                        "props": [("background-color", "#FFFFCC")],
                     },
                 ]
             )
             .applymap(
                 lambda val: (
-                    "color: #00d4aa; font-weight: bold"
+                    "color: #00AA00; font-weight: 900; background-color: #CCFFCC;"
                     if isinstance(val, str) and "+" in val
                     else (
-                        "color: #ef5350; font-weight: bold"
+                        "color: #FF0000; font-weight: 900; background-color: #FFCCCC;"
                         if isinstance(val, str) and "-" in val
                         else ""
                     )
@@ -186,9 +203,12 @@ with tab2:
             name="Today's Mentions",
             x=chart_df["ticker"],
             y=chart_df["todays_mentions"],
-            marker_color="#00d4aa",
+            marker_color="#FF00FF",
+            marker_line_color="#000000",
+            marker_line_width=3,
             text=chart_df["todays_mentions"],
             textposition="outside",
+            textfont=dict(size=14, color="#000000", family="Comic Sans MS"),
         )
     )
 
@@ -197,24 +217,39 @@ with tab2:
             name="Yesterday's Mentions",
             x=chart_df["ticker"],
             y=chart_df["previous_mentions"],
-            marker_color="#ffa726",
+            marker_color="#00FFFF",
+            marker_line_color="#000000",
+            marker_line_width=3,
             text=chart_df["previous_mentions"],
             textposition="outside",
+            textfont=dict(size=14, color="#000000", family="Comic Sans MS"),
         )
     )
 
     fig.update_layout(
         title="Top 15 Tickers: Today vs Yesterday",
+        title_font=dict(size=24, color="#FF00FF", family="Comic Sans MS"),
         xaxis_title="Ticker",
         yaxis_title="Number of Mentions",
         barmode="group",
         height=500,
-        template="plotly_dark",
-        paper_bgcolor="#0e1117",
-        plot_bgcolor="#1a1d29",
-        font=dict(color="#fafafa"),
+        paper_bgcolor="#FFFFCC",
+        plot_bgcolor="#FFFFE0",
+        font=dict(color="#000000", family="Comic Sans MS", size=14),
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="#CCFFFF",
+            bordercolor="#000000",
+            borderwidth=3,
+            font=dict(family="Comic Sans MS", size=14, color="#000000"),
+        ),
+        xaxis=dict(gridcolor="#CCCCCC", linecolor="#000000", linewidth=3),
+        yaxis=dict(gridcolor="#CCCCCC", linecolor="#000000", linewidth=3),
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -231,7 +266,7 @@ with tab2:
         fig2 = go.Figure()
 
         colors = [
-            "#00d4aa" if x >= 0 else "#ef5350" for x in change_df["pct_change"].head(15)
+            "#00FF00" if x >= 0 else "#FF0000" for x in change_df["pct_change"].head(15)
         ]
 
         fig2.add_trace(
@@ -239,24 +274,36 @@ with tab2:
                 x=change_df["ticker"].head(15),
                 y=change_df["pct_change"].head(15),
                 marker_color=colors,
+                marker_line_color="#000000",
+                marker_line_width=3,
                 text=[f"{x:+.1f}%" for x in change_df["pct_change"].head(15)],
                 textposition="outside",
+                textfont=dict(size=14, color="#000000", family="Comic Sans MS"),
             )
         )
 
         fig2.update_layout(
             title="Top 15 Tickers by % Change in Mentions",
+            title_font=dict(size=24, color="#FF00FF", family="Comic Sans MS"),
             xaxis_title="Ticker",
             yaxis_title="% Change",
             height=500,
-            template="plotly_dark",
-            paper_bgcolor="#0e1117",
-            plot_bgcolor="#1a1d29",
-            font=dict(color="#fafafa"),
+            paper_bgcolor="#FFFFCC",
+            plot_bgcolor="#FFFFE0",
+            font=dict(color="#000000", family="Comic Sans MS", size=14),
             showlegend=False,
+            xaxis=dict(gridcolor="#CCCCCC", linecolor="#000000", linewidth=3),
+            yaxis=dict(
+                gridcolor="#CCCCCC",
+                linecolor="#000000",
+                linewidth=3,
+                zeroline=True,
+                zerolinecolor="#000000",
+                zerolinewidth=3,
+            ),
         )
 
-        fig2.add_hline(y=0, line_dash="dash", line_color="#a0a0a0", opacity=0.5)
+        fig2.add_hline(y=0, line_dash="solid", line_color="#000000", line_width=3)
 
         st.plotly_chart(fig2, use_container_width=True)
 

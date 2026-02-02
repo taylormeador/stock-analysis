@@ -148,12 +148,12 @@ with col1:
     st.markdown(
         """
         <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">📊 Reddit Data</h4>
-            <p style="font-size: 2rem; font-weight: bold; color: #00d4aa; margin: 0.5rem 0;">12,453</p>
-            <p style="color: #a0a0a0; margin: 0;">Comments analyzed today</p>
+            <h4 style="color: #FF00FF; margin-top: 0; font-weight: 900;">📊 Reddit Data</h4>
+            <p style="font-size: 2rem; font-weight: 900; color: #FF0000; margin: 0.5rem 0;">12,453</p>
+            <p style="color: #0000FF; margin: 0; font-weight: bold;">Comments analyzed today</p>
             <br>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #00d4aa; margin: 0.5rem 0;">142</p>
-            <p style="color: #a0a0a0; margin: 0;">Unique tickers mentioned</p>
+            <p style="font-size: 1.5rem; font-weight: 900; color: #FF0000; margin: 0.5rem 0;">142</p>
+            <p style="color: #0000FF; margin: 0; font-weight: bold;">Unique tickers mentioned</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -163,12 +163,12 @@ with col2:
     st.markdown(
         """
         <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">💹 Price Data</h4>
-            <p style="font-size: 2rem; font-weight: bold; color: #00d4aa; margin: 0.5rem 0;">187</p>
-            <p style="color: #a0a0a0; margin: 0;">Tickers tracked</p>
+            <h4 style="color: #FF00FF; margin-top: 0; font-weight: 900;">💹 Price Data</h4>
+            <p style="font-size: 2rem; font-weight: 900; color: #FF0000; margin: 0.5rem 0;">187</p>
+            <p style="color: #0000FF; margin: 0; font-weight: bold;">Tickers tracked</p>
             <br>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #00d4aa; margin: 0.5rem 0;">99.8%</p>
-            <p style="color: #a0a0a0; margin: 0;">Data completeness</p>
+            <p style="font-size: 1.5rem; font-weight: 900; color: #FF0000; margin: 0.5rem 0;">99.8%</p>
+            <p style="color: #0000FF; margin: 0; font-weight: bold;">Data completeness</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -178,12 +178,12 @@ with col3:
     st.markdown(
         """
         <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">🧠 ML Models</h4>
-            <p style="font-size: 2rem; font-weight: bold; color: #00d4aa; margin: 0.5rem 0;">3</p>
-            <p style="color: #a0a0a0; margin: 0;">Active experiments</p>
+            <h4 style="color: #FF00FF; margin-top: 0; font-weight: 900;">🧠 ML Models</h4>
+            <p style="font-size: 2rem; font-weight: 900; color: #FF0000; margin: 0.5rem 0;">3</p>
+            <p style="color: #0000FF; margin: 0; font-weight: bold;">Active experiments</p>
             <br>
-            <p style="font-size: 1.5rem; font-weight: bold; color: #00d4aa; margin: 0.5rem 0;">0.67</p>
-            <p style="color: #a0a0a0; margin: 0;">Best Sharpe ratio</p>
+            <p style="font-size: 1.5rem; font-weight: 900; color: #FF0000; margin: 0.5rem 0;">0.67</p>
+            <p style="color: #0000FF; margin: 0; font-weight: bold;">Best Sharpe ratio</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -219,7 +219,7 @@ for task_name, schedule, status in tasks_data:
         )
 
     st.markdown(
-        "<div style='border-bottom: 1px solid #2a2e3a; margin: 0.5rem 0;'></div>",
+        "<div style='border-bottom: 4px solid #000000; margin: 1rem 0;'></div>",
         unsafe_allow_html=True,
     )
 

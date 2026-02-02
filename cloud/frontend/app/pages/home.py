@@ -78,8 +78,8 @@ with col1:
     st.markdown(
         """
         <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">📥 Data Collection</h4>
-            <ul style="color: #fafafa;">
+            <h4 style="color: #FF00FF; margin-top: 0; font-weight: 900;">📥 Data Collection</h4>
+            <ul style="color: #000000; font-weight: bold;">
                 <li>Reddit API scraping</li>
                 <li>yfinance price data</li>
                 <li>CBOE options data</li>
@@ -94,8 +94,8 @@ with col2:
     st.markdown(
         """
         <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">⚙️ Processing</h4>
-            <ul style="color: #fafafa;">
+            <h4 style="color: #FF00FF; margin-top: 0; font-weight: 900;">⚙️ Processing</h4>
+            <ul style="color: #000000; font-weight: bold;">
                 <li>Sentiment analysis (FinBERT)</li>
                 <li>Technical indicators</li>
                 <li>Feature engineering</li>
@@ -110,8 +110,8 @@ with col3:
     st.markdown(
         """
         <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">📊 Analysis</h4>
-            <ul style="color: #fafafa;">
+            <h4 style="color: #FF00FF; margin-top: 0; font-weight: 900;">📊 Analysis</h4>
+            <ul style="color: #000000; font-weight: bold;">
                 <li>Trend detection</li>
                 <li>Signal generation</li>
                 <li>Backtesting</li>
@@ -157,9 +157,9 @@ with tech_col2:
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown(
     """
-    <div style="text-align: center; color: #a0a0a0; padding: 2rem; border-top: 1px solid #2a2e3a;">
-        <p>Built for systematic strategy research and alpha discovery 🚀</p>
-        <p style="font-size: 0.9rem;">Data updates every 2-5 minutes | Real-time sentiment analysis</p>
+    <div style="text-align: center; color: #000000; padding: 2rem; border: 5px solid #FF00FF; background-color: #FFCCFF; margin-top: 2rem; box-shadow: 5px 5px 0px #000000;">
+        <p style="font-weight: 900; font-size: 1.2rem;">Built for systematic strategy research and alpha discovery 🚀</p>
+        <p style="font-size: 1rem; font-weight: bold;">Data updates every 2-5 minutes | Real-time sentiment analysis</p>
     </div>
     """,
     unsafe_allow_html=True,
