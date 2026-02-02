@@ -2,7 +2,7 @@ import logging
 
 from app.celery_app import app
 import app.logic.dashboard as logic
-from app.tasks.utils import SingleInstanceTask, write_to_s3
+from app.utils import SingleInstanceTask, write_to_s3
 
 
 logger = logging.getLogger(__name__)
