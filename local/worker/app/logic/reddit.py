@@ -278,7 +278,10 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
             break
 
     logger.info("Reddit WSB daily thread scraping complete")
-    refresh_top_comments()
+
+    if filter == "top":
+        refresh_top_comments()
+
     return
 
 
