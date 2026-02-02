@@ -10,8 +10,8 @@ from sqlalchemy import insert, text
 
 import app.database.db as db
 import app.database.models as models
-from app.logic.rate_limiter import DistributedRateLimiter
-from app.logic.tickers import TICKERS
+from app.utils import DistributedRateLimiter
+from app.utils import TICKERS
 
 logger = logging.getLogger(__name__)
 

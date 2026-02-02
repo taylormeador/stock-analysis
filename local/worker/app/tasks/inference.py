@@ -8,7 +8,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from app.celery_app import app
 from app.database import models
 from app.database.db import get_connection
-from app.tasks.utils import SingleInstanceTask
+from app.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def run_sentiment_analysis():
 
         # Get reddit comments that don't have inferences yet
         sql = """
-            SELECT 
+            SELECT
                 c.id,
                 c.body,
                 c.comment_id

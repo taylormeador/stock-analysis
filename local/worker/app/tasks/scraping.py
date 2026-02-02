@@ -3,7 +3,7 @@ import logging
 import app.logic.cboe as cboe
 import app.logic.reddit as reddit
 from app.celery_app import app
-from app.tasks.utils import SingleInstanceTask
+from app.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
 

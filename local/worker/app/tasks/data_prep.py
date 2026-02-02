@@ -165,7 +165,7 @@ def generate_fake_training_data(
         Path to generated training data parquet file
     """
     import numpy as np
-    from app.logic.tickers import TICKERS
+    from local.worker.app.utils.tickers import TICKERS
 
     logger.info(
         f"Generating fake training data from {start_date} to {end_date} for {num_tickers} tickers"

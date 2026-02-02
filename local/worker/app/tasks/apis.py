@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 import app.logic.fred as fred
 import app.logic.stock_data as stocks
 from app.celery_app import app
-from app.logic.tickers import TICKERS
-from app.tasks.utils import SingleInstanceTask
+from utils.tickers import TICKERS
+from app.utils import SingleInstanceTask
 
 logger = logging.getLogger(__name__)
 

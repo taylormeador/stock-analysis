@@ -7,7 +7,6 @@ to MLFlow for comparison and model versioning.
 
 import logging
 import os
-from datetime import datetime
 from pathlib import Path
 
 import mlflow
