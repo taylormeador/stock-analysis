@@ -35,10 +35,6 @@ app.conf.beat_schedule = {
         "kwargs": {"filter": "top", "limit": 25},
         "schedule": 600.0,
     },
-    "run-reddit-comment-inference": {
-        "task": "app.tasks.inference.run_sentiment_analysis",
-        "schedule": 150.0,
-    },
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",
         "schedule": crontab(hour="1", minute="0"),
