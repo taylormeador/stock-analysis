@@ -4,8 +4,8 @@ from styles import apply_custom_css
 apply_custom_css()
 
 # Page header
-st.title(":material/analytics: Stock Analysis Platform")
-st.caption("Real-time sentiment analysis and market insights")
+st.title(":material/analytics: CurveFitter9000")
+st.caption("Real-time market analysis and ML insights")
 st.divider()
 
 # Welcome section
@@ -14,10 +14,10 @@ col1, col2 = st.columns([2, 1])
 with col1:
     st.markdown(
         """
-    ### Welcome to Your Quantitative Trading Platform
+    ### Welcome to CurveFitter9000
     
-    This platform combines **Reddit sentiment analysis**, **financial market data**, 
-    and **machine learning** to provide systematic strategy research and real-time market insights.
+    This platform combines **financial market data**, **math**, 
+    and **wishful thinking** to provide systematic strategy research and real-time market insights.
     """
     )
 
@@ -27,28 +27,29 @@ with col1:
         st.markdown(
             """
         - Real-time tracking of **r/WallStreetBets** discussions
-        - **FinBERT**-powered sentiment classification
         - Ticker mention frequency and trending analysis
+        - \*In Development\* Sentiment classification and indicators + more sites like Stocktwits and Twitter
         """
         )
 
     with st.expander(":material/trending_up: Market Data Integration"):
         st.markdown(
             """
-        - Historical **OHLC** price data
+        - Historical **OHLCV** price data
         - Technical indicators (**RSI**, **MACD**, **Bollinger Bands**)
         - **CBOE** options market data (put/call ratios, volume, OI)
         - **FRED** macroeconomic indicators
         """
         )
 
-    with st.expander(":material/psychology: Machine Learning"):
+    with st.expander(":material/psychology: Math + Machine Learning"):
         st.markdown(
             """
         - **XGBoost**-based prediction models
         - Feature importance analysis
         - **MLflow** experiment tracking
         - Backtesting framework
+        - **Vibes** based insights from Claude LLM
         """
         )
 
@@ -56,9 +57,9 @@ with col1:
         st.markdown(
             """
         - Distributed **Celery** workers
-        - **Redis**-based rate limiting
+        - **FastAPI** REST endpoints
+        - **Redis**-based caching and rate limiting
         - **PostgreSQL** data persistence
-        - **S3**-backed data layer
         """
         )
 
@@ -86,7 +87,7 @@ with col1:
     st.markdown("#### :material/download: DATA COLLECTION")
     st.markdown(
         """
-    - **Reddit API** - Comment scraping
+    - **Reddit JSON Endpoints** - Comment scraping
     - **yfinance** - Historical prices
     - **CBOE** - Options market data
     - **FRED** - Macro indicators

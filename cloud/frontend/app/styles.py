@@ -46,6 +46,30 @@ def apply_custom_css():
             height: 20px !important;
             flex-shrink: 0 !important;
         }
+        
+        /* Tab styling - override Streamlit defaults */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            color: #C9D1D9 !important;
+            background-color: transparent !important;
+            border: 1px solid rgba(0, 255, 65, 0.3) !important;
+            border-radius: 0px !important;
+            padding: 0.5rem 1rem !important;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background-color: rgba(0, 255, 65, 0.1) !important;
+            color: #00FF41 !important;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background-color: rgba(0, 255, 65, 0.15) !important;
+            border-color: #00FF41 !important;
+            color: #00FF41 !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
