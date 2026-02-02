@@ -1,13 +1,11 @@
 import logging
-import os
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from plotly.subplots import make_subplots
 
-from styles import apply_custom_css, format_large_number, format_percentage, colors
-from utils import fetch_s3_json
+from styles import apply_custom_css, colors, format_large_number, format_percentage
+from utils import get_json
 
 apply_custom_css()
 
@@ -24,11 +22,11 @@ st.title(":material/trending_up: What's Hot")
 st.caption("Top trending tickers from r/WallStreetBets daily discussion")
 st.divider()
 
-# Fetch data from S3
+# Fetch data from API
 with st.spinner("Loading data..."):
-    json_response = fetch_s3_json("dashboard/whats_hot.json")
+    json_response = get_json("/whats-hot")
 
-if not json_response:
+if not json_response.get("data"):
     st.error(
         ":material/error: **No data available**\n\nThe data pipeline may not have run yet."
     )

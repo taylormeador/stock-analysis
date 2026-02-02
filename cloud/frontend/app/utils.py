@@ -7,33 +7,30 @@ the last_updated timestamp in metadata.
 
 import logging
 import os
-from datetime import datetime
-from typing import Any, Dict
+from typing import Dict
+import time
 
 import requests
-import streamlit as st
+
+API_URL = os.environ["API_URL"]
 
 logger = logging.getLogger(__name__)
 
-# S3 Configuration
-S3_BUCKET = os.getenv("S3_BUCKET_NAME", "stock-analysis-data-1993")
-S3_REGION = os.getenv("S3_REGION", "us-east-2")
-S3_BASE_URL = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com"
 
+def get_json(endpoint: str) -> Dict:
+    url = API_URL + endpoint
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url=url)
+            if not response.ok:
+                logger.info(
+                    f"error making API request {response.status_code}: {response.text}"
+                )
+                time.sleep(2**attempt)
+            else:
+                return response.json()
+        except:
+            logger.exception("error getting data from API")
 
-def fetch_s3_json(s3_key: str) -> Dict[str, Any] | None:
-    """Fetch JSON data from S3."""
-    try:
-        url = f"{S3_BASE_URL}/{s3_key}"
-        response = requests.get(url, timeout=10)
-        if not response.ok:
-            logger.error(f"Failed to fetch {s3_key}: {response.status_code}")
-            return None
-
-        data = response.json()
-        logger.info(f"Fetched {s3_key} from S3")
-        return data
-
-    except Exception as e:
-        logger.error(f"Error fetching {s3_key}: {e}")
-        return None
+    return {"data": []}
