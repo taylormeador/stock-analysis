@@ -89,9 +89,9 @@ st.divider()
 
 
 # Format columns for better display
-mentions_df = mentions_df.copy()
+display_df = mentions_df.copy()
 if "pct_change" in mentions_df.columns:
-    mentions_df["pct_change"] = mentions_df["pct_change"].apply(
+    display_df["pct_change"] = display_df["pct_change"].apply(
         lambda x: format_percentage(x) if pd.notna(x) else "N/A"
     )
 
@@ -101,7 +101,7 @@ column_rename = {
     "previous_mentions": "Yesterday's Mentions",
     "pct_change": "% Change",
 }
-mentions_df = mentions_df.rename(columns=column_rename)
+display_df = display_df.rename(columns=column_rename)
 
 # Create two tabs for different views
 tab1, tab2 = st.tabs(
@@ -112,13 +112,13 @@ with tab1:
     st.subheader("Ticker Mention Rankings")
 
     st.dataframe(
-        mentions_df,
+        display_df,
         width="stretch",
         height="content",
     )
 
     st.caption(
-        f"Showing **top {len(mentions_df)} tickers** from the latest WSB daily discussion thread"
+        f"Showing **top {len(display_df)} tickers** from the latest WSB daily discussion thread"
     )
 
     st.subheader("Top Comments")
