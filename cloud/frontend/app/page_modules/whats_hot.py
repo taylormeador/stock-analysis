@@ -109,8 +109,8 @@ with tab1:
 
     st.dataframe(
         display_df,
-        use_container_width=True,
-        height=600,
+        width="stretch",
+        height="content",
     )
 
     st.caption(
@@ -144,10 +144,10 @@ with tab2:
             name="Yesterday's Mentions",
             x=chart_df["ticker"],
             y=chart_df["previous_mentions"],
-            marker_color=colors.orange,
+            marker_color=colors.blue,
             text=chart_df["previous_mentions"],
             textposition="outside",
-            textfont=dict(size=11, color=colors.orange),
+            textfont=dict(size=11, color=colors.blue),
             opacity=0.7,
         )
     )
@@ -180,7 +180,7 @@ with tab2:
         height=500,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.divider()
 
@@ -237,7 +237,7 @@ with tab2:
         height=500,
     )
 
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
     # Add insights
     st.divider()
