@@ -233,8 +233,10 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int):
     posts = json_response["data"]["children"]
     for post in posts:
         post_title = post["data"]["title"]
-        if post_title.startswith("Daily Discussion Thread") or post_title.startswith(
-            "Weekend Discussion Thread"
+        if (
+            post_title.startswith("Daily Discussion Thread")
+            or post_title.startswith("Weekend Discussion Thread")
+            or post_title.startswith("What Are Your Moves")
         ):
             logger.info("found WSB daily thread")
             post_data = post["data"]
