@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from styles import apply_custom_css, format_large_number, format_percentage
+from styles import apply_custom_css, format_large_number, format_percentage, colors
 from utils import fetch_s3_json
 
 apply_custom_css()
@@ -83,16 +83,14 @@ with col4:
 
 st.divider()
 
-# Prepare data for display
-display_df = df.copy()
 
 # Format columns for better display
+display_df = df.copy()
 if "pct_change" in display_df.columns:
     display_df["pct_change"] = display_df["pct_change"].apply(
         lambda x: format_percentage(x) if pd.notna(x) else "N/A"
     )
 
-# Rename columns for display
 column_rename = {
     "ticker": "Ticker",
     "todays_mentions": "Today's Mentions",
@@ -108,14 +106,7 @@ tab1, tab2 = st.tabs(
 
 with tab1:
     st.subheader("Ticker Mention Rankings")
-
-    # Simple dataframe display - let Streamlit handle styling
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        height=600,
-    )
-
+    st.dataframe(display_df, width="stretch", height="content")
     st.caption(
         f"Showing **top {len(df)} tickers** from the latest WSB daily discussion thread"
     )
@@ -125,19 +116,16 @@ with tab2:
 
     # Create bar chart comparing today vs yesterday
     fig = go.Figure()
-
-    # Sort by today's mentions for better visualization
     chart_df = df.sort_values("todays_mentions", ascending=False).head(15)
-
     fig.add_trace(
         go.Bar(
             name="Today's Mentions",
             x=chart_df["ticker"],
             y=chart_df["todays_mentions"],
-            marker_color="#00FF41",
+            marker_color="#00C932",
             text=chart_df["todays_mentions"],
             textposition="outside",
-            textfont=dict(size=12, color="#00FF41"),
+            textfont=dict(size=12, color="#00AA2B"),
             opacity=0.9,
         )
     )
@@ -147,10 +135,10 @@ with tab2:
             name="Yesterday's Mentions",
             x=chart_df["ticker"],
             y=chart_df["previous_mentions"],
-            marker_color="#D18616",
+            marker_color="#4B8BCF",
             text=chart_df["previous_mentions"],
             textposition="outside",
-            textfont=dict(size=11, color="#D18616"),
+            textfont=dict(size=11, color="#1670D1"),
             opacity=0.7,
         )
     )
@@ -183,7 +171,7 @@ with tab2:
         height=500,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.divider()
 
@@ -236,7 +224,7 @@ with tab2:
         height=500,
     )
 
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
     # Add insights
     st.divider()

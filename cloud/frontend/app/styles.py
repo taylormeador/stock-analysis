@@ -5,6 +5,16 @@ Most styling comes from config.toml - this just adds terminal aesthetic touches.
 
 import streamlit as st
 import pandas as pd
+from dataclasses import dataclass
+
+
+@dataclass
+class Colors:
+    bright_green: str = "#00C932"
+    blue: str = "#4B8BCF"
+
+
+colors = Colors()
 
 
 def apply_custom_css():
