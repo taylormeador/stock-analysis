@@ -106,7 +106,13 @@ tab1, tab2 = st.tabs(
 
 with tab1:
     st.subheader("Ticker Mention Rankings")
-    st.dataframe(display_df, width="stretch", height="content")
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        height=600,
+    )
+
     st.caption(
         f"Showing **top {len(df)} tickers** from the latest WSB daily discussion thread"
     )
@@ -116,16 +122,19 @@ with tab2:
 
     # Create bar chart comparing today vs yesterday
     fig = go.Figure()
+
+    # Sort by today's mentions for better visualization
     chart_df = df.sort_values("todays_mentions", ascending=False).head(15)
+
     fig.add_trace(
         go.Bar(
             name="Today's Mentions",
             x=chart_df["ticker"],
             y=chart_df["todays_mentions"],
-            marker_color="#00C932",
+            marker_color=colors.bright_green,
             text=chart_df["todays_mentions"],
             textposition="outside",
-            textfont=dict(size=12, color="#00AA2B"),
+            textfont=dict(size=12, color=colors.bright_green),
             opacity=0.9,
         )
     )
@@ -135,22 +144,22 @@ with tab2:
             name="Yesterday's Mentions",
             x=chart_df["ticker"],
             y=chart_df["previous_mentions"],
-            marker_color="#4B8BCF",
+            marker_color=colors.orange,
             text=chart_df["previous_mentions"],
             textposition="outside",
-            textfont=dict(size=11, color="#1670D1"),
+            textfont=dict(size=11, color=colors.orange),
             opacity=0.7,
         )
     )
 
     fig.update_layout(
         barmode="group",
-        plot_bgcolor="#0d1117",
-        paper_bgcolor="#0d1117",
-        font=dict(color="#C9D1D9", family="monospace"),
+        plot_bgcolor=colors.dark_bg,
+        paper_bgcolor=colors.dark_bg,
+        font=dict(color=colors.text_gray, family="monospace"),
         title=dict(
             text="Top 15 Tickers: Today vs Yesterday",
-            font=dict(size=18, color="#00FF41"),
+            font=dict(size=18, color=colors.bright_green),
         ),
         xaxis=dict(
             title="Ticker",
@@ -164,14 +173,14 @@ with tab2:
         ),
         legend=dict(
             bgcolor="rgba(0, 0, 0, 0)",
-            bordercolor="#00FF41",
+            bordercolor=colors.bright_green,
             borderwidth=1,
         ),
         hovermode="x unified",
         height=500,
     )
 
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 
@@ -186,13 +195,16 @@ with tab2:
     fig2 = go.Figure()
 
     # Color based on positive/negative change
-    colors = ["#00FF41" if val > 0 else "#D18616" for val in change_df["pct_change"]]
+    bar_colors = [
+        colors.bright_green if val > 0 else colors.orange
+        for val in change_df["pct_change"]
+    ]
 
     fig2.add_trace(
         go.Bar(
             x=change_df["ticker"],
             y=change_df["pct_change"],
-            marker_color=colors,
+            marker_color=bar_colors,
             text=[format_percentage(val) for val in change_df["pct_change"]],
             textposition="outside",
             textfont=dict(size=12),
@@ -201,11 +213,12 @@ with tab2:
     )
 
     fig2.update_layout(
-        plot_bgcolor="#0d1117",
-        paper_bgcolor="#0d1117",
-        font=dict(color="#C9D1D9", family="monospace"),
+        plot_bgcolor=colors.dark_bg,
+        paper_bgcolor=colors.dark_bg,
+        font=dict(color=colors.text_gray, family="monospace"),
         title=dict(
-            text="Top 10 Tickers by % Change", font=dict(size=18, color="#00FF41")
+            text="Top 10 Tickers by % Change",
+            font=dict(size=18, color=colors.bright_green),
         ),
         xaxis=dict(
             title="Ticker",
@@ -216,7 +229,7 @@ with tab2:
             gridcolor="rgba(0, 255, 65, 0.1)",
             showgrid=True,
             zeroline=True,
-            zerolinecolor="#58A6FF",
+            zerolinecolor=colors.blue,
             zerolinewidth=2,
         ),
         showlegend=False,
@@ -224,7 +237,7 @@ with tab2:
         height=500,
     )
 
-    st.plotly_chart(fig2, width="stretch")
+    st.plotly_chart(fig2, use_container_width=True)
 
     # Add insights
     st.divider()
