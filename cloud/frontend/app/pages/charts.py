@@ -6,16 +6,10 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
+from styles import apply_custom_css, format_large_number, format_percentage
 from utils import fetch_s3_json
 
-from styles import (
-    create_header,
-    create_metric_card,
-    create_subheader,
-    format_large_number,
-    format_percentage,
-    style_dataframe,
-)
+apply_custom_css()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,18 +20,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Page header
-create_header(
-    "What's Hot? 🔥", "Top trending tickers from r/WallStreetBets daily discussion"
-)
+st.title(":material/trending_up: What's Hot")
+st.caption("Top trending tickers from r/WallStreetBets daily discussion")
+st.divider()
 
 # Fetch data from S3
 with st.spinner("Loading data..."):
     json_response = fetch_s3_json("dashboard/whats_hot.json")
 
 if not json_response:
-    st.error("❌ No data available. The data pipeline may not have run yet.")
+    st.error(
+        ":material/error: **No data available**\n\nThe data pipeline may not have run yet."
+    )
     st.info(
-        "💡 The data is refreshed every 5 minutes from the WSB daily discussion thread."
+        ":material/info: **Data Refresh**\n\nThe data is refreshed every 5 minutes from the WSB daily discussion thread."
     )
     st.stop()
 
@@ -45,7 +41,7 @@ if not json_response:
 ticker_data = json_response.get("data", {}).get("ticker_mentions", [])
 
 if not ticker_data:
-    st.warning("⚠️ No ticker mentions found in the latest data.")
+    st.warning(":material/warning: No ticker mentions found in the latest data.")
     st.stop()
 
 df = pd.DataFrame(ticker_data)
@@ -61,31 +57,31 @@ col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.metric(
-        label="Total Mentions",
+        label=":material/forum: Total Mentions",
         value=format_large_number(total_mentions),
     )
 
 with col2:
     st.metric(
-        label="Top Ticker",
+        label=":material/star: Top Ticker",
         value=top_ticker,
         delta=f"{top_ticker_mentions} mentions",
     )
 
 with col3:
     st.metric(
-        label="Tickers Tracked",
+        label=":material/show_chart: Tickers Tracked",
         value=len(df),
     )
 
 with col4:
     st.metric(
-        label="Avg % Change",
+        label=":material/percent: Avg % Change",
         value=format_percentage(avg_change),
         delta_color="normal" if avg_change >= 0 else "inverse",
     )
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.divider()
 
 # Prepare data for display
 display_df = df.copy()
@@ -106,74 +102,26 @@ column_rename = {
 display_df = display_df.rename(columns=column_rename)
 
 # Create two tabs for different views
-tab1, tab2 = st.tabs(["📊 Table View", "📈 Visualization"])
+tab1, tab2 = st.tabs(
+    [":material/table: Table View", ":material/bar_chart: Visualization"]
+)
 
 with tab1:
-    create_subheader("Ticker Mention Rankings")
+    st.subheader("Ticker Mention Rankings")
 
-    # Style the dataframe with color-coded changes
-    if "% Change" in display_df.columns:
-        # Convert % Change back to numeric for styling
-        numeric_df = display_df.copy()
-        numeric_df["% Change"] = df["pct_change"]
-
-        styled_df = style_dataframe(numeric_df, highlight_col="% Change")
-
-        # Replace the numeric column with formatted string for display
-        numeric_df["% Change"] = display_df["% Change"]
-
-        st.dataframe(
-            numeric_df.style.apply(
-                lambda x: ["background-color: #1a1d29; color: #fafafa" for _ in x],
-                axis=1,
-            )
-            .set_properties(**{"text-align": "center", "padding": "10px"})
-            .set_table_styles(
-                [
-                    {
-                        "selector": "thead th",
-                        "props": [
-                            ("background-color", "#00d4aa"),
-                            ("color", "#0e1117"),
-                            ("font-weight", "bold"),
-                            ("text-align", "center"),
-                            ("padding", "12px"),
-                            ("font-size", "14px"),
-                        ],
-                    },
-                    {
-                        "selector": "tbody td",
-                        "props": [
-                            ("border", "1px solid #2a2e3a"),
-                            ("font-size", "13px"),
-                        ],
-                    },
-                ]
-            )
-            .applymap(
-                lambda val: (
-                    "color: #00d4aa; font-weight: bold"
-                    if isinstance(val, str) and "+" in val
-                    else (
-                        "color: #ef5350; font-weight: bold"
-                        if isinstance(val, str) and "-" in val
-                        else ""
-                    )
-                ),
-                subset=["% Change"],
-            ),
-            use_container_width=True,
-            height=600,
-        )
-    else:
-        st.dataframe(display_df, use_container_width=True, height=600)
+    # Simple dataframe display - let Streamlit handle styling
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        height=600,
+    )
 
     st.caption(
-        f"📅 Showing top {len(df)} tickers from the latest WSB daily discussion thread"
+        f"Showing **top {len(df)} tickers** from the latest WSB daily discussion thread"
     )
 
 with tab2:
-    create_subheader("Mention Trend Comparison")
+    st.subheader("Mention Trend Comparison")
 
     # Create bar chart comparing today vs yesterday
     fig = go.Figure()
@@ -186,9 +134,11 @@ with tab2:
             name="Today's Mentions",
             x=chart_df["ticker"],
             y=chart_df["todays_mentions"],
-            marker_color="#00d4aa",
+            marker_color="#00FF41",
             text=chart_df["todays_mentions"],
             textposition="outside",
+            textfont=dict(size=12, color="#00FF41"),
+            opacity=0.9,
         )
     )
 
@@ -197,84 +147,129 @@ with tab2:
             name="Yesterday's Mentions",
             x=chart_df["ticker"],
             y=chart_df["previous_mentions"],
-            marker_color="#ffa726",
+            marker_color="#D18616",
             text=chart_df["previous_mentions"],
             textposition="outside",
+            textfont=dict(size=11, color="#D18616"),
+            opacity=0.7,
         )
     )
 
     fig.update_layout(
-        title="Top 15 Tickers: Today vs Yesterday",
-        xaxis_title="Ticker",
-        yaxis_title="Number of Mentions",
         barmode="group",
+        plot_bgcolor="#0d1117",
+        paper_bgcolor="#0d1117",
+        font=dict(color="#C9D1D9", family="monospace"),
+        title=dict(
+            text="Top 15 Tickers: Today vs Yesterday",
+            font=dict(size=18, color="#00FF41"),
+        ),
+        xaxis=dict(
+            title="Ticker",
+            gridcolor="rgba(0, 255, 65, 0.1)",
+            showgrid=True,
+        ),
+        yaxis=dict(
+            title="Number of Mentions",
+            gridcolor="rgba(0, 255, 65, 0.1)",
+            showgrid=True,
+        ),
+        legend=dict(
+            bgcolor="rgba(0, 0, 0, 0)",
+            bordercolor="#00FF41",
+            borderwidth=1,
+        ),
+        hovermode="x unified",
         height=500,
-        template="plotly_dark",
-        paper_bgcolor="#0e1117",
-        plot_bgcolor="#1a1d29",
-        font=dict(color="#fafafa"),
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Percent change chart
-    if "pct_change" in df.columns:
-        create_subheader("Biggest Movers")
+    st.divider()
 
-        # Get biggest gainers and losers
-        change_df = df.dropna(subset=["pct_change"]).sort_values(
-            "pct_change", ascending=False
+    # Percentage change waterfall chart
+    st.subheader("Mention Growth Analysis")
+
+    # Calculate and sort by percentage change
+    change_df = (
+        df[df["pct_change"].notna()].sort_values("pct_change", ascending=False).head(10)
+    )
+
+    fig2 = go.Figure()
+
+    # Color based on positive/negative change
+    colors = ["#00FF41" if val > 0 else "#D18616" for val in change_df["pct_change"]]
+
+    fig2.add_trace(
+        go.Bar(
+            x=change_df["ticker"],
+            y=change_df["pct_change"],
+            marker_color=colors,
+            text=[format_percentage(val) for val in change_df["pct_change"]],
+            textposition="outside",
+            textfont=dict(size=12),
+            opacity=0.9,
         )
+    )
 
-        fig2 = go.Figure()
+    fig2.update_layout(
+        plot_bgcolor="#0d1117",
+        paper_bgcolor="#0d1117",
+        font=dict(color="#C9D1D9", family="monospace"),
+        title=dict(
+            text="Top 10 Tickers by % Change", font=dict(size=18, color="#00FF41")
+        ),
+        xaxis=dict(
+            title="Ticker",
+            gridcolor="rgba(0, 255, 65, 0.1)",
+        ),
+        yaxis=dict(
+            title="% Change from Yesterday",
+            gridcolor="rgba(0, 255, 65, 0.1)",
+            showgrid=True,
+            zeroline=True,
+            zerolinecolor="#58A6FF",
+            zerolinewidth=2,
+        ),
+        showlegend=False,
+        hovermode="x",
+        height=500,
+    )
 
-        colors = [
-            "#00d4aa" if x >= 0 else "#ef5350" for x in change_df["pct_change"].head(15)
-        ]
+    st.plotly_chart(fig2, use_container_width=True)
 
-        fig2.add_trace(
-            go.Bar(
-                x=change_df["ticker"].head(15),
-                y=change_df["pct_change"].head(15),
-                marker_color=colors,
-                text=[f"{x:+.1f}%" for x in change_df["pct_change"].head(15)],
-                textposition="outside",
-            )
+    # Add insights
+    st.divider()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### :material/trending_up: Trending Up")
+        trending_up = (
+            df[df["pct_change"] > 0].sort_values("pct_change", ascending=False).head(5)
         )
+        if not trending_up.empty:
+            for _, row in trending_up.iterrows():
+                st.markdown(
+                    f"**{row['ticker']}** - {format_percentage(row['pct_change'])}"
+                )
+        else:
+            st.caption("No tickers trending up")
 
-        fig2.update_layout(
-            title="Top 15 Tickers by % Change in Mentions",
-            xaxis_title="Ticker",
-            yaxis_title="% Change",
-            height=500,
-            template="plotly_dark",
-            paper_bgcolor="#0e1117",
-            plot_bgcolor="#1a1d29",
-            font=dict(color="#fafafa"),
-            showlegend=False,
-        )
+    with col2:
+        st.markdown("### :material/trending_down: Trending Down")
+        trending_down = df[df["pct_change"] < 0].sort_values("pct_change").head(5)
+        if not trending_down.empty:
+            for _, row in trending_down.iterrows():
+                st.markdown(
+                    f"**{row['ticker']}** - {format_percentage(row['pct_change'])}"
+                )
+        else:
+            st.caption("No tickers trending down")
 
-        fig2.add_hline(y=0, line_dash="dash", line_color="#a0a0a0", opacity=0.5)
-
-        st.plotly_chart(fig2, use_container_width=True)
-
-# Sidebar information
-st.sidebar.markdown("### 📊 About This Dashboard")
-st.sidebar.info(
-    """
-    This dashboard tracks ticker mentions from the r/WallStreetBets daily discussion thread.
-    
-    **Data Updates:** Every 5 minutes
-    
-    **Metrics Explained:**
-    - **Today's Mentions:** Count of ticker mentions in the current thread
-    - **Yesterday's Mentions:** Count from the previous thread
-    - **% Change:** Percentage change in mention frequency
-    """
+# Sidebar info
+st.sidebar.markdown("### :material/info: Data Info")
+st.sidebar.success("**STATUS:** LIVE DATA")
+st.sidebar.caption(
+    f"**LAST UPDATE:** Just now\n\n**TOTAL TICKERS:** {len(df)}\n\n**TOTAL MENTIONS:** {format_large_number(total_mentions)}"
 )
-
-st.sidebar.markdown("### 🔍 Quick Stats")
-st.sidebar.metric("Data Points", len(df))
-st.sidebar.metric("Last Updated", "Live")

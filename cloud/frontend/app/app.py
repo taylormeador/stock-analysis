@@ -22,9 +22,10 @@ charts_page = st.Page(
 status_page = st.Page(
     "pages/status.py", title="ETL Status", icon=":material/database_upload:"
 )
+hacker_page = st.Page("pages/hacker.py", title="Terminal", icon=":material/terminal:")
 
 # Set up navigation
-pg = st.navigation([home_page, charts_page, status_page])
+pg = st.navigation([home_page, charts_page, status_page, hacker_page])
 
 # Run the selected page
 pg.run()

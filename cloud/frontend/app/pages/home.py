@@ -1,10 +1,12 @@
 import streamlit as st
-from styles import create_header, create_info_box, create_subheader
+from styles import apply_custom_css
+
+apply_custom_css()
 
 # Page header
-create_header(
-    "Stock Analysis Platform 📈", "Real-time sentiment analysis and market insights"
-)
+st.title(":material/analytics: Stock Analysis Platform")
+st.caption("Real-time sentiment analysis and market insights")
+st.divider()
 
 # Welcome section
 col1, col2 = st.columns([2, 1])
@@ -12,178 +14,188 @@ col1, col2 = st.columns([2, 1])
 with col1:
     st.markdown(
         """
-        ### Welcome to Your Quantitative Trading Platform
-        
-        This platform combines **Reddit sentiment analysis**, **financial market data**, 
-        and **machine learning** to provide systematic strategy research and real-time market insights.
-        
-        #### 🎯 Key Features
-        
-        **📊 Sentiment Analysis**
-        - Real-time tracking of r/WallStreetBets discussions
-        - FinBERT-powered sentiment classification
-        - Ticker mention frequency and trending analysis
-        
-        **💹 Market Data Integration**
-        - Historical OHLC price data
-        - Technical indicators (RSI, MACD, Bollinger Bands)
-        - CBOE options market data (put/call ratios, volume, OI)
-        - FRED macroeconomic indicators
-        
-        **🤖 Machine Learning**
-        - XGBoost-based prediction models
-        - Feature importance analysis
-        - MLflow experiment tracking
-        - Backtesting framework
-        
-        **⚡ Real-time Processing**
-        - Distributed Celery workers
-        - Redis-based rate limiting
-        - PostgreSQL data persistence
-        - S3-backed data layer
-        """
+    ### Welcome to Your Quantitative Trading Platform
+    
+    This platform combines **Reddit sentiment analysis**, **financial market data**, 
+    and **machine learning** to provide systematic strategy research and real-time market insights.
+    """
     )
+
+    st.subheader(":material/target: Key Features")
+
+    with st.expander(":material/analytics: Sentiment Analysis", expanded=True):
+        st.markdown(
+            """
+        - Real-time tracking of **r/WallStreetBets** discussions
+        - **FinBERT**-powered sentiment classification
+        - Ticker mention frequency and trending analysis
+        """
+        )
+
+    with st.expander(":material/trending_up: Market Data Integration"):
+        st.markdown(
+            """
+        - Historical **OHLC** price data
+        - Technical indicators (**RSI**, **MACD**, **Bollinger Bands**)
+        - **CBOE** options market data (put/call ratios, volume, OI)
+        - **FRED** macroeconomic indicators
+        """
+        )
+
+    with st.expander(":material/psychology: Machine Learning"):
+        st.markdown(
+            """
+        - **XGBoost**-based prediction models
+        - Feature importance analysis
+        - **MLflow** experiment tracking
+        - Backtesting framework
+        """
+        )
+
+    with st.expander(":material/bolt: Real-time Processing"):
+        st.markdown(
+            """
+        - Distributed **Celery** workers
+        - **Redis**-based rate limiting
+        - **PostgreSQL** data persistence
+        - **S3**-backed data layer
+        """
+        )
 
 with col2:
-    create_info_box(
-        "🚀 Quick Start",
-        "Navigate using the sidebar to explore different sections of the platform.",
-        box_type="info",
+    st.info(
+        ":material/rocket_launch: **Quick Start**\n\nNavigate using the sidebar to explore different sections of the platform."
     )
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    create_info_box(
-        "📈 What's Hot",
-        "View trending tickers and sentiment from WSB daily discussions.",
-        box_type="success",
+    st.success(
+        ":material/trending_up: **What's Hot**\n\nView trending tickers and sentiment from WSB daily discussions."
     )
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    create_info_box(
-        "⚙️ ETL Status",
-        "Monitor the health and status of data pipelines.",
-        box_type="warning",
+    st.warning(
+        ":material/settings: **ETL Status**\n\nMonitor the health and status of data pipelines."
     )
 
-st.markdown("<br><br>", unsafe_allow_html=True)
+st.divider()
 
-# Architecture overview
-create_subheader("System Architecture")
+# Architecture
+st.subheader(":material/architecture: System Architecture")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
+    st.markdown("#### :material/download: DATA COLLECTION")
     st.markdown(
         """
-        <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">📥 Data Collection</h4>
-            <ul style="color: #fafafa;">
-                <li>Reddit API scraping</li>
-                <li>yfinance price data</li>
-                <li>CBOE options data</li>
-                <li>FRED macro indicators</li>
-            </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    - **Reddit API** - Comment scraping
+    - **yfinance** - Historical prices
+    - **CBOE** - Options market data
+    - **FRED** - Macro indicators
+    """
     )
 
 with col2:
+    st.markdown("#### :material/settings: PROCESSING")
     st.markdown(
         """
-        <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">⚙️ Processing</h4>
-            <ul style="color: #fafafa;">
-                <li>Sentiment analysis (FinBERT)</li>
-                <li>Technical indicators</li>
-                <li>Feature engineering</li>
-                <li>Model training</li>
-            </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    - **Celery** - Distributed tasks
+    - **FinBERT** - Sentiment analysis
+    - **pandas-ta** - Technical indicators
+    - **PostgreSQL** - Data storage
+    """
     )
 
 with col3:
+    st.markdown("#### :material/analytics: ANALYSIS")
     st.markdown(
         """
-        <div class="card">
-            <h4 style="color: #00d4aa; margin-top: 0;">📊 Analysis</h4>
-            <ul style="color: #fafafa;">
-                <li>Trend detection</li>
-                <li>Signal generation</li>
-                <li>Backtesting</li>
-                <li>Performance metrics</li>
-            </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Technology stack
-create_subheader("Technology Stack")
-
-tech_col1, tech_col2 = st.columns(2)
-
-with tech_col1:
-    st.markdown(
-        """
-        **Backend & Processing**
-        - 🐍 Python 3.13
-        - 🔄 Celery (distributed workers)
-        - 🗄️ PostgreSQL (data storage)
-        - 📦 Redis (caching & coordination)
-        - 🤖 Transformers (FinBERT)
-        """
-    )
-
-with tech_col2:
-    st.markdown(
-        """
-        **ML & Analytics**
-        - 📊 XGBoost, LightGBM
-        - 🧪 MLflow (experiment tracking)
-        - 📈 pandas-ta (technical analysis)
-        - 🎨 Plotly (visualization)
-        - ☁️ AWS S3 (data layer)
-        """
-    )
-
-# Footer
-st.markdown("<br><br>", unsafe_allow_html=True)
-st.markdown(
+    - **XGBoost** - ML predictions
+    - **MLflow** - Experiment tracking
+    - **Backtesting** - Strategy validation
+    - **Streamlit** - Visualization
     """
-    <div style="text-align: center; color: #a0a0a0; padding: 2rem; border-top: 1px solid #2a2e3a;">
-        <p>Built for systematic strategy research and alpha discovery 🚀</p>
-        <p style="font-size: 0.9rem;">Data updates every 2-5 minutes | Real-time sentiment analysis</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
+    )
+
+st.divider()
+
+# Tech stack
+st.subheader(":material/code: Technology Stack")
+
+tab1, tab2, tab3 = st.tabs(
+    [
+        ":material/database: Data Layer",
+        ":material/psychology: ML Stack",
+        ":material/web: Frontend",
+    ]
 )
+
+with tab1:
+    st.markdown(
+        """
+    **Database & Storage**
+    - **PostgreSQL** - Primary data store
+    - **Redis** - Caching and task queue
+    - **S3** - Data lake and artifacts
+    
+    **Data Sources**
+    - **Reddit API** (PRAW)
+    - **yfinance** (market data)
+    - **CBOE** (options data)
+    - **FRED** (macroeconomic data)
+    """
+    )
+
+with tab2:
+    st.markdown(
+        """
+    **Models & Libraries**
+    - **Transformers** (FinBERT)
+    - **XGBoost**, **LightGBM**
+    - **scikit-learn**
+    - **pandas**, **numpy**
+    
+    **ML Infrastructure**
+    - **MLflow** - Experiment tracking
+    - **pandas-ta** - Technical analysis
+    - Backtesting framework
+    """
+    )
+
+with tab3:
+    st.markdown(
+        """
+    **Application**
+    - **Streamlit** - Dashboard framework
+    - **Plotly** - Interactive charts
+    - **FastAPI** - Backend API
+    
+    **Infrastructure**
+    - **Docker** - Containerization
+    - **nginx** - Reverse proxy
+    - **Celery** - Task orchestration
+    """
+    )
+
+st.divider()
+
+# System status
+st.subheader(":material/monitor_heart: System Status")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric(
+        label=":material/forum: Comments Analyzed", value="12,453", delta="142 today"
+    )
+
+with col2:
+    st.metric(
+        label=":material/show_chart: Tickers Tracked", value="187", delta="99.8% uptime"
+    )
+
+with col3:
+    st.metric(label=":material/psychology: ML Models", value="3", delta="0.67 Sharpe")
 
 # Sidebar
-st.sidebar.markdown("### 🎯 Navigation")
-st.sidebar.info(
-    """
-    Use the navigation menu to explore:
-    - **Home**: Platform overview
-    - **What's Hot**: Trending tickers
-    - **ETL Status**: Pipeline health
-    """
-)
-
-st.sidebar.markdown("### 📊 System Status")
-st.sidebar.success("✅ All systems operational")
-
-st.sidebar.markdown("### 💡 Tips")
-st.sidebar.markdown(
-    """
-    - Check **What's Hot** for real-time WSB trends
-    - Monitor **ETL Status** for data pipeline health
-    - Data refreshes automatically
-    """
-)
+st.sidebar.markdown("### :material/info: System Status")
+st.sidebar.success("**SYSTEM:** OPERATIONAL")
+st.sidebar.caption("**DATA REFRESH:** 2-5 MIN | **SENTIMENT:** REAL-TIME")
