@@ -18,7 +18,7 @@ services:
 
   streamlit:
     build:
-      context: ./frontend
+      context: ./streamlit
       dockerfile: Dockerfile
     container_name: stock-analysis-ui
     expose:
@@ -26,7 +26,7 @@ services:
     environment:
       - API_URL=${API_URL}
     volumes:
-      - ./frontend/app:/app/app
+      - ./streamlit/app:/app/app
     command: streamlit run app/app.py --server.port=8501 --server.address=0.0.0.0
     restart: unless-stopped
     networks:
