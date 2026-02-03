@@ -298,8 +298,6 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTr
 def refresh_top_comments():
     """The query to get the top comments in the daily thread hangs when run from FastAPI so we prepopulate."""
     sql = """
-        TRUNCATE TABLE current_top_reddit_comments;
-
         WITH daily_thread AS (
             SELECT post_id
             FROM reddit_posts
@@ -322,7 +320,9 @@ def refresh_top_comments():
         SELECT * FROM top_comments;
     """
     with db.get_connection() as conn:
+        conn.execute(text("TRUNCATE TABLE current_top_reddit_comments;"))
         conn.execute(text(sql))
+        conn.commit()
 
     logger.info("refreshed current_top_reddit_comments")
 
