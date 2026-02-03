@@ -5,19 +5,25 @@ from datetime import datetime, timedelta, timezone
 import app.logic.fred as fred
 import app.logic.stock_data as stocks
 from app.celery_app import app
-from app.utils import TICKERS, SingleInstanceTask
+from app.utils import TICKERS, SingleInstanceTask, ETLStatusTracker
 
 logger = logging.getLogger(__name__)
 
 
-@app.task(base=SingleInstanceTask)
-def fetch_stock_data(start_date: str | None = None, end_date: str | None = None):
+@app.task(base=SingleInstanceTask, bind=True)
+def fetch_stock_data(self, start_date: str | None = None, end_date: str | None = None):
     """
     Fetch stock prices for all tracked tickers.
 
     Date args should be in form "%Y-%m-%d" and they will default to yesterday/today.
     """
     logger.info("Starting stock price fetch")
+    tracker = ETLStatusTracker(
+        task_id=self.request.id,
+        component_name="Stock Data Scraper",
+        task_description="Fetches OHLCV data for certain tickers",
+    )
+    tracker.start_task()
 
     # Default to yesterday/today for start/end date.
     if start_date is None:
@@ -29,14 +35,12 @@ def fetch_stock_data(start_date: str | None = None, end_date: str | None = None)
 
     logger.info(f"Fetching data for dates: {start_date} to {end_date}")
 
+    num_tickers = len(TICKERS)
+
     total_records = 0
     failed_tickers = []
-    for idx, ticker in enumerate(sorted(TICKERS), 1):
+    for idx, ticker in enumerate(sorted(TICKERS)):
         try:
-            # Add small delay between tickers to avoid rate limiting
-            if idx > 1:
-                time.sleep(0.5)
-
             df = stocks.fetch_historical_data(ticker, start_date, end_date)
             if df.empty:
                 logger.warning(f"{ticker}: No records to insert")
@@ -46,12 +50,17 @@ def fetch_stock_data(start_date: str | None = None, end_date: str | None = None)
             df = stocks.calculate_indicators(df)
             stocks.load_price_data(df, ticker, start_date, end_date)
 
+            # Update progress and add small delay between tickers to avoid rate limiting
+            tracker.update_progress(idx / num_tickers, persist=True)
+            time.sleep(0.5)
+
         except Exception as e:
             logger.error(f"Failed to process {ticker}: {str(e)}")
             failed_tickers.append(ticker)
             continue
 
     logger.info(f"Stock price fetch complete. Total records: {total_records}")
+    tracker.complete_task()
 
     if failed_tickers:
         logger.warning(f"Failed tickers: {', '.join(failed_tickers)}")
