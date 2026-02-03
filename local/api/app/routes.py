@@ -1,6 +1,9 @@
 from fastapi import APIRouter
 import logging
 import logic
+from sqlalchemy import text
+import pandas as pd
+import db
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,48 @@ async def get_whats_hot():
     return {"data": dfs}
 
 
+@router.get("/etl/status/")
+async def get_etl_status():
+    # TODO implement a table or something that has overall status
+    # overall status = operational, degraded, planned downtime, etc
+    # active workers, services, etc
+    # data freshness?
+    return {"data": {}}
+
+
+@router.get("/etl/status/components")
+async def get_etl_components_status():
+    sql = """
+        SELECT DISTINCT ON (task_description)
+            component_name,
+            task_description,
+            status,
+            progress,
+            start_time,
+            end_time
+        FROM etl_task_status
+        WHERE start_time > NOW() - INTERVAL '24 HOURS'
+        ORDER BY task_description, start_time DESC;
+    """
+    async with db.AsyncSessionLocal() as session:
+        result = await session.execute(text(sql))
+        data = result.fetchall()
+
+    df = pd.DataFrame(data)
+
+    return {"data": df.to_dict("records")}
+
+
+@router.get("/etl/status/data-quality")
+async def get_etl_data_quality_status():
+    # TODO implement a table or something that counts total reddit comments/posts analyzed
+    # unique tickers
+    # active ML models
+
+    return {"data": {}}
+
+
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(get_whats_hot())
+    asyncio.run(get_etl_status())

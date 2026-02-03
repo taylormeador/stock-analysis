@@ -45,3 +45,4 @@ services:
 networks:
   default:
     name: stock-analysis-network
+    external: true
