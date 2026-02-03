@@ -53,6 +53,16 @@ services:
       - "5555:5555"
     command: celery -A app.main flower --port=5555 --prometheus_metrics
 
+  celery-exporter:
+    image: danihodovic/celery-exporter:latest
+    container_name: stock-analysis-celery-exporter
+    ports:
+      - "9808:9808"
+    environment:
+      - CE_BROKER_URL=${REDIS_URL}
+      - CE_ENABLE_EVENTS=true
+    restart: unless-stopped
+
 networks:
   default:
     name: stock-analysis-network
