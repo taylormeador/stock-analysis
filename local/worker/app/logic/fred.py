@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 import app.database.db as db
 from app.database.models import fred_macro_data
+from app.utils import ETLStatusTracker, Status
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +16,20 @@ FRED_API_KEY = os.getenv("FRED_API_KEY")
 fred = fredapi.Fred(api_key=FRED_API_KEY)
 
 
-def get_fred_data():
+def get_fred_data(tracker: ETLStatusTracker):
     logger.info("hitting FRED API")
+    tracker.start_task()
 
     scraped_at = datetime.now(timezone.utc)
 
     treasury_ten_year = fred.get_series("DGS10")
+    tracker.update_progress(0.4, persist=True)
     fed_funds_rate = fred.get_series("DFF")
+    tracker.update_progress(0.5, persist=True)
     dollar_index = fred.get_series("DTWEXBGS")
+    tracker.update_progress(0.6, persist=True)
     unemployment_rate = fred.get_series("UNRATE")
+    tracker.update_progress(0.7, persist=True)
 
     df = pd.DataFrame(
         {
@@ -52,10 +58,12 @@ def get_fred_data():
             conn.execute(stmt)
             conn.commit()
     except Exception as e:
+        tracker.update_status(Status.FAILED)
         logger.error(f"exception while writing FRED data: {e}")
 
     logger.info("updated FRED table")
+    tracker.complete_task()
 
 
 if __name__ == "__main__":
-    get_fred_data()
+    pass

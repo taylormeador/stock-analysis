@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import app.logic.fred as fred
 import app.logic.stock_data as stocks
 from app.celery_app import app
-from app.utils import TICKERS, SingleInstanceTask, ETLStatusTracker
+from app.utils import TICKERS, SingleInstanceTask, ETLStatusTracker, Status
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +66,19 @@ def fetch_stock_data(self, start_date: str | None = None, end_date: str | None =
         logger.warning(f"Failed tickers: {', '.join(failed_tickers)}")
 
 
-@app.task
-def get_fred_data():
+@app.task(bind=True)
+def get_fred_data(self):
     """Get macro data from FRED API."""
-    fred.get_fred_data()
+    tracker = ETLStatusTracker(
+        task_id=self.request.id,
+        component_name="FRED Data Scraper",
+        task_description="Fetches macro data from FRED API",
+    )
+    try:
+        fred.get_fred_data(tracker)
+    except Exception:
+        tracker.update_status(Status.FAILED)
+        raise
 
 
 if __name__ == "__main__":
