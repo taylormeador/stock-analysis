@@ -82,5 +82,12 @@ class ETLStatusTracker:
             conn.commit()
 
     def update_status(self, status: Status):
-        # TODO update status when retrying or failed
-        pass
+        self.values["status"] = status.value
+        stmt = (
+            update(etl_task_status)
+            .where(etl_task_status.c.task_id == self.task_id)
+            .values(self.values)
+        )
+        with db.get_connection() as conn:
+            conn.execute(stmt)
+            conn.commit()

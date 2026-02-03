@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 import app.database.db as db
 from app.database.models import cboe_daily_stats
+from app.utils import ETLStatusTracker
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ ratio_mapping = {
 
 
 def scrape_daily_market_stats(
+    tracker: ETLStatusTracker,
     start_date_str: str | None = None,
     end_date_str: str | None = None,
 ):
@@ -26,6 +28,7 @@ def scrape_daily_market_stats(
     For backfilling, start_date and end_date can be provided.
     Default behavior is to get the data for today only.
     """
+    tracker.start_task()
 
     date_format = "%Y-%m-%d"
     if start_date_str is None or end_date_str is None:
@@ -41,6 +44,7 @@ def scrape_daily_market_stats(
     date_range = [date for date in date_range if date.weekday() < 5]
     if not date_range:
         logger.info("no valid dates for CBOE market stats")
+        tracker.complete_task()
         return
 
     logger.info(f"starting CBOE scrape for {start_date} to {end_date}")
@@ -80,13 +84,15 @@ def scrape_daily_market_stats(
         time.sleep(0.2)  # be nice to CDN
 
     # Insert to db, ignoring duplicates
-    with db.get_connection() as conn:
-        stmt = insert(cboe_daily_stats).values(all_stats)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["date"])
-        conn.execute(stmt)
-        conn.commit()
+    if all_stats:
+        with db.get_connection() as conn:
+            stmt = insert(cboe_daily_stats).values(all_stats)
+            stmt = stmt.on_conflict_do_nothing(index_elements=["date"])
+            conn.execute(stmt)
+            conn.commit()
 
     logger.info(f"inserted {len(all_stats)} cboe daily records")
+    tracker.complete_task()
 
 
 if __name__ == "__main__":
@@ -95,4 +101,4 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    scrape_daily_market_stats(start_date_str="2019-01-01", end_date_str="2026-01-01")
+    # scrape_daily_market_stats(start_date_str="2019-01-01", end_date_str="2026-01-01")
