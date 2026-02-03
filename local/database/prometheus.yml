@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Celery metrics via Flower
+  - job_name: 'celery'
+    static_configs:
+      - targets: ['stock-analysis-flower:5555']
+    metrics_path: '/metrics'
+
+  # FastAPI metrics (if you add prometheus middleware)
+  - job_name: 'fastapi'
+    static_configs:
+      - targets: ['stock-analysis-api:8000']
+    metrics_path: '/metrics'
+
+  # Postgres exporter (optional)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Redis exporter (optional)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
