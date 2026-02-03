@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: stock-analysis-celery:latest
     container_name: stock-analysis-celery-worker
     environment:
       - REDIS_URL=${REDIS_URL}
@@ -17,9 +18,7 @@ services:
     command: celery -A app.main worker --loglevel=info
 
   celery-beat:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: stock-analysis-celery:latest
     container_name: stock-analysis-celery-beat
     environment:
       - REDIS_URL=${REDIS_URL}
@@ -32,9 +31,7 @@ services:
     command: celery -A app.main beat --loglevel=info
 
   flower:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: stock-analysis-celery:latest
     container_name: stock-analysis-flower
     environment:
       - REDIS_URL=${REDIS_URL}
