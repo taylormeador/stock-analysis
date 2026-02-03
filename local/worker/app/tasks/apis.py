@@ -20,8 +20,8 @@ def fetch_stock_data(self, start_date: str | None = None, end_date: str | None =
     logger.info("Starting stock price fetch")
     tracker = ETLStatusTracker(
         task_id=self.request.id,
-        component_name="Stock Data Scraper",
-        task_description="Fetches OHLCV data for certain tickers",
+        component_name="Stock Price Data",
+        task_description="Daily OHLCV data with technical indicators",
     )
     tracker.start_task()
 
@@ -71,8 +71,8 @@ def get_fred_data(self):
     """Get macro data from FRED API."""
     tracker = ETLStatusTracker(
         task_id=self.request.id,
-        component_name="FRED Data Scraper",
-        task_description="Fetches macro data from FRED API",
+        component_name="FRED Macro Indicators",
+        task_description="Treasury yields, Fed funds rate, dollar index, unemployment",
     )
     try:
         fred.get_fred_data(tracker)
