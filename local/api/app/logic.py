@@ -83,7 +83,29 @@ async def get_ticker_mentions():
 
 async def get_top_comments():
     """Get the top comments for the current daily discussion thread."""
-    sql = "SELECT body, score FROM current_top_reddit_comments;"
+    sql = """
+        WITH daily_thread AS (
+            SELECT post_id
+            FROM reddit_posts
+            WHERE is_daily_thread IS TRUE
+            ORDER BY created_utc DESC
+            LIMIT 1
+        ),
+        latest_comment_ids AS (
+            SELECT DISTINCT ON (comment_id) 
+                id,
+                comment_id,
+                post_id
+            FROM reddit_comments
+            WHERE post_id = (SELECT post_id FROM daily_thread)
+            ORDER BY comment_id, scraped_at DESC
+        )
+        SELECT rc.comment_id, rc.body, rc.score
+        FROM latest_comment_ids lci
+        JOIN reddit_comments rc ON rc.id = lci.id
+        ORDER BY rc.score DESC
+        LIMIT 25;
+    """
     async with db.AsyncSessionLocal() as session:
         result = await session.execute(text(sql))
         rows = result.fetchall()
