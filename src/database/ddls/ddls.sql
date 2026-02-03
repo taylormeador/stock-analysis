@@ -82,3 +82,9 @@ CREATE TABLE etl_task_status (
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ
 );
+
+CREATE TABLE tickers (
+    id SERIAL PRIMARY KEY,
+    ticker VARCHAR(10),
+    is_tracked BOOLEAN DEFAULT True
+);

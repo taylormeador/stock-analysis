@@ -140,3 +140,11 @@ etl_task_status = Table(
     Column("start_time", TIMESTAMP(timezone=True)),
     Column("end_time", TIMESTAMP(timezone=True)),
 )
+
+tickers = Table(
+    "tickers",
+    metadata,
+    Column("id", Integer, primary_key=True, nullable=False),
+    Column("ticker", String(10)),
+    Column("is_tracked", Boolean),
+)
