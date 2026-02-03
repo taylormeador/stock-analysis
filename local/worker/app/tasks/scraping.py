@@ -31,7 +31,7 @@ def scrape_reddit_wsb_daily_thread(
     tracker = ETLStatusTracker(
         task_id=self.request.id,
         component_name="WSB Daily Thread Scraper",
-        task_description="Scrapes r/wallstreetbets daily discussion",
+        task_description=f"Scrapes r/wallstreetbets daily discussion {filter} comments",
     )
 
     reddit.scrape_reddit_wsb_daily_thread(filter, limit, tracker)
