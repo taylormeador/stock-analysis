@@ -40,7 +40,11 @@ def scrape_reddit_wsb_daily_thread(
 
 
 @app.task(base=SingleInstanceTask, bind=True)
-def scrape_cboe_daily_stats(self):
+def scrape_cboe_daily_stats(
+    self,
+    start_date_str: str | None = None,
+    end_date_str: str | None = None,
+):
     """Scrape CBOE website for daily options statistics."""
 
     tracker = ETLStatusTracker(
@@ -49,7 +53,7 @@ def scrape_cboe_daily_stats(self):
         task_description="Put/call ratios, volume, and open interest",
     )
     try:
-        cboe.scrape_daily_market_stats(tracker)
+        cboe.scrape_daily_market_stats(tracker, start_date_str, end_date_str)
     except:
         tracker.update_status(Status.FAILED)
         raise
