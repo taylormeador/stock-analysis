@@ -53,6 +53,7 @@ async def get_etl_status():
         data = result.fetchall()
 
     df = pd.DataFrame(data)
+    df["run_time"] = df.end_time - df.start_time
 
     return {"data": df.to_dict("records")}
 

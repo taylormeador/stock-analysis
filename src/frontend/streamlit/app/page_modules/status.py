@@ -85,6 +85,7 @@ for _, row in df.iterrows():
         delta = now - pd.to_datetime(row.start_time)
         ago = timeago.format(delta, now)
         st.caption(f":material/schedule: Last run: {ago}")
+        st.caption(f":material/avg_time: Run time: {row.run_time}s")
 
     st.progress(row.progress)
 
