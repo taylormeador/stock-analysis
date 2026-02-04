@@ -26,6 +26,6 @@ setup(
         "pyarrow==22.0.0",
         "fredapi==0.5.2",
         "prometheus-client==0.21.1",
-        "zstd==1.5.7.3",
+        "zstandard==0.25.0",
     ],
 )
