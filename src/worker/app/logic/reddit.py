@@ -6,11 +6,15 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
-from sqlalchemy import insert, text
-
+from sqlalchemy import insert
 import app.database.db as db
 import app.database.models as models
-from app.utils import DistributedRateLimiter, TICKERS, ETLStatusTracker
+from app.utils import (
+    DistributedRateLimiter,
+    TICKERS,
+    ETLStatusTracker,
+    track_records_processed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -282,11 +286,15 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTr
             )
             tracker.update_progress(0.6)
             insert_comments(comments)
+            track_records_processed(
+                task_name="scrape_reddit_wsb_daily_thread",
+                count=len(comments),
+                record_type="reddit_comment",
+            )
             break
 
     logger.info("Reddit WSB daily thread scraping complete")
     tracker.update_progress(0.8)
-
     tracker.complete_task()
 
     return

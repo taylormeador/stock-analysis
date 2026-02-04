@@ -13,11 +13,16 @@ scrape_configs:
     static_configs:
       - targets: ['stock-analysis-celery-exporter:9808']
 
-  # FastAPI metrics (if you add prometheus middleware)
-  - job_name: 'fastapi'
+  - job_name: 'celery-workers'
     static_configs:
-      - targets: ['stock-analysis-api:8000']
+      - targets: ['stock-analysis-celery-worker:9808']
     metrics_path: '/metrics'
+
+  # FastAPI metrics (if you add prometheus middleware)
+  # - job_name: 'fastapi'
+  #   static_configs:
+  #     - targets: ['stock-analysis-api:8000']
+  #   metrics_path: '/metrics'
 
   # Postgres exporter (optional)
   # - job_name: 'postgres'

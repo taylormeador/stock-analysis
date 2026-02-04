@@ -9,6 +9,17 @@ from app.tasks import apis  # noqa: F401
 from app.tasks import data_prep  # noqa: F401
 from app.tasks import model_training  # noqa: F401
 
+from celery import signals
+from app.utils import start_metrics_server
+
+
+# Add this at the bottom, after all your existing config
+@signals.worker_ready.connect
+def start_prometheus_server(**kwargs):
+    """Start Prometheus metrics server when worker is ready."""
+    start_metrics_server()
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

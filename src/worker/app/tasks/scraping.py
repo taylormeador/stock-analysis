@@ -5,6 +5,11 @@ import app.logic.reddit as reddit
 from app.celery_app import app
 from app.utils import SingleInstanceTask, ETLStatusTracker, Status
 
+from app.utils import (
+    track_task_metrics,
+    track_records_processed,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,6 +27,7 @@ def scrape_reddit_hot():
 
 
 @app.task(base=SingleInstanceTask, bind=True)
+@track_task_metrics
 def scrape_reddit_wsb_daily_thread(
     self,
     filter: str,
