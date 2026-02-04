@@ -8,74 +8,64 @@ logger = logging.getLogger(__name__)
 
 
 async def get_ticker_mentions():
-    """Gets the ticker mention data for today's + yesterday's daily discussion thread."""
-    todays_mentions = """
+    """Gets the ticker mention data for daily discussion threads."""
+    sql = """
         WITH daily_thread AS (
-            SELECT post_id
+            SELECT DISTINCT post_id, created_utc
             FROM reddit_posts
             WHERE is_daily_thread IS TRUE
             ORDER BY created_utc DESC
-            LIMIT 1
+            OFFSET {offset} LIMIT 1
         ),
-        ticker_mentions AS (
-            SELECT 
-                ticker,
-                COUNT(*) as todays_mentions
+        latest_comment_ids AS (
+            SELECT DISTINCT ON (comment_id) 
+                id,
+                comment_id,
+                post_id
             FROM reddit_comments
-            WHERE id IN (
-                SELECT id
-                FROM first_reddit_comments
-                WHERE post_id = (SELECT post_id FROM daily_thread) 
-                AND ticker IS NOT NULL
-            )
-            GROUP BY ticker
-            ORDER BY todays_mentions DESC
-            LIMIT 25
+            WHERE post_id = (SELECT post_id FROM daily_thread)
+            ORDER BY comment_id, scraped_at DESC
         )
-        SELECT * FROM ticker_mentions;
+        SELECT ticker, count(ticker) as ticker_mentions
+        FROM latest_comment_ids lci
+        JOIN reddit_comments rc ON rc.id = lci.id
+        GROUP BY ticker
+        ORDER BY ticker_mentions DESC
+        LIMIT 25;
     """
-
-    yesterdays_mentions = """
-        WITH daily_thread AS (
-            SELECT distinct post_id, created_utc
-            FROM reddit_posts
-            WHERE is_daily_thread IS TRUE
-            ORDER BY created_utc DESC
-            OFFSET 1 LIMIT 1
-        ),
-        yesterdays_mentions AS (
-            SELECT 
-                ticker,
-                COUNT(*) as previous_mentions
-            FROM reddit_comments
-            WHERE id IN (
-                SELECT id
-                FROM first_reddit_comments
-                WHERE post_id = (SELECT post_id FROM daily_thread) 
-                AND ticker IS NOT NULL
-            )
-            GROUP BY ticker
-            ORDER BY previous_mentions DESC
-            LIMIT 25
-        )
-        SELECT * FROM yesterdays_mentions;
-    """
+    current = sql.format(offset=0)
+    previous = sql.format(offset=1)
+    before_previous = sql.format(offset=2)
     async with db.AsyncSessionLocal() as session:
-        today_result = await session.execute(text(todays_mentions))
-        today_rows = today_result.fetchall()
-        today_columns = today_result.keys()
+        current_result = await session.execute(text(current))
+        current_rows = current_result.fetchall()
+        current_cols = current_result.keys()
 
-        yesterday_result = await session.execute(text(yesterdays_mentions))
-        yesterday_rows = yesterday_result.fetchall()
-        yesterday_columns = yesterday_result.keys()
+        previous_result = await session.execute(text(previous))
+        previous_rows = previous_result.fetchall()
+        previous_cols = previous_result.keys()
 
-    today = pd.DataFrame(today_rows, columns=today_columns)  # type: ignore
-    yesterday = pd.DataFrame(yesterday_rows, columns=yesterday_columns)  # type: ignore
+        before_result = await session.execute(text(before_previous))
+        before_rows = before_result.fetchall()
+        before_cols = before_result.keys()
 
-    logger.info(f"got {len(today.index)} tickers for hot dashboard")
+    current = pd.DataFrame(current_rows, columns=current_cols)  # type: ignore
+    previous = pd.DataFrame(previous_rows, columns=previous_cols)  # type: ignore
+    before = pd.DataFrame(before_rows, columns=before_cols)  # type: ignore
 
-    df = today.merge(right=yesterday, how="left", on=["ticker"])
-    df["pct_change"] = (df["todays_mentions"] / df["previous_mentions"] - 1) * 100
+    logger.info(f"got {len(current.index)} tickers for hot dashboard")
+
+    df = current.merge(right=previous, how="outer", on=["ticker"])
+    df = df.merge(right=before, how="outer", on=["ticker"])
+
+    cols = {
+        "ticker_mentions_x": "ticker_mentions_1",
+        "ticker_mentions_y": "ticker_mentions_2",
+        "ticker_mentions": "ticker_mentions_3",
+    }
+    df = df.rename(columns=cols)
+
+    df["pct_change"] = (df["ticker_mentions_1"] / df["ticker_mentions_3"] - 1) * 100
     df = df.fillna(value=0, axis=1)
 
     return df
@@ -118,4 +108,4 @@ async def get_top_comments():
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(get_top_comments())
+    asyncio.run(get_ticker_mentions())

@@ -47,10 +47,16 @@ mentions_df = pd.DataFrame(ticker_data)
 comments_df = pd.DataFrame(comments_data)
 
 # Calculate summary metrics
-total_mentions = mentions_df["todays_mentions"].sum()
-top_ticker = mentions_df.iloc[0]["ticker"] if len(mentions_df) > 0 else "N/A"
-top_ticker_mentions = (
-    mentions_df.iloc[0]["todays_mentions"] if len(mentions_df) > 0 else 0
+total_mentions = (
+    mentions_df[["ticker_mentions_1", "ticker_mentions_2", "ticker_mentions_3"]]
+    .sum(axis=1)
+    .sum()
+)
+mentions_df = mentions_df.sort_values("ticker_mentions_1", ascending=False)
+top_ticker = mentions_df.iloc[0]["ticker"]
+top_ticker_mentions = mentions_df.iloc[0]["ticker_mentions_1"]
+top_ticker_mentions_delta = (
+    top_ticker_mentions - mentions_df.iloc[0]["ticker_mentions_3"]
 )
 avg_change = (
     mentions_df["pct_change"].mean() if "pct_change" in mentions_df.columns else 0
@@ -69,7 +75,7 @@ with col2:
     st.metric(
         label=":material/star: Top Ticker",
         value=top_ticker,
-        delta=f"{top_ticker_mentions} mentions",
+        delta=f"{top_ticker_mentions_delta} mentions",
     )
 
 with col3:
@@ -95,13 +101,24 @@ if "pct_change" in mentions_df.columns:
         lambda x: format_percentage(x) if pd.notna(x) else "N/A"
     )
 
+
+display_df = display_df.sort_values(["ticker_mentions_1"], ascending=False)
 column_rename = {
     "ticker": "Ticker",
-    "todays_mentions": "Today's Mentions",
-    "previous_mentions": "Yesterday's Mentions",
+    "ticker_mentions_1": "Current Thread Mentions",
+    "ticker_mentions_2": "Previous Thread Mentions",
+    "ticker_mentions_3": "Thread Before Last Mentions",
     "pct_change": "% Change",
 }
 display_df = display_df.rename(columns=column_rename)
+
+
+column_rename = {
+    "body": "Body",
+    "score": "Score",
+}
+comments_df = comments_df[["body", "score"]]
+comments_df = comments_df.rename(columns=column_rename)
 
 # Create two tabs for different views
 tab1, tab2 = st.tabs(
@@ -121,7 +138,7 @@ with tab1:
         f"Showing **top {len(display_df)} tickers** from the latest WSB daily discussion thread"
     )
 
-    st.subheader("Top Comments")
+    st.subheader("Current Top Comments")
 
     st.dataframe(
         comments_df,
@@ -137,44 +154,55 @@ with tab2:
     st.subheader("Mention Trend Comparison")
 
     # Create bar chart comparing today vs yesterday
-    today_yesterday_bar = go.Figure()
+    mentions_bar = go.Figure()
+    chart_df = mentions_df.sort_values("ticker_mentions_1", ascending=False).head(15)
 
-    # Sort by today's mentions for better visualization
-    chart_df = mentions_df.sort_values("todays_mentions", ascending=False).head(15)
-
-    today_yesterday_bar.add_trace(
+    mentions_bar.add_trace(
         go.Bar(
-            name="Today's Mentions",
+            name="Current Thread's Mentions",
             x=chart_df["ticker"],
-            y=chart_df["todays_mentions"],
+            y=chart_df["ticker_mentions_1"],
             marker_color=colors.bright_green,
-            text=chart_df["todays_mentions"],
+            text=chart_df["ticker_mentions_1"],
             textposition="outside",
             textfont=dict(size=12, color=colors.bright_green),
             opacity=0.9,
         )
     )
 
-    today_yesterday_bar.add_trace(
+    mentions_bar.add_trace(
         go.Bar(
             name="Yesterday's Mentions",
             x=chart_df["ticker"],
-            y=chart_df["previous_mentions"],
+            y=chart_df["ticker_mentions_2"],
             marker_color=colors.blue,
-            text=chart_df["previous_mentions"],
+            text=chart_df["ticker_mentions_2"],
             textposition="outside",
             textfont=dict(size=11, color=colors.blue),
             opacity=0.7,
         )
     )
 
-    today_yesterday_bar.update_layout(
+    mentions_bar.add_trace(
+        go.Bar(
+            name="Thread Before Last's Mentions",
+            x=chart_df["ticker"],
+            y=chart_df["ticker_mentions_3"],
+            marker_color=colors.orange,
+            text=chart_df["ticker_mentions_3"],
+            textposition="outside",
+            textfont=dict(size=11, color=colors.blue),
+            opacity=0.7,
+        )
+    )
+
+    mentions_bar.update_layout(
         barmode="group",
         plot_bgcolor=colors.dark_bg,
         paper_bgcolor=colors.dark_bg,
         font=dict(color=colors.text_gray, family="monospace"),
         title=dict(
-            text="Top 15 Tickers: Today vs Yesterday",
+            text="Top 15 Tickers",
             font=dict(size=18, color=colors.bright_green),
         ),
         xaxis=dict(
@@ -196,18 +224,17 @@ with tab2:
         height=500,
     )
 
-    st.plotly_chart(today_yesterday_bar, width="stretch")
+    st.plotly_chart(mentions_bar, width="stretch")
 
     st.divider()
 
     # Percentage change waterfall chart
     st.subheader("Mention Growth Analysis")
 
-    # Calculate and sort by percentage change
     change_df = (
-        mentions_df[mentions_df["pct_change"].notna()]
+        mentions_df[mentions_df["pct_change"] != 0]
         .sort_values("pct_change", ascending=False)
-        .head(10)
+        .head(15)
     )
 
     pct_change_bar = go.Figure()
@@ -235,7 +262,7 @@ with tab2:
         paper_bgcolor=colors.dark_bg,
         font=dict(color=colors.text_gray, family="monospace"),
         title=dict(
-            text="Top 10 Tickers by % Change",
+            text="Top 15 Tickers by % Change",
             font=dict(size=18, color=colors.bright_green),
         ),
         xaxis=dict(
@@ -260,7 +287,7 @@ with tab2:
     # Add insights
     st.divider()
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.markdown("### :material/trending_up: Trending Up")
@@ -272,7 +299,7 @@ with tab2:
         if not trending_up.empty:
             for _, row in trending_up.iterrows():
                 st.markdown(
-                    f"**{row['ticker']}** - {format_percentage(row['pct_change'])}"
+                    f"**{row['ticker']}** {format_percentage(row['pct_change'])}"
                 )
         else:
             st.caption("No tickers trending up")
@@ -285,14 +312,32 @@ with tab2:
         if not trending_down.empty:
             for _, row in trending_down.iterrows():
                 st.markdown(
-                    f"**{row['ticker']}** - {format_percentage(row['pct_change'])}"
+                    f"**{row['ticker']}** {format_percentage(row['pct_change'])}"
                 )
         else:
             st.caption("No tickers trending down")
 
+    with col3:
+        st.markdown("### :material/travel: New Arrivals")
+        new = mentions_df[mentions_df["ticker_mentions_3"] == 0].head(5)
+        if not new.empty:
+            for _, row in new.iterrows():
+                st.markdown(f"**{row['ticker']}**")
+        else:
+            st.caption("No tickers added")
+
+    with col4:
+        st.markdown("### :material/waving_hand: Irish Goodbye-ers")
+        goners = mentions_df[mentions_df["ticker_mentions_1"] == 0].head(5)
+        if not goners.empty:
+            for _, row in goners.iterrows():
+                st.markdown(f"**{row['ticker']}**")
+        else:
+            st.caption("No tickers left")
+
 # Sidebar info
 st.sidebar.markdown("### :material/info: Data Info")
-st.sidebar.success("**STATUS:** LIVE DATA")
+st.sidebar.success("**STATUS:** TODO - fix this")
 st.sidebar.caption(
-    f"**LAST UPDATE:** Just now\n\n**TOTAL TICKERS:** {len(mentions_df)}\n\n**TOTAL MENTIONS:** {format_large_number(total_mentions)}"
+    f"**LAST UPDATE:** TODO - fix this\n\n**TOTAL TICKERS:** {len(mentions_df)}\n\n**TOTAL MENTIONS:** {format_large_number(total_mentions)}"
 )
