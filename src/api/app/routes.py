@@ -27,13 +27,34 @@ async def get_whats_hot():
     return {"data": dfs}
 
 
-@router.get("/etl/status/")
+@router.get("/etl-status/")
 async def get_etl_status():
     # TODO implement a table or something that has overall status
     # overall status = operational, degraded, planned downtime, etc
     # active workers, services, etc
     # data freshness?
-    return {"data": {}}
+
+    sql = """
+        SELECT * FROM (
+            SELECT DISTINCT ON (task_description)
+                component_name,
+                task_description,
+                status,
+                progress,
+                start_time,
+                end_time
+            FROM etl_task_status
+            ORDER BY task_description, start_time DESC
+        ) AS latest_tasks
+        ORDER BY start_time DESC;
+    """
+    async with db.AsyncSessionLocal() as session:
+        result = await session.execute(text(sql))
+        data = result.fetchall()
+
+    df = pd.DataFrame(data)
+
+    return {"data": df.to_dict("records")}
 
 
 @router.get("/etl/status/components")

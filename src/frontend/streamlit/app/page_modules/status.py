@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-
+import timeago
 import pandas as pd
 import streamlit as st
 from styles import apply_custom_css
@@ -14,7 +14,7 @@ st.divider()
 
 # Fetch data from API
 with st.spinner("Loading data..."):
-    json_response = get_json("/etl/status/components")
+    json_response = get_json("/etl-status")
 
 if not json_response.get("data"):
     st.error(":material/error: **No data available**\n\n")
@@ -66,9 +66,16 @@ st.subheader(":material/account_tree: Pipeline Components")
 
 now = datetime.now(timezone.utc)
 for _, row in df.iterrows():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 3, 1])
     with col1:
-        st.success(f"**{row.status}**")
+        if row.status == "Complete":
+            st.success(f"**{row.status}**")
+        elif row.status == "Retrying":
+            st.warning(f"**{row.status}**")
+        elif row.status == "Failed":
+            st.error(f"**{row.status}**")
+        else:
+            st.info(f"**{row.status}**")
 
     with col2:
         st.markdown(f"**{row.component_name}**")
@@ -76,8 +83,8 @@ for _, row in df.iterrows():
 
     with col3:
         delta = now - pd.to_datetime(row.start_time)
-        minutes = round(delta.total_seconds() / 60, 2)
-        st.caption(f":material/schedule: Last run: {minutes} min ago")
+        ago = timeago.format(delta, now)
+        st.caption(f":material/schedule: Last run: {ago}")
 
     st.progress(row.progress)
 
@@ -113,9 +120,6 @@ with col1:
     #### :material/dns: Infrastructure
     - **Compute**: Proxmox Virtual Environment + Debian
     - **Database**: PostgreSQL
-    - **Cache**: Redis
-    - **Task Queue**: Celery
-    - **Web API**: FastAPI
     - **Orchestration**: Docker Compose
     """
     )
@@ -126,6 +130,8 @@ with col2:
     #### :material/monitoring: Monitoring
     - **Task Queue**: Flower
     - **MLflow**: Experiment tracking
+    - **Prometheus**: Operational Metrics
+    - **Grafana**: Visualization
     """
     )
 
@@ -138,6 +144,6 @@ st.info(
 
 # Sidebar
 st.sidebar.markdown("### :material/analytics: Quick Stats")
-st.sidebar.metric(":material/timer: Uptime", "99.9%")
-st.sidebar.metric(":material/speed: Avg Task Duration", "2.3s")
-st.sidebar.metric(":material/error: Failed Tasks (24h)", "0")
+st.sidebar.metric(":material/timer: Uptime", "TODO 99.9%")
+st.sidebar.metric(":material/speed: Avg Task Duration", "TODO 2.3s")
+st.sidebar.metric(":material/error: Failed Tasks (24h)", "TODO 0")
