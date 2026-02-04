@@ -27,12 +27,12 @@ services:
     image: stock-analysis-celery:latest
     container_name: stock-analysis-celery-worker-historical
     expose:
-      - "9808"
+      - "9809"
     environment:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
-      - CELERY_METRICS_PORT=${CELERY_METRICS_PORT}
+      - CELERY_METRICS_PORT=${CELERY_HISTORICAL_METRICS_PORT}
       - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
       - FRED_API_KEY=${FRED_API_KEY}
