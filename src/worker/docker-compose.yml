@@ -18,6 +18,7 @@ services:
     volumes:
       - ./app:/app/app
       - ./data:/data
+      - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
     command: celery -A app.main worker --loglevel=info
 
   celery-beat:
