@@ -110,7 +110,6 @@ def update_current_prices_cache():
             logger.warning(f"Could not get price for {ticker_symbol}: {e}")
             continue
 
-    breakpoint()
     redis_client.set(
         name="current_prices",
         value=json.dumps(price_data),
