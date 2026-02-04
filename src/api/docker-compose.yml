@@ -9,6 +9,7 @@ services:
     environment:
       - ENVIRONMENT=development
       - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
+      - REDIS_URL=${REDIS_URL}
     volumes:
       - ./app:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload

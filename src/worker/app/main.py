@@ -49,6 +49,10 @@ app.conf.beat_schedule = {
         "task": "app.tasks.apis.fetch_stock_data",
         "schedule": crontab(hour="1", minute="0"),
     },
+    "update-current-prices": {
+        "task": "app.tasks.apis.update_current_prices_cache",
+        "schedule": 120.0,
+    },
     # I don't know when the data is updated so we look back a couple days
     # Run at 23:00 UTC = 17:00/18:00 CST/CDT
     "fetch-daily-cboe-stats": {

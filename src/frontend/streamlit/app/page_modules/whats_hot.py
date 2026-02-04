@@ -96,21 +96,24 @@ st.divider()
 
 # Format columns for better display
 display_df = mentions_df.copy()
-if "pct_change" in mentions_df.columns:
-    display_df["pct_change"] = display_df["pct_change"].apply(
-        lambda x: format_percentage(x) if pd.notna(x) else "N/A"
-    )
+for col in ("mention_pct_change", "day_change", "year_change"):
+    display_df[col] = display_df[col].apply(lambda x: format_percentage(x))
 
 
 display_df = display_df.sort_values(["ticker_mentions_1"], ascending=False)
-column_rename = {
+cols = {
     "ticker": "Ticker",
+    "price": "Price",
+    "day_change": "Day Change",
+    "year_change": "Year Change",
     "ticker_mentions_1": "Current Thread Mentions",
     "ticker_mentions_2": "Previous Thread Mentions",
     "ticker_mentions_3": "Thread Before Last Mentions",
-    "pct_change": "% Change",
+    "mention_pct_change": "% Change",
 }
-display_df = display_df.rename(columns=column_rename)
+display_df = display_df.rename(columns=cols)
+display_df = display_df[cols.values()]
+display_df.reset_index(inplace=True, drop=True)
 
 
 column_rename = {

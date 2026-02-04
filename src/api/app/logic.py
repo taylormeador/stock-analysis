@@ -2,7 +2,10 @@ import logging
 import pandas as pd
 from sqlalchemy import text
 import db
+import models
+import yfinance as yf
 
+import price_cache
 
 logger = logging.getLogger(__name__)
 
@@ -49,26 +52,35 @@ async def get_ticker_mentions():
         before_rows = before_result.fetchall()
         before_cols = before_result.keys()
 
+    # Create df with mention data
     current = pd.DataFrame(current_rows, columns=current_cols)  # type: ignore
     previous = pd.DataFrame(previous_rows, columns=previous_cols)  # type: ignore
     before = pd.DataFrame(before_rows, columns=before_cols)  # type: ignore
 
     logger.info(f"got {len(current.index)} tickers for hot dashboard")
 
-    df = current.merge(right=previous, how="outer", on=["ticker"])
-    df = df.merge(right=before, how="outer", on=["ticker"])
+    mentions_df = current.merge(right=previous, how="outer", on=["ticker"])
+    mentions_df = mentions_df.merge(right=before, how="outer", on=["ticker"])
 
     cols = {
         "ticker_mentions_x": "ticker_mentions_1",
         "ticker_mentions_y": "ticker_mentions_2",
         "ticker_mentions": "ticker_mentions_3",
     }
-    df = df.rename(columns=cols)
+    mentions_df = mentions_df.rename(columns=cols)
 
-    df["pct_change"] = (df["ticker_mentions_1"] / df["ticker_mentions_3"] - 1) * 100
-    df = df.fillna(value=0, axis=1)
+    mentions_df["mention_pct_change"] = (
+        mentions_df["ticker_mentions_1"] / mentions_df["ticker_mentions_3"] - 1
+    ) * 100
 
-    return df
+    # join current price data
+    price_data = price_cache.get_current_prices()  # TODO fall back to recent close
+    cols = ["ticker", "price", "day_change", "year_change"]
+    price_df = pd.DataFrame(price_data, columns=cols)
+    ticker_mentions = mentions_df.merge(right=price_df, how="left", on="ticker")
+    ticker_mentions = ticker_mentions.fillna(value=0, axis=1)
+
+    return ticker_mentions
 
 
 async def get_top_comments():

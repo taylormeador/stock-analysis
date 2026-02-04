@@ -114,5 +114,5 @@ def format_large_number(num: float) -> str:
 def format_percentage(num: float, include_sign: bool = True) -> str:
     """Format percentage values."""
     if include_sign and num > 0:
-        return f"+{num:.1f}%"
-    return f"{num:.1f}%"
+        return f"+{num:.2f}%"
+    return f"{num:.2f}%"

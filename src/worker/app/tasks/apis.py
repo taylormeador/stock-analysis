@@ -1,11 +1,17 @@
+import json
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
+import pandas as pd
+
+import redis
+import yfinance as yf
 
 import app.logic.fred as fred
 import app.logic.stock_data as stocks
 from app.celery_app import app
-from app.utils import TICKERS, SingleInstanceTask, ETLStatusTracker, Status
+from app.utils import TICKERS, ETLStatusTracker, SingleInstanceTask, Status
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +72,53 @@ def fetch_stock_data(self, start_date: str | None = None, end_date: str | None =
         logger.warning(f"Failed tickers: {', '.join(failed_tickers)}")
 
 
+@app.task(base=SingleInstanceTask)
+def update_current_prices_cache():
+    """
+    Fetch current prices for tracked tickers and cache in Redis.
+    Runs every 1-2 minutes to keep prices fresh during market hours.
+    """
+    logger.info("Updating current prices cache")
+
+    redis_client = redis.Redis.from_url(os.environ["REDIS_URL"])
+
+    # Create ticker objects
+    tickers = yf.Tickers(" ".join(sorted(TICKERS)))
+
+    price_data = []
+    for ticker_symbol in TICKERS:  # TODO get tickers from db
+        try:
+            ticker = tickers.tickers[ticker_symbol]
+            fast_info = ticker.fast_info
+            last_price = fast_info.get("lastPrice") or fast_info.get(
+                "regularMarketPrice"
+            )
+            year_change = fast_info.get("yearChange")
+            last_close = fast_info.get("previousClose")
+            day_change = last_price / last_close - 1
+            year_change = fast_info.get("yearChange")
+
+            ticker_data = {
+                "ticker": ticker_symbol,
+                "price": last_price,
+                "day_change": day_change,
+                "year_change": year_change,
+            }
+            price_data.append(ticker_data)
+
+        except Exception as e:
+            logger.warning(f"Could not get price for {ticker_symbol}: {e}")
+            continue
+
+    breakpoint()
+    redis_client.set(
+        name="current_prices",
+        value=json.dumps(price_data),
+    )
+
+    logger.info(f"Updated prices for {len(price_data)} tickers")
+
+
 @app.task(bind=True)
 def get_fred_data(self):
     """Get macro data from FRED API."""
@@ -87,3 +140,4 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    update_current_prices_cache()
