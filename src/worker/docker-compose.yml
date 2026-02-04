@@ -18,7 +18,7 @@ services:
     volumes:
       - ./app:/app/app
       - ./data:/data
-    command: celery -A app.main worker --loglevel=info -Q default
+    command: celery -A app.main worker --loglevel=info -Q default -E
     restart: unless-stopped
 
   celery-worker-historical:
@@ -41,7 +41,7 @@ services:
       - ./app:/app/app
       - ./data:/data
       - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
-    command: celery -A app.main worker --loglevel=info -Q historical
+    command: celery -A app.main worker --loglevel=info -Q historical -E
     restart: unless-stopped
 
   celery-beat:
