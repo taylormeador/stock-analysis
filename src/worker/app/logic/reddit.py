@@ -431,7 +431,10 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
                                     progress = bytes_processed / file_size
 
                                     # allow file progress to be between 0.1 and 0.95 of total task
-                                    tracker.update_progress(max(progress - 0.05, 0.1))
+                                    tracker.update_progress(
+                                        percent_complete=max(progress - 0.05, 0.1),
+                                        persist=True,
+                                    )
 
                         if i % 100000 == 0:
                             print(f"Processed {i:,} lines")
