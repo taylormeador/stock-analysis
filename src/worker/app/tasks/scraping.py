@@ -1,13 +1,16 @@
 import logging
 
+from sqlalchemy import update
+
+import app.database.db as db
 import app.logic.cboe as cboe
 import app.logic.reddit as reddit
 from app.celery_app import app
+from app.database import models
 from app.utils import (
     ETLStatusTracker,
     SingleInstanceTask,
     Status,
-    track_records_processed,
     track_task_metrics,
 )
 
@@ -46,7 +49,8 @@ def scrape_reddit_wsb_daily_thread(
     return
 
 
-@app.task(bind=True)
+@app.task(bind=True, queue="historical")
+@track_task_metrics
 def scrape_reddit_historical_data(self):
     tracker = ETLStatusTracker(
         task_id=self.request.id,
@@ -57,8 +61,11 @@ def scrape_reddit_historical_data(self):
 
     try:
         reddit.scrape_historical_data(tracker)
-    finally:
         tracker.complete_task()
+
+    except Exception:
+        logger.exception("error in historical scraping task: ")
+        tracker.update_status(Status.FAILED)
 
 
 @app.task(base=SingleInstanceTask, bind=True)

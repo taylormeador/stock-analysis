@@ -18,8 +18,31 @@ services:
     volumes:
       - ./app:/app/app
       - ./data:/data
+    command: celery -A app.main worker --loglevel=info -Q default
+
+  celery-worker-historical:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stock-analysis-celery:latest
+    container_name: stock-analysis-celery-worker-historical
+    expose:
+      - "9808"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - CELERY_METRICS_PORT=${CELERY_METRICS_PORT}
+      - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
+      - FRED_API_KEY=${FRED_API_KEY}
+    volumes:
+      - ./app:/app/app
+      - ./data:/data
       - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
-    command: celery -A app.main worker --loglevel=info
+    command: celery -A app.main worker --loglevel=info -Q historical
+
+
 
   celery-beat:
     image: stock-analysis-celery:latest

@@ -190,5 +190,5 @@ historical_reddit_tracking = Table(
     Column("id", Integer, primary_key=True),
     Column("file_name", String(200)),  # relative to mount on prod vm
     Column("file_type", String(16)),  # comments, or submissions
-    Column("status", String(20)),  # READY, IN_PROGRESS, COMPLETE
+    Column("status", String(20)),  # READY, IN_PROGRESS, COMPLETE, FAILED
 )

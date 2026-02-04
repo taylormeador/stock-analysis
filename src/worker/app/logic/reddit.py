@@ -6,10 +6,11 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any
+import os
 
 import requests
 import zstandard as zstd
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 
 import app.database.db as db
 import app.database.models as models
@@ -18,6 +19,7 @@ from app.utils import (
     DistributedRateLimiter,
     ETLStatusTracker,
     track_records_processed,
+    Status,
 )
 
 logger = logging.getLogger(__name__)
@@ -318,94 +320,152 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
 
         return
 
+    def set_file_status_failed():
+        stmt = (
+            update(tracking_table)
+            .where(tracking_table.c.id == file_info.id)
+            .values(status="FAILED")
+        )
+        with db.get_connection() as conn:
+            conn.execute(stmt)
+            conn.commit()
+
+        logger.info(f"reverted file {file_info.file_name} back to READY")
+
+    # Mark the file as being scraped
+    stmt = (
+        update(tracking_table)
+        .where(tracking_table.c.id == file_info.id)
+        .values(status="IN_PROGRESS")
+    )
+    with db.get_connection() as conn:
+        conn.execute(stmt)
+        conn.commit()
+    logger.info(f"scraping file {file_info.file_name}")
+
+    # determine db model
     if file_info.file_type == "comments":
         model = models.historical_reddit_comments
+        record_type = "reddit_comment"
     elif file_info.file_type == "submissions":
         model = models.historical_reddit_posts
+        record_type = "reddit_posts"
     else:
+        set_file_status_failed()
         raise ValueError("unexpected file type for historical reddit data")
+
+    # track progress
+    file_size = os.path.getsize(file_info.file_name)
+    logger.info(f"File size: {file_size:,} bytes")
+    task_name = "scrape_reddit_historical_data"
 
     # Scrape and insert batches
     batch_size = 1000
     batch = []
-    with open(file_info.file_name, "rb") as fh:
-        dctx = zstd.ZstdDecompressor()
-        with dctx.stream_reader(fh) as reader:
-            text_stream = io.TextIOWrapper(reader, encoding="utf-8")
-            i = 0
-            for line in text_stream:
-                i += 1
-                try:
-                    l = json.loads(line)  # noqa: E741
-                    if l.get("subreddit", "").lower() in {
-                        "wallstreetbets",
-                        "stocks",
-                        "investing",
-                    }:
-                        if file_info.file_type == "comments":
-                            permalink = l["permalink"]
-                            fields = permalink.split("comments/")
-                            post_id = fields[1].split("/")[0]
+    try:
+        with open(file_info.file_name, "rb") as fh:
+            dctx = zstd.ZstdDecompressor()
+            with dctx.stream_reader(fh) as reader:
+                text_stream = io.TextIOWrapper(reader, encoding="utf-8")
+                for i, line in enumerate(text_stream):
+                    try:
+                        bytes_processed = fh.tell()
+                        l = json.loads(line)  # noqa: E741
+                        if l.get("subreddit", "").lower() in {
+                            "wallstreetbets",
+                            "stocks",
+                            "investing",
+                        }:
+                            if file_info.file_type == "comments":
+                                permalink = l["permalink"]
+                                fields = permalink.split("comments/")
+                                post_id = fields[1].split("/")[0]
 
-                        created_utc = datetime.fromtimestamp(
-                            l["created_utc"],
-                            tz=timezone.utc,
-                        )
+                            created_utc = datetime.fromtimestamp(
+                                l["created_utc"],
+                                tz=timezone.utc,
+                            )
 
-                        if file_info.file_type == "comments":
-                            data = {
-                                "comment_id": l.get("id"),
-                                "parent_id": l.get("parent_id"),
-                                "post_id": post_id,  # type: ignore
-                                "subreddit": l["subreddit"],
-                                "body": l["body"],
-                                "score": l["score"],
-                                "ticker": extract_ticker(l["body"]),
-                                "controversiality": l["controversiality"],
-                                "author": l["author"],
-                                "created_utc": created_utc,
-                            }
-                        else:
-                            data = {
-                                "post_id": l.get("id"),
-                                "subreddit": l["subreddit"],
-                                "score": l["score"],
-                                "title": l["title"],
-                                "body": l.get("selftext"),
-                                "ticker": extract_ticker(l.get("selftext")),
-                                "author": l["author"],
-                                "num_comments": l["num_comments"],
-                                "created_utc": created_utc,
-                            }
+                            if file_info.file_type == "comments":
+                                data = {
+                                    "comment_id": l.get("id"),
+                                    "parent_id": l.get("parent_id"),
+                                    "post_id": post_id,  # type: ignore
+                                    "subreddit": l["subreddit"],
+                                    "body": l["body"],
+                                    "score": l["score"],
+                                    "ticker": extract_ticker(l["body"]),
+                                    "controversiality": l["controversiality"],
+                                    "author": l["author"],
+                                    "created_utc": created_utc,
+                                }
+                            else:
+                                data = {
+                                    "post_id": l.get("id"),
+                                    "subreddit": l["subreddit"],
+                                    "score": l["score"],
+                                    "title": l["title"],
+                                    "body": l.get("selftext"),
+                                    "ticker": extract_ticker(l.get("selftext")),
+                                    "author": l["author"],
+                                    "num_comments": l["num_comments"],
+                                    "created_utc": created_utc,
+                                }
 
-                        batch.append(data)
+                            batch.append(data)
 
-                        # Bulk insert to DB
-                        if len(batch) >= batch_size:
-                            stmt = model.insert().values(batch)
-                            with db.get_connection() as conn:
-                                conn.execute(stmt)
-                                conn.commit()
-                            batch = []
-                            print("inserted batch")
+                            # Bulk insert to DB
+                            if len(batch) >= batch_size:
+                                stmt = model.insert().values(batch)
+                                with db.get_connection() as conn:
+                                    conn.execute(stmt)
+                                    conn.commit()
+                                batch = []
+                                print("inserted batch")
 
-                    if i % 100000 == 0:
-                        print(f"Processed {i:,} lines")
+                                track_records_processed(
+                                    task_name=task_name,
+                                    count=batch_size,
+                                    record_type=record_type,
+                                )
+                                if tracker:
+                                    progress = bytes_processed / file_size
 
-                except json.JSONDecodeError:
-                    continue
+                                    # allow file progress to be between 0.1 and 0.95 of total task
+                                    tracker.update_progress(max(progress - 0.05, 0.1))
 
-                except Exception as e:
-                    print(e)
+                        if i % 100000 == 0:
+                            print(f"Processed {i:,} lines")
 
-            if batch:
-                stmt = model.insert().values(batch)
-                with db.get_connection() as conn:
-                    conn.execute(stmt)
-                    conn.commit()
-                    print("inserted final partial batch")
+                    except json.JSONDecodeError:
+                        continue
 
-            print(f"reddit historical data ETL complete for file {file_info.file_name}")
+                    except Exception as e:
+                        print(e)
+
+                if batch:
+                    stmt = model.insert().values(batch)
+                    with db.get_connection() as conn:
+                        conn.execute(stmt)
+                        conn.commit()
+                        print("inserted final partial batch")
+
+                    track_records_processed(
+                        task_name=task_name,
+                        count=len(batch),
+                        record_type=record_type,
+                    )
+                    if tracker:
+                        tracker.update_progress(0.97, persist=True)
+
+                print(
+                    f"reddit historical data ETL complete for file {file_info.file_name}"
+                )
+
+    except Exception as e:
+        logger.error(f"error while processing historical reddit file: {e}")
+        set_file_status_failed()
+        raise
 
 
 if __name__ == "__main__":

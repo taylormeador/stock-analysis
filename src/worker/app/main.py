@@ -45,10 +45,6 @@ app.conf.beat_schedule = {
         "kwargs": {"filter": "top", "limit": 25},
         "schedule": 600.0,
     },
-    "scrape-reddit-historical-data": {
-        "task": "app.tasks.scraping.scrape_reddit_historical_data",
-        "schedule": 3600.0,
-    },
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",
         "schedule": crontab(hour="1", minute="0"),
