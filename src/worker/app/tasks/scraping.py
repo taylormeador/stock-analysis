@@ -1,12 +1,8 @@
 import logging
 
-from sqlalchemy import update
-
-import app.database.db as db
 import app.logic.cboe as cboe
 import app.logic.reddit as reddit
 from app.celery_app import app
-from app.database import models
 from app.utils import (
     ETLStatusTracker,
     SingleInstanceTask,
@@ -65,7 +61,7 @@ def scrape_reddit_historical_data(self):
 
     except Exception:
         logger.exception("error in historical scraping task: ")
-        tracker.update_status(Status.FAILED)
+        tracker.fail_task()
 
 
 @app.task(base=SingleInstanceTask, bind=True)

@@ -19,7 +19,6 @@ from app.utils import (
     DistributedRateLimiter,
     ETLStatusTracker,
     track_records_processed,
-    Status,
 )
 
 logger = logging.getLogger(__name__)
