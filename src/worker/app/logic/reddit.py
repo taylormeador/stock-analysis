@@ -1,3 +1,5 @@
+import io
+import json
 import logging
 import random
 import re
@@ -6,12 +8,14 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
+import zstandard as zstd
 from sqlalchemy import insert
+
 import app.database.db as db
 import app.database.models as models
 from app.utils import (
-    DistributedRateLimiter,
     TICKERS,
+    DistributedRateLimiter,
     ETLStatusTracker,
     track_records_processed,
 )
@@ -300,5 +304,109 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTr
     return
 
 
+def scrape_historical_data(tracker: ETLStatusTracker | None = None):
+    # Get a file to scrape
+    tracking_table = models.historical_reddit_tracking
+    stmt = tracking_table.select().where(tracking_table.c.status == "READY").limit(1)
+    with db.get_connection() as conn:
+        file_info = conn.execute(stmt).first()
+
+    if not file_info:
+        logger.info("no historical reddit files ready")
+        if tracker:
+            tracker.complete_task()
+
+        return
+
+    if file_info.file_type == "comments":
+        model = models.historical_reddit_comments
+    elif file_info.file_type == "submissions":
+        model = models.historical_reddit_posts
+    else:
+        raise ValueError("unexpected file type for historical reddit data")
+
+    # Scrape and insert batches
+    batch_size = 1000
+    batch = []
+    with open(file_info.file_name, "rb") as fh:
+        dctx = zstd.ZstdDecompressor()
+        with dctx.stream_reader(fh) as reader:
+            text_stream = io.TextIOWrapper(reader, encoding="utf-8")
+            i = 0
+            for line in text_stream:
+                i += 1
+                try:
+                    l = json.loads(line)  # noqa: E741
+                    if l.get("subreddit", "").lower() in {
+                        "wallstreetbets",
+                        "stocks",
+                        "investing",
+                    }:
+                        if file_info.file_type == "comments":
+                            permalink = l["permalink"]
+                            fields = permalink.split("comments/")
+                            post_id = fields[1].split("/")[0]
+
+                        created_utc = datetime.fromtimestamp(
+                            l["created_utc"],
+                            tz=timezone.utc,
+                        )
+
+                        if file_info.file_type == "comments":
+                            data = {
+                                "comment_id": l.get("id"),
+                                "parent_id": l.get("parent_id"),
+                                "post_id": post_id,  # type: ignore
+                                "subreddit": l["subreddit"],
+                                "body": l["body"],
+                                "score": l["score"],
+                                "ticker": extract_ticker(l["body"]),
+                                "controversiality": l["controversiality"],
+                                "author": l["author"],
+                                "created_utc": created_utc,
+                            }
+                        else:
+                            data = {
+                                "post_id": l.get("id"),
+                                "subreddit": l["subreddit"],
+                                "score": l["score"],
+                                "title": l["title"],
+                                "body": l.get("selftext"),
+                                "ticker": extract_ticker(l.get("selftext")),
+                                "author": l["author"],
+                                "num_comments": l["num_comments"],
+                                "created_utc": created_utc,
+                            }
+
+                        batch.append(data)
+
+                        # Bulk insert to DB
+                        if len(batch) >= batch_size:
+                            stmt = model.insert().values(batch)
+                            with db.get_connection() as conn:
+                                conn.execute(stmt)
+                                conn.commit()
+                            batch = []
+                            print("inserted batch")
+
+                    if i % 100000 == 0:
+                        print(f"Processed {i:,} lines")
+
+                except json.JSONDecodeError:
+                    continue
+
+                except Exception as e:
+                    print(e)
+
+            if batch:
+                stmt = model.insert().values(batch)
+                with db.get_connection() as conn:
+                    conn.execute(stmt)
+                    conn.commit()
+                    print("inserted final partial batch")
+
+            print(f"reddit historical data ETL complete for file {file_info.file_name}")
+
+
 if __name__ == "__main__":
-    pass
+    scrape_historical_data()

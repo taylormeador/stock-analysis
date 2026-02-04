@@ -148,3 +148,47 @@ tickers = Table(
     Column("ticker", String(10)),
     Column("is_tracked", Boolean),
 )
+
+historical_reddit_comments = Table(
+    "historical_reddit_comments",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("comment_id", String(20)),
+    Column("parent_id", String(20)),
+    Column("post_id", String(20)),
+    Column("subreddit", String(100)),
+    Column("body", Text),
+    Column("score", Integer),
+    Column("ticker", String(4)),
+    Column("controversiality", Integer),
+    Column("author", String(100)),
+    Column("created_utc", TIMESTAMP(timezone=True)),
+    Column("scraped_at", TIMESTAMP(timezone=True)),
+)
+
+
+historical_reddit_posts = Table(
+    "historical_reddit_posts",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("post_id", String(20)),
+    Column("subreddit", String(100)),
+    Column("score", Integer),
+    Column("title", Text),
+    Column("body", Text),
+    Column("ticker", String(4)),
+    Column("author", String(20)),
+    Column("num_comments", Integer),
+    Column("is_daily_thread", Boolean),
+    Column("created_utc", TIMESTAMP(timezone=True)),
+    Column("scraped_at", TIMESTAMP(timezone=True)),
+)
+
+historical_reddit_tracking = Table(
+    "historical_reddit_tracking",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("file_name", String(200)),  # relative to mount on prod vm
+    Column("file_type", String(16)),  # comments, or submissions
+    Column("status", String(20)),  # READY, IN_PROGRESS, COMPLETE
+)

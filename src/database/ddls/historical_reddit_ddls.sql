@@ -49,3 +49,12 @@ CREATE TABLE historical_reddit_comment_sentiment_predictions (
 );
 
 CREATE INDEX idx_historical_comment_sentiment_comment_id ON historical_reddit_comment_sentiment_predictions(historical_reddit_comments_id);
+
+
+CREATE TABLE historical_reddit_tracking (
+    id SERIAL PRIMARY KEY,
+    file_name VARCHAR(200),  -- relative to mount on prod vm
+    file_type VARCHAR(16),  -- comments, or submissions
+    status VARCHAR(20)  -- READY, IN_PROGRESS, COMPLETE
+)
+
