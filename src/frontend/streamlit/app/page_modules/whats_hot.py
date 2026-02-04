@@ -58,9 +58,7 @@ top_ticker_mentions = mentions_df.iloc[0]["ticker_mentions_1"]
 top_ticker_mentions_delta = (
     top_ticker_mentions - mentions_df.iloc[0]["ticker_mentions_3"]
 )
-avg_change = (
-    mentions_df["pct_change"].mean() if "pct_change" in mentions_df.columns else 0
-)
+avg_change = mentions_df["mention_pct_change"].mean()
 
 # Display metrics in columns
 col1, col2, col3, col4 = st.columns(4)
@@ -194,7 +192,7 @@ with tab2:
             marker_color=colors.orange,
             text=chart_df["ticker_mentions_3"],
             textposition="outside",
-            textfont=dict(size=11, color=colors.blue),
+            textfont=dict(size=11, color=colors.orange),
             opacity=0.7,
         )
     )
@@ -235,8 +233,8 @@ with tab2:
     st.subheader("Mention Growth Analysis")
 
     change_df = (
-        mentions_df[mentions_df["pct_change"] != 0]
-        .sort_values("pct_change", ascending=False)
+        mentions_df[mentions_df["mention_pct_change"] != 0]
+        .sort_values("mention_pct_change", ascending=False)
         .head(15)
     )
 
@@ -245,15 +243,15 @@ with tab2:
     # Color based on positive/negative change
     bar_colors = [
         colors.bright_green if val > 0 else colors.orange
-        for val in change_df["pct_change"]
+        for val in change_df["mention_pct_change"]
     ]
 
     pct_change_bar.add_trace(
         go.Bar(
             x=change_df["ticker"],
-            y=change_df["pct_change"],
+            y=change_df["mention_pct_change"],
             marker_color=bar_colors,
-            text=[format_percentage(val) for val in change_df["pct_change"]],
+            text=[format_percentage(val) for val in change_df["mention_pct_change"]],
             textposition="outside",
             textfont=dict(size=12),
             opacity=0.9,
@@ -295,14 +293,14 @@ with tab2:
     with col1:
         st.markdown("### :material/trending_up: Trending Up")
         trending_up = (
-            mentions_df[mentions_df["pct_change"] > 0]
-            .sort_values("pct_change", ascending=False)
+            mentions_df[mentions_df["mention_pct_change"] > 0]
+            .sort_values("mention_pct_change", ascending=False)
             .head(5)
         )
         if not trending_up.empty:
             for _, row in trending_up.iterrows():
                 st.markdown(
-                    f"**{row['ticker']}** {format_percentage(row['pct_change'])}"
+                    f"**{row['ticker']}** {format_percentage(row['mention_pct_change'])}"
                 )
         else:
             st.caption("No tickers trending up")
@@ -310,12 +308,14 @@ with tab2:
     with col2:
         st.markdown("### :material/trending_down: Trending Down")
         trending_down = (
-            mentions_df[mentions_df["pct_change"] < 0].sort_values("pct_change").head(5)
+            mentions_df[mentions_df["mention_pct_change"] < 0]
+            .sort_values("mention_pct_change")
+            .head(5)
         )
         if not trending_down.empty:
             for _, row in trending_down.iterrows():
                 st.markdown(
-                    f"**{row['ticker']}** {format_percentage(row['pct_change'])}"
+                    f"**{row['ticker']}** {format_percentage(row['mention_pct_change'])}"
                 )
         else:
             st.caption("No tickers trending down")
