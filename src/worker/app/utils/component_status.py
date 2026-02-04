@@ -81,6 +81,20 @@ class ETLStatusTracker:
             conn.execute(stmt)
             conn.commit()
 
+    def fail_task(self):
+        self.values["status"] = Status.FAILED.value
+        self.values["end_time"] = datetime.now(timezone.utc).strftime(format)
+        self.redis_client.set(self.redis_key, json.dumps(self.values), ex=60)
+
+        stmt = (
+            update(etl_task_status)
+            .where(etl_task_status.c.task_id == self.task_id)
+            .values(self.values)
+        )
+        with db.get_connection() as conn:
+            conn.execute(stmt)
+            conn.commit()
+
     def update_status(self, status: Status):
         self.values["status"] = status.value
         stmt = (

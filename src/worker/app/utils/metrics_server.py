@@ -15,7 +15,7 @@ from prometheus_client import start_http_server, REGISTRY
 logger = logging.getLogger(__name__)
 
 
-METRICS_PORT = int(os.getenv("CELERY_METRICS_PORT", "9808"))
+METRICS_PORT = int(os.environ["CELERY_METRICS_PORT"])
 
 
 def start_metrics_server():
