@@ -19,6 +19,7 @@ services:
       - ./app:/app/app
       - ./data:/data
     command: celery -A app.main worker --loglevel=info -Q default
+    restart: unless-stopped
 
   celery-worker-historical:
     build:
@@ -41,8 +42,7 @@ services:
       - ./data:/data
       - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
     command: celery -A app.main worker --loglevel=info -Q historical
-
-
+    restart: unless-stopped
 
   celery-beat:
     image: stock-analysis-celery:latest
@@ -51,11 +51,13 @@ services:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - CELERY_METRICS_PORT=${CELERY_METRICS_PORT}
       - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
       - FRED_API_KEY=${FRED_API_KEY}
     volumes:
       - ./app:/app/app
     command: celery -A app.main beat --loglevel=info
+    restart: unless-stopped
 
   flower:
     image: stock-analysis-celery:latest
@@ -64,6 +66,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - CELERY_METRICS_PORT=${CELERY_METRICS_PORT}
       - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
       - FLOWER_UNAUTHENTICATED_API=${FLOWER_UNAUTHENTICATED_API}
       - FRED_API_KEY=${FRED_API_KEY}
@@ -72,6 +75,7 @@ services:
     ports:
       - "5555:5555"
     command: celery -A app.main flower --port=5555 --prometheus_metrics
+    restart: unless-stopped
 
   celery-exporter:
     image: danihodovic/celery-exporter:latest
