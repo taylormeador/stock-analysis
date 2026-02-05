@@ -40,6 +40,7 @@ async def get_etl_status():
                 component_name,
                 task_description,
                 status,
+                status_message,
                 progress,
                 start_time,
                 end_time

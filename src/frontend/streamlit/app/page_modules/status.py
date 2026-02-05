@@ -66,7 +66,7 @@ st.subheader(":material/account_tree: Pipeline Components")
 
 now = datetime.now(timezone.utc)
 for _, row in df.iterrows():
-    col1, col2, col3 = st.columns([1, 3, 1])
+    col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
     with col1:
         if row.status == "Complete":
             st.success(f"**{row.status}**")
@@ -82,6 +82,10 @@ for _, row in df.iterrows():
         st.caption(row.task_description)
 
     with col3:
+        st.markdown("**Status**")
+        st.caption(row.status_message)
+
+    with col4:
         delta = now - pd.to_datetime(row.start_time)
         ago = timeago.format(delta, now)
         st.caption(f":material/schedule: Last run: {ago}")
