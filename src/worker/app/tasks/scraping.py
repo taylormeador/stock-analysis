@@ -51,6 +51,7 @@ def scrape_reddit_historical_data(self):
     try:
         reddit.scrape_historical_data(tracker)
         tracker.complete_task()
+        return True
 
     except Exception as e:
         logger.exception("error in historical scraping task: ")
@@ -75,13 +76,12 @@ def scrape_cboe_daily_stats(
     try:
         cboe.scrape_daily_market_stats(tracker, start_date_str, end_date_str)
         tracker.complete_task()
+        return True
 
     except Exception as e:
         logger.exception("error while scraping CBOE data")
         tracker.fail_task(str(e))
         raise
-
-    return
 
 
 @app.task

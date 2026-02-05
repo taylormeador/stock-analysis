@@ -77,7 +77,7 @@ class ETLStatusTracker:
         self.values["status"] = Status.IN_PROGRESS.value
         self.values["start_time"] = datetime.now(timezone.utc).strftime(format)
         self.values["progress"] = "0.1"
-        self.values["status_message"] = "task started"
+        self.values["status_message"] = "Task started"
 
         self.redis_client.set(self.redis_key, json.dumps(self.values), ex=60)
         stmt = insert(etl_task_status).values(self.values)

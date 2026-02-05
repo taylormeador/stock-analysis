@@ -269,5 +269,4 @@ def update_cache():
         name="current_prices",
         value=json.dumps(price_data),
     )
-
     logger.info(f"Updated prices for {len(price_data)} tickers")

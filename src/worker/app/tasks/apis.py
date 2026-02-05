@@ -26,6 +26,7 @@ def fetch_stock_data(self, start_date: str | None = None, end_date: str | None =
     try:
         stocks.fetch_stock_data(tracker, start_date, end_date)
         tracker.complete_task()
+        return True
 
     except Exception as e:
         logger.exception("failure while fetching stock data: ")
@@ -48,11 +49,13 @@ def update_current_prices_cache(self):
 
     try:
         stocks.update_cache()
+        tracker.update_status_message("Cache refreshed")
         tracker.complete_task()
+        return True
 
     except Exception as e:
         logger.exception("exception while updating stock price cache: ")
-        tracker.fail_task()
+        tracker.fail_task(str(e))
         raise
 
 
@@ -69,6 +72,7 @@ def get_fred_data(self):
     try:
         fred.get_fred_data(tracker)
         tracker.complete_task()
+        return True
 
     except Exception as e:
         logger.exception("exception while getting FRED data: ")
