@@ -97,6 +97,7 @@ def realtime_component_status():
             st.caption(f":material/schedule: Last run: {ago}")
             st.caption(f":material/avg_time: Run time: {row.run_time}s")
 
+        st.caption(f":material/progress_activity: %{row.progress * 100:.0f} complete")
         st.progress(row.progress)
 
 

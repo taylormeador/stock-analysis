@@ -48,8 +48,7 @@ def update_current_prices_cache(self):
     tracker.start_task()
 
     try:
-        stocks.update_cache()
-        tracker.update_status_message("Cache refreshed")
+        stocks.update_cache(tracker)
         tracker.complete_task()
         return True
 

@@ -233,7 +233,7 @@ def fetch_stock_data(
         logger.warning(f"Failed tickers: {', '.join(failed_tickers)}")
 
 
-def update_cache():
+def update_cache(tracker: ETLStatusTracker):
     logger.info("Updating current prices cache")
 
     # Create ticker objects
@@ -260,6 +260,7 @@ def update_cache():
                 "year_change": year_change,
             }
             price_data.append(ticker_data)
+            tracker.update_progress(len(price_data) / len(tickers), persist=True)
 
         except Exception as e:
             logger.warning(f"Could not get price for {ticker_symbol}: {e}")
@@ -269,4 +270,5 @@ def update_cache():
         name="current_prices",
         value=json.dumps(price_data),
     )
+    tracker.update_status_message("Cache refreshed")
     logger.info(f"Updated prices for {len(price_data)} tickers")
