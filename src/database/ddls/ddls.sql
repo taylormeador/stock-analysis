@@ -78,6 +78,7 @@ CREATE TABLE etl_task_status (
     component_name VARCHAR(50),
     task_description VARCHAR(100),
     status VARCHAR(20),
+    status_message TEXT,
     progress FLOAT,
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ

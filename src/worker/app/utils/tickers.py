@@ -1,3 +1,24 @@
+import os
+import app.database.models as models
+import app.database.db as db
+
+
+DATABASE_URL = os.environ["STOCK_ANALYSIS_DB"]
+
+tickers_table = models.tickers
+
+
+def get_tickers():
+    """Gets all tracked tickers"""
+    stmt = tickers_table.select().where(tickers_table.c.is_tracked)
+    with db.get_connection() as conn:
+        results = conn.execute(stmt)
+        rows = results.fetchall()
+
+    tickers = [row[1] for row in rows]
+    return tickers
+
+
 TICKERS = {
     # Mega caps
     "AAPL",

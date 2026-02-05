@@ -6,24 +6,10 @@ from app.celery_app import app
 from app.utils import (
     ETLStatusTracker,
     SingleInstanceTask,
-    Status,
     track_task_metrics,
 )
 
 logger = logging.getLogger(__name__)
-
-
-@app.task(base=SingleInstanceTask)
-def scrape_reddit_hot():
-    """Scrape Reddit /hot for stock mentions"""
-    logger.info("scraping Reddit /hot...")
-
-    post_filter = "hot"
-    post_limit = 10
-    reddit.scrape(post_filter, post_limit)
-
-    logger.info("Reddit /hot scraping complete")
-    return
 
 
 @app.task(base=SingleInstanceTask, bind=True)
@@ -39,10 +25,17 @@ def scrape_reddit_wsb_daily_thread(
         component_name="WSB Daily Thread Scraper",
         task_description=f"Scrapes r/wallstreetbets daily discussion {filter} comments",
     )
+    tracker.start_task()
 
-    reddit.scrape_reddit_wsb_daily_thread(filter, limit, tracker)
+    try:
+        reddit.scrape_reddit_wsb_daily_thread(filter, limit, tracker)
+        tracker.complete_task()
+        return True
 
-    return
+    except Exception as e:
+        logger.exception("reddit scraping task failure: ")
+        tracker.fail_task(str(e))
+        raise
 
 
 @app.task(bind=True, queue="historical")
@@ -59,9 +52,10 @@ def scrape_reddit_historical_data(self):
         reddit.scrape_historical_data(tracker)
         tracker.complete_task()
 
-    except Exception:
+    except Exception as e:
         logger.exception("error in historical scraping task: ")
-        tracker.fail_task()
+        tracker.fail_task(str(e))
+        raise
 
 
 @app.task(base=SingleInstanceTask, bind=True)
@@ -71,16 +65,20 @@ def scrape_cboe_daily_stats(
     end_date_str: str | None = None,
 ):
     """Scrape CBOE website for daily options statistics."""
-
     tracker = ETLStatusTracker(
         task_id=self.request.id,
         component_name="CBOE Options Data",
         task_description="Put/call ratios, volume, and open interest",
     )
+    tracker.start_task()
+
     try:
         cboe.scrape_daily_market_stats(tracker, start_date_str, end_date_str)
-    except:
-        tracker.update_status(Status.FAILED)
+        tracker.complete_task()
+
+    except Exception as e:
+        logger.exception("error while scraping CBOE data")
+        tracker.fail_task(str(e))
         raise
 
     return

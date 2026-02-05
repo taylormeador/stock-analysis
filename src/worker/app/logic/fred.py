@@ -18,7 +18,6 @@ fred = fredapi.Fred(api_key=FRED_API_KEY)
 
 def get_fred_data(tracker: ETLStatusTracker):
     logger.info("hitting FRED API")
-    tracker.start_task()
 
     scraped_at = datetime.now(timezone.utc)
 
@@ -53,16 +52,13 @@ def get_fred_data(tracker: ETLStatusTracker):
             "scraped_at": stmt.excluded.scraped_at,
         },
     )
-    try:
-        with db.get_connection() as conn:
-            conn.execute(stmt)
-            conn.commit()
-    except Exception as e:
-        tracker.update_status(Status.FAILED)
-        logger.error(f"exception while writing FRED data: {e}")
 
+    with db.get_connection() as conn:
+        conn.execute(stmt)
+        conn.commit()
+
+    tracker.update_status_message(f"Updated FRED data {[col for col in df.columns]}")
     logger.info("updated FRED table")
-    tracker.complete_task()
 
 
 if __name__ == "__main__":

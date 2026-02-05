@@ -1,14 +1,23 @@
 import logging
+from datetime import datetime, timezone, timedelta
+import os
+import json
 
+import time
 import pandas as pd
 import pandas_ta as ta
 import yfinance as yf
 from sqlalchemy.dialects.postgresql import insert
+import redis
 
 import app.database.db as db
 import app.database.models as models
+from app.utils import ETLStatusTracker, get_tickers
 
 logger = logging.getLogger(__name__)
+
+
+redis_client = redis.Redis.from_url(os.environ["REDIS_URL"])
 
 
 def fetch_historical_data(
@@ -170,3 +179,95 @@ def load_price_data(df: pd.DataFrame, ticker: str, start_date: str, end_date: st
         conn.commit()
 
     logger.info(f"Upserted {len(records)} records for {ticker}")
+
+
+def fetch_stock_data(
+    tracker: ETLStatusTracker,
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
+    # Default to yesterday/today for start/end date.
+    if start_date is None:
+        start_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
+            "%Y-%m-%d"
+        )
+    if end_date is None:
+        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    logger.info(f"Fetching data for dates: {start_date} to {end_date}")
+    tracker.update_status_message(
+        f"Fetching data for dates: {start_date} to {end_date}"
+    )
+
+    tickers = get_tickers()
+    num_tickers = len(tickers)
+
+    total_records = 0
+    failed_tickers = []
+    for idx, ticker in enumerate(sorted(tickers)):
+        try:
+            df = fetch_historical_data(ticker, start_date, end_date)
+            if df.empty:
+                logger.warning(f"{ticker}: No records to insert")
+                failed_tickers.append(ticker)
+                continue
+
+            df = calculate_indicators(df)
+            load_price_data(df, ticker, start_date, end_date)
+
+            # Update progress and add small delay between tickers to avoid rate limiting
+            tracker.update_progress(idx / num_tickers, persist=True)
+            tracker.update_status_message(f"Fetched data for {ticker}")
+            total_records += 1
+            time.sleep(0.5)
+
+        except Exception as e:
+            logger.error(f"Failed to process {ticker}: {str(e)}")
+            failed_tickers.append(ticker)
+            continue
+
+    logger.info(f"Stock price fetch complete. Total records: {total_records}")
+    tracker.update_status_message(f"Fetched data for {total_records} tickers")
+
+    if failed_tickers:
+        logger.warning(f"Failed tickers: {', '.join(failed_tickers)}")
+
+
+def update_cache():
+    logger.info("Updating current prices cache")
+
+    # Create ticker objects
+    tickers = get_tickers()
+    ticker_objects = yf.Tickers(" ".join(sorted(tickers)))
+
+    price_data = []
+    for ticker_symbol in tickers:
+        try:
+            ticker = ticker_objects.tickers[ticker_symbol]
+            fast_info = ticker.fast_info
+            last_price = fast_info.get("lastPrice") or fast_info.get(
+                "regularMarketPrice"
+            )
+            year_change = fast_info.get("yearChange")
+            last_close = fast_info.get("previousClose")
+            day_change = last_price / last_close - 1
+            year_change = fast_info.get("yearChange")
+
+            ticker_data = {
+                "ticker": ticker_symbol,
+                "price": last_price,
+                "day_change": day_change,
+                "year_change": year_change,
+            }
+            price_data.append(ticker_data)
+
+        except Exception as e:
+            logger.warning(f"Could not get price for {ticker_symbol}: {e}")
+            continue
+
+    redis_client.set(
+        name="current_prices",
+        value=json.dumps(price_data),
+    )
+
+    logger.info(f"Updated prices for {len(price_data)} tickers")

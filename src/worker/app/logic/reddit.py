@@ -229,7 +229,7 @@ def scrape(
 def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTracker):
     """Scrape Reddit WSB daily thread for ticker mentions."""
     logger.info("scraping Reddit WSB daily thread...")
-    tracker.start_task()
+    tracker.update_status_message("Scraping...")
 
     rate_limiter = DistributedRateLimiter(
         name="reddit",
@@ -289,8 +289,10 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTr
                 parent_ticker=None,
                 scraped_at=scraped_at,
             )
-            tracker.update_progress(0.6)
             insert_comments(comments)
+
+            tracker.update_progress(0.6)
+            tracker.update_status_message(f"Scraped {len(comments)} comments")
             track_records_processed(
                 task_name="scrape_reddit_wsb_daily_thread",
                 count=len(comments),
@@ -300,7 +302,6 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTr
 
     logger.info("Reddit WSB daily thread scraping complete")
     tracker.update_progress(0.8)
-    tracker.complete_task()
 
     return
 

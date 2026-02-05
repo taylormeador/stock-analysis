@@ -28,8 +28,7 @@ def scrape_daily_market_stats(
     For backfilling, start_date and end_date can be provided.
     Default behavior is to get the data for today only.
     """
-    tracker.start_task()
-
+    # Compute date range
     date_format = "%Y-%m-%d"
     if start_date_str is None or end_date_str is None:
         start_date_str = date.today().strftime(date_format)
@@ -44,9 +43,9 @@ def scrape_daily_market_stats(
     date_range = [date for date in date_range if date.weekday() < 5]
     if not date_range:
         logger.info("no valid dates for CBOE market stats")
-        tracker.complete_task()
         return
 
+    tracker.update_status_message("Scraping...")
     logger.info(f"starting CBOE scrape for {start_date} to {end_date}")
     scraped_at = datetime.now(timezone.utc)
 
@@ -92,7 +91,7 @@ def scrape_daily_market_stats(
             conn.commit()
 
     logger.info(f"inserted {len(all_stats)} cboe daily records")
-    tracker.complete_task()
+    tracker.update_status_message(f"Updated {len(all_stats)} CBOE recods")
 
 
 if __name__ == "__main__":

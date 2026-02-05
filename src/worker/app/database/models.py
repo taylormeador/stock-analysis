@@ -136,6 +136,7 @@ etl_task_status = Table(
     Column("component_name", String(50)),
     Column("task_description", String(100)),
     Column("status", String(20)),
+    Column("status_message", Text),
     Column("progress", Float),
     Column("start_time", TIMESTAMP(timezone=True)),
     Column("end_time", TIMESTAMP(timezone=True)),
