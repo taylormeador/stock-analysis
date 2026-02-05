@@ -61,38 +61,46 @@ with col4:
 
 st.divider()
 
-# Pipeline components status
-st.subheader(":material/account_tree: Pipeline Components")
 
-now = datetime.now(timezone.utc)
-for _, row in df.iterrows():
-    col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
-    with col1:
-        if row.status == "Complete":
-            st.success(f"**{row.status}**")
-        elif row.status == "Retrying":
-            st.warning(f"**{row.status}**")
-        elif row.status == "Failed":
-            st.error(f"**{row.status}**")
-        else:
-            st.info(f"**{row.status}**")
+@st.fragment(run_every="5s")
+def realtime_component_status():
+    """This section updates every 5s without reloading the whole page."""
+    json_response = get_json("/etl-status")
+    df = pd.DataFrame(json_response["data"])
 
-    with col2:
-        st.markdown(f"**{row.component_name}**")
-        st.caption(row.task_description)
+    st.subheader(":material/account_tree: Pipeline Components")
 
-    with col3:
-        st.markdown("**Status**")
-        st.caption(row.status_message)
+    now = datetime.now(timezone.utc)
+    for _, row in df.iterrows():
+        col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
+        with col1:
+            if row.status == "Complete":
+                st.success(f"**{row.status}**")
+            elif row.status == "Retrying":
+                st.warning(f"**{row.status}**")
+            elif row.status == "Failed":
+                st.error(f"**{row.status}**")
+            else:
+                st.info(f"**{row.status}**")
 
-    with col4:
-        delta = now - pd.to_datetime(row.start_time)
-        ago = timeago.format(delta, now)
-        st.caption(f":material/schedule: Last run: {ago}")
-        st.caption(f":material/avg_time: Run time: {row.run_time}s")
+        with col2:
+            st.markdown(f"**{row.component_name}**")
+            st.caption(row.task_description)
 
-    st.progress(row.progress)
+        with col3:
+            st.markdown("**Status**")
+            st.caption(row.status_message)
 
+        with col4:
+            delta = now - pd.to_datetime(row.start_time)
+            ago = timeago.format(delta, now)
+            st.caption(f":material/schedule: Last run: {ago}")
+            st.caption(f":material/avg_time: Run time: {row.run_time}s")
+
+        st.progress(row.progress)
+
+
+realtime_component_status()
 
 st.divider()
 
