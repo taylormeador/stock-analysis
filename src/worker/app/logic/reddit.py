@@ -358,6 +358,10 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
     file_size = os.path.getsize(file_info.file_name)
     logger.info(f"File size: {file_size:,} bytes")
     task_name = "scrape_reddit_historical_data"
+    if tracker:
+        tracker.update_status_message(
+            f"Scraping {file_info.file_name} {file_size:,} bytes"
+        )
 
     # Scrape and insert batches
     batch_size = 1000
@@ -433,7 +437,7 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
 
                                     # allow file progress to be between 0.1 and 0.95 of total task
                                     tracker.update_progress(
-                                        percent_complete=max(progress - 0.05, 0.1),
+                                        percent_complete=max(progress - 0.05, 0.01),
                                         persist=True,
                                     )
 
