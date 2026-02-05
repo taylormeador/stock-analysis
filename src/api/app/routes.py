@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 import logging
-import logic
-from sqlalchemy import text
-import pandas as pd
+import logic.whats_hot as whats_hot
+import logic.etl_status as etl_status
+import asyncio
 import db
 
 logger = logging.getLogger(__name__)
@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api")
 async def get_whats_hot():
     logger.info("calculating data for hot dashboard")
 
-    top_comments = await logic.get_top_comments()
-    ticker_mentions = await logic.get_ticker_mentions()
+    top_comments = await whats_hot.get_top_comments()
+    ticker_mentions = await whats_hot.get_ticker_mentions()
 
     logger.info("got whats hot data")
 
@@ -29,66 +29,20 @@ async def get_whats_hot():
 
 @router.get("/etl-status/")
 async def get_etl_status():
-    # TODO implement a table or something that has overall status
-    # overall status = operational, degraded, planned downtime, etc
-    # active workers, services, etc
-    # data freshness?
+    tasks = [
+        etl_status.get_etl_task_statuses(),
+        etl_status.get_failed_task_count(),
+        etl_status.get_task_time_deltas(),
+    ]
+    results = await asyncio.gather(*tasks)
 
-    sql = """
-        SELECT * FROM (
-            SELECT DISTINCT ON (task_description)
-                component_name,
-                task_description,
-                status,
-                status_message,
-                progress,
-                start_time,
-                end_time
-            FROM etl_task_status
-            ORDER BY task_description, start_time DESC
-        ) AS latest_tasks
-        ORDER BY start_time DESC;
-    """
-    async with db.AsyncSessionLocal() as session:
-        result = await session.execute(text(sql))
-        data = result.fetchall()
+    data = {
+        "etl_task_statuses": results[0].to_dict("records"),
+        "failed_task_count": results[1].to_dict("records"),
+        "task_time_deltas": results[2].to_dict("records"),
+    }
 
-    df = pd.DataFrame(data)
-    df["run_time"] = df.end_time - df.start_time
-
-    return {"data": df.to_dict("records")}
-
-
-@router.get("/etl/status/components")
-async def get_etl_components_status():
-    sql = """
-        SELECT DISTINCT ON (task_description)
-            component_name,
-            task_description,
-            status,
-            progress,
-            start_time,
-            end_time
-        FROM etl_task_status
-        WHERE start_time > NOW() - INTERVAL '24 HOURS'
-        ORDER BY task_description, start_time DESC;
-    """
-    async with db.AsyncSessionLocal() as session:
-        result = await session.execute(text(sql))
-        data = result.fetchall()
-
-    df = pd.DataFrame(data)
-
-    return {"data": df.to_dict("records")}
-
-
-@router.get("/etl/status/data-quality")
-async def get_etl_data_quality_status():
-    # TODO implement a table or something that counts total reddit comments/posts analyzed
-    # unique tickers
-    # active ML models
-
-    return {"data": {}}
+    return {"data": data}
 
 
 if __name__ == "__main__":

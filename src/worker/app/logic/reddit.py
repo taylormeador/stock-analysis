@@ -420,7 +420,9 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
 
                             # Bulk insert to DB
                             if len(batch) >= batch_size:
-                                stmt = model.insert().values(batch)
+                                stmt = model.insert().values(
+                                    batch
+                                )  # TODO make this update on conflict
                                 with db.get_connection() as conn:
                                     conn.execute(stmt)
                                     conn.commit()

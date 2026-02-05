@@ -22,7 +22,7 @@ whats_hot = st.Page(
     icon=":material/show_chart:",
 )
 status_page = st.Page(
-    page="page_modules/status.py",
+    page="page_modules/etl_status.py",
     title="ETL Status",
     icon=":material/database_upload:",
 )
