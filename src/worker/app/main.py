@@ -50,10 +50,9 @@ app.conf.beat_schedule = {
         "task": "app.tasks.scraping.scrape_reddit_historical_data",
         "schedule": crontab(hour="8", minute="0"),
     },
-    # let this run after historical data is scraped
     "generate-historical-embeddings": {
         "task": "app.tasks.embeddings.generate_historical_embeddings",
-        "schedule": crontab(hour="11", minute="0"),
+        "schedule": 3600.0,
     },
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",

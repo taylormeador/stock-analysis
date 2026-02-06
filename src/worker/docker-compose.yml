@@ -44,6 +44,32 @@ services:
     command: celery -A app.main worker --loglevel=info -Q historical -E
     restart: unless-stopped
 
+  celery-worker-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stock-analysis-celery:latest
+    container_name: stock-analysis-celery-worker-gpu
+    expose:
+      - "9809"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - CELERY_METRICS_PORT=${CELERY_METRICS_PORT}
+      - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
+      - FRED_API_KEY=${FRED_API_KEY}
+      - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE}
+      - EMBEDDING_NUM_BATCHES=${EMBEDDING_NUM_BATCHES}
+    volumes:
+      - ./app:/app/app
+      - ./data:/data
+    command: celery -A app.main worker --loglevel=info --max-tasks-per-child=10 -Q gpu -E
+    restart: unless-stopped
+    profiles: [gpu]
+
+
   celery-beat:
     image: stock-analysis-celery:latest
     container_name: stock-analysis-celery-beat

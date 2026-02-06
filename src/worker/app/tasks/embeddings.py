@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timezone
 
 import mlflow
@@ -6,14 +7,20 @@ from sqlalchemy import text
 
 from app.celery_app import app
 from app.database.db import get_connection
-from app.utils import ETLStatusTracker, track_task_metrics, track_records_processed
+from app.utils import (
+    ETLStatusTracker,
+    SingleInstanceTask,
+    track_records_processed,
+    track_task_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
 # Model configuration
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
-BATCH_SIZE = 10000
+EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "10000"))
+EMBEDDING_NUM_BATCHES = int(os.getenv("EMBEDDING_NUM_BATCHES", "10"))
 COLUMN_NAME = "all_minilm_l6_v2_embedding"
 TIMESTAMP_COLUMN = "all_minilm_l6_v2_generated_at"
 
@@ -33,7 +40,7 @@ def load_model():
     return model
 
 
-@app.task(bind=True, queue="historical")
+@app.task(base=SingleInstanceTask, bind=True, queue="gpu")
 @track_task_metrics
 def generate_historical_embeddings(self):
     """
@@ -57,19 +64,20 @@ def generate_historical_embeddings(self):
             # Log model metadata
             mlflow.log_param("model_name", EMBEDDING_MODEL)
             mlflow.log_param("embedding_dimension", EMBEDDING_DIM)
-            mlflow.log_param("batch_size", BATCH_SIZE)
+            mlflow.log_param("batch_size", EMBEDDING_BATCH_SIZE)
+            mlflow.log_param("num_batches", EMBEDDING_NUM_BATCHES)
             mlflow.log_param("column_name", COLUMN_NAME)
             mlflow.log_param("task_id", self.request.id)
 
             total_embedded = 0
-            for _ in range(10):
+            for _ in range(EMBEDDING_NUM_BATCHES):
                 # Get batch of comments without embeddings in this column
                 sql = f"""
                     SELECT comment_id, body
                     FROM historical_reddit_comments
                     WHERE {COLUMN_NAME} IS NULL
                     ORDER BY created_utc DESC
-                    LIMIT {BATCH_SIZE};
+                    LIMIT {EMBEDDING_BATCH_SIZE};
                 """
                 with get_connection() as conn:
                     result = conn.execute(text(sql))
@@ -131,7 +139,9 @@ def generate_historical_embeddings(self):
 
             # Log final metrics to MLflow
             mlflow.log_metric("total_comments_embedded", total_embedded)
-            mlflow.log_metric("batches_processed", total_embedded / BATCH_SIZE)
+            mlflow.log_metric(
+                "batches_processed", total_embedded / EMBEDDING_BATCH_SIZE
+            )
 
             logger.info(f"Embedding generation complete: {total_embedded:,} comments")
             tracker.update_status_message(
