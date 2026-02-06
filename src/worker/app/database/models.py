@@ -12,6 +12,7 @@ from sqlalchemy import (
     Numeric,
     Boolean,
 )
+from pgvector.sqlalchemy import Vector
 
 # Define schema
 metadata = MetaData()
@@ -165,6 +166,8 @@ historical_reddit_comments = Table(
     Column("author", String(100)),
     Column("created_utc", TIMESTAMP(timezone=True)),
     Column("scraped_at", TIMESTAMP(timezone=True)),
+    Column("all_minilm_l6_v2_embedding", Vector(384)),
+    Column("all_minilm_l6_v2_generated_at", TIMESTAMP(timezone=True)),
 )
 
 

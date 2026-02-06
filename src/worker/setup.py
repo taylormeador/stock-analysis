@@ -13,7 +13,6 @@ setup(
         "sqlalchemy==2.0.46",
         "flower==2.0.1",
         "torch==2.10.0",
-        "transformers==5.0.0",
         "yfinance==1.1.0",
         "pandas<3",
         "pandas-ta==0.4.71b0",
@@ -27,5 +26,7 @@ setup(
         "fredapi==0.5.2",
         "prometheus-client==0.21.1",
         "zstandard==0.25.0",
+        "sentence-transformers==3.3.1",
+        "pgvector==0.4.2",
     ],
 )
