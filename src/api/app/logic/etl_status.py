@@ -65,7 +65,7 @@ async def get_failed_task_count():
         FROM etl_task_status
         WHERE
             start_time > NOW() - interval '24 Hours' AND
-            (status = 'FAILED' OR
+            (status = 'Failed' OR
                 (end_time IS NULL AND status NOT IN ('In Progress', 'Retrying', 'Not Started')));
     """
     async with AsyncSessionLocal() as session:
