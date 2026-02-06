@@ -456,7 +456,7 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
                                     conn.execute(stmt)
                                     conn.commit()
                                 batch = []
-                                print("inserted batch")
+                                logger.info("inserted batch")
 
                                 track_records_processed(
                                     task_name=task_name,
@@ -474,20 +474,20 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
                                     )
 
                         if i % 100000 == 0:
-                            print(f"Processed {i:,} lines")
+                            logger.info(f"Processed {i:,} lines")
 
                     except json.JSONDecodeError:
                         continue
 
                     except Exception as e:
-                        print(e)
+                        logger.error(e)
 
                 if batch:
                     stmt = model.insert().values(batch)
                     with db.get_connection() as conn:
                         conn.execute(stmt)
                         conn.commit()
-                        print("inserted final partial batch")
+                        logger.info("inserted final partial batch")
 
                     track_records_processed(
                         task_name=task_name,
@@ -497,7 +497,7 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
                     if tracker:
                         tracker.update_progress(0.99, persist=True)
 
-                print(
+                logger.info(
                     f"reddit historical data ETL complete for file {file_info.file_name}"
                 )
 
