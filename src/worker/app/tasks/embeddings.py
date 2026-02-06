@@ -187,10 +187,10 @@ def generate_real_time_embeddings(self):
 
     try:
         sql = """
-            SELECT comment_id, body
+            SELECT id, body
             FROM (
                 SELECT DISTINCT ON (comment_id)
-                    comment_id,
+                    id,
                     body,
                     embedding
                 FROM reddit_comments
@@ -211,7 +211,7 @@ def generate_real_time_embeddings(self):
             return True
 
         # Extract IDs and bodies
-        ids = [row.comment_id for row in rows]
+        ids = [row.id for row in rows]
         bodies = [row.body for row in rows]
 
         # Generate embeddings
@@ -229,20 +229,20 @@ def generate_real_time_embeddings(self):
         # Update database
         generated_at = datetime.now(timezone.utc)
         with get_connection() as conn:
-            for comment_id, embedding in zip(ids, embeddings):
-                update_sql = f"""
-                    UPDATE historical_reddit_comments
+            for id, embedding in zip(ids, embeddings):
+                update_sql = """
+                    UPDATE reddit_comments
                     SET
-                        {COLUMN_NAME} = :embedding,
-                        {TIMESTAMP_COLUMN} = :generated_at
-                    WHERE comment_id = :comment_id
+                        embedding = :embedding,
+                        embedding_generated_at = :generated_at
+                    WHERE id = :id
                 """
                 conn.execute(
                     text(update_sql),
                     {
                         "embedding": embedding.tolist(),
                         "generated_at": generated_at,
-                        "comment_id": comment_id,
+                        "id": id,
                     },
                 )
             conn.commit()
