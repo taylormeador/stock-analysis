@@ -66,7 +66,7 @@ def generate_historical_embeddings(self):
             while True:
                 # Get batch of comments without embeddings in this column
                 sql = f"""
-                    SELECT id, body
+                    SELECT comment_id, body
                     FROM historical_reddit_comments
                     WHERE {COLUMN_NAME} IS NULL
                     ORDER BY created_utc DESC
@@ -81,7 +81,7 @@ def generate_historical_embeddings(self):
                     break
 
                 # Extract IDs and bodies
-                ids = [row.id for row in rows]
+                ids = [row.comment_id for row in rows]
                 bodies = [row.body for row in rows]
 
                 # Generate embeddings
@@ -102,14 +102,14 @@ def generate_historical_embeddings(self):
                             SET
                                 {COLUMN_NAME} = :embedding,
                                 {TIMESTAMP_COLUMN} = :generated_at
-                            WHERE id = :id
+                            WHERE comment_id = :comment_id
                         """
                         conn.execute(
                             text(update_sql),
                             {
                                 "embedding": embedding.tolist(),
                                 "generated_at": generated_at,
-                                "id": comment_id,
+                                "comment_id": comment_id,
                             },
                         )
                     conn.commit()
