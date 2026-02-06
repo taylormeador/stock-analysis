@@ -489,21 +489,20 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
                         conn.commit()
                         logger.info("inserted final partial batch")
 
-                    track_records_processed(
-                        task_name=task_name,
-                        count=len(batch),
-                        record_type=record_type,
-                    )
-                    if tracker:
-                        tracker.update_progress(0.99, persist=True)
+                # Mark the file/task complete
+                track_records_processed(
+                    task_name=task_name,
+                    count=len(batch),
+                    record_type=record_type,
+                )
+                if tracker:
+                    tracker.update_status_message(f"Processed {file_size:,} bytes")
 
+                historical_tracking.set_file_status("COMPLETE")
+                historical_tracking.set_end_time()
                 logger.info(
                     f"reddit historical data ETL complete for file {file_info.file_name}"
                 )
-
-        # Mark the file/task complete
-        historical_tracking.set_file_status("COMPLETE")
-        historical_tracking.set_end_time()
 
     except Exception as e:
         logger.error(f"error while processing historical reddit file: {e}")
