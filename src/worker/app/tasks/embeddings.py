@@ -202,15 +202,14 @@ def generate_real_time_embeddings(self):
         """
         with get_connection() as conn:
             result = conn.execute(text(sql))
-            row = result.scalar_one_or_none()
+            total_to_embed = result.scalar_one_or_none()
 
-        if row is None:
+        if not total_to_embed:
             logger.info("No comments to embed")
             tracker.update_status_message("No comments to embed")
             tracker.complete_task()
             return
 
-        total_to_embed = row.count
         total_embedded = 0
         while True:
             # Get batch of comments without embeddings in this column
