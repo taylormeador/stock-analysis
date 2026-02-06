@@ -8,7 +8,22 @@ logger = logging.getLogger(__name__)
 
 async def get_etl_task_statuses():
     sql = """
-        SELECT * FROM (
+        WITH running_or_active AS (
+            -- Get all tasks that are currently active (not finished)
+            SELECT 
+                component_name,
+                task_description,
+                status,
+                status_message,
+                progress,
+                start_time,
+                end_time
+            FROM etl_task_status
+            WHERE status IN ('In Progress', 'Retrying', 'Not Started')
+        ),
+        latest_finished AS (
+            -- Get most recent finished task for each task_description
+            -- but only if there's no active task with that description
             SELECT DISTINCT ON (task_description)
                 component_name,
                 task_description,
@@ -18,8 +33,15 @@ async def get_etl_task_statuses():
                 start_time,
                 end_time
             FROM etl_task_status
+            WHERE status IN ('Complete', 'Failed')
+            AND task_description NOT IN (
+                SELECT task_description FROM running_or_active
+            )
             ORDER BY task_description, start_time DESC
-        ) AS latest_tasks
+        )
+        SELECT * FROM running_or_active
+        UNION ALL
+        SELECT * FROM latest_finished
         ORDER BY start_time DESC;
     """
     async with AsyncSessionLocal() as session:
