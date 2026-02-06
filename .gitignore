@@ -1,4 +1,5 @@
 .vscode
+cmd.txt
 
 # SSL Certificates (NEVER commit these!)
 certbot/
