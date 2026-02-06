@@ -50,6 +50,8 @@ reddit_comments = Table(
     Column("depth", Integer),
     Column("created_utc", TIMESTAMP(timezone=True)),
     Column("scraped_at", TIMESTAMP(timezone=True)),
+    Column("embedding", Vector(384)),
+    Column("embedding_generated_at", TIMESTAMP(timezone=True)),
 )
 
 reddit_comment_sentiment_predictions = Table(

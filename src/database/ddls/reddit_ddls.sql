@@ -28,6 +28,8 @@ CREATE TABLE reddit_comments (
     depth INTEGER,
     created_utc TIMESTAMPTZ,
     scraped_at TIMESTAMPTZ DEFAULT NOW(),
+    embedding PUBLIC.VECTOR(384),
+    embedding_generated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(comment_id, scraped_at)
 );
 

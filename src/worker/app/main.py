@@ -54,6 +54,11 @@ app.conf.beat_schedule = {
         "task": "app.tasks.embeddings.generate_historical_embeddings",
         "schedule": crontab(hour="11", minute="0"),
     },
+    # TODO add this once we have backfilled and tasks won't pile up
+    # "generate-real-time-embeddings": {
+    #     "task": "app.tasks.embeddings.generate_real_time_embeddings",
+    #     "schedule": 600.0,
+    # },
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",
         "schedule": crontab(hour="8", minute="0"),

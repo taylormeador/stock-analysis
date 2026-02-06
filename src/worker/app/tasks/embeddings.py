@@ -50,7 +50,7 @@ def generate_historical_embeddings(self):
     tracker = ETLStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Historical Comment Embeddings",
-        task_description=f"Generating embeddings with {EMBEDDING_MODEL}",
+        task_description=f"Generating embeddings for historical comments with {EMBEDDING_MODEL}",
     )
     tracker.start_task()
     embedding_model = load_model()
@@ -125,7 +125,11 @@ def generate_historical_embeddings(self):
 
                 # Track progress
                 tracker.update_progress(
-                    min(total_embedded / 1_000_000, 0.95), persist=True
+                    min(
+                        total_embedded / (EMBEDDING_NUM_BATCHES * EMBEDDING_BATCH_SIZE),
+                        0.95,
+                    ),
+                    persist=True,
                 )
                 tracker.update_status_message(f"Embedded {total_embedded:,} comments")
 
@@ -165,3 +169,137 @@ def generate_historical_embeddings(self):
             mlflow.log_param("error", str(e))
 
         raise
+
+
+@app.task(base=SingleInstanceTask, bind=True, queue="gpu")
+@track_task_metrics
+def generate_real_time_embeddings(self):
+    """
+    Generate embeddings for current Reddit comments.
+    """
+    tracker = ETLStatusTracker(
+        task_id=self.request.id,
+        component_name="Reddit Real-Time Comment Embeddings",
+        task_description=f"Generating embeddings in real-time with {EMBEDDING_MODEL}",
+    )
+    tracker.start_task()
+    embedding_model = load_model()
+
+    try:
+        # Get num of comments to embed
+        sql = """
+            WITH latest_comment_ids AS (
+                SELECT DISTINCT ON (comment_id)
+                    id,
+                    comment_id
+                FROM reddit_comments
+                WHERE created_utc > NOW() - INTERVAL '24 hours'
+            )
+            SELECT count(*)
+            FROM latest_comment_ids lci
+            JOIN reddit_comments rc ON rc.id = lci.id
+            WHERE embedding IS NULL;
+        """
+        with get_connection() as conn:
+            result = conn.execute(text(sql))
+            row = result.scalar_one_or_none()
+
+        if row is None:
+            logger.info("No comments to embed")
+            tracker.update_status_message("No comments to embed")
+            tracker.complete_task()
+            return
+
+        total_to_embed = row.count
+        total_embedded = 0
+        while True:
+            # Get batch of comments without embeddings in this column
+            sql = """
+                WITH latest_comment_ids AS (
+                    SELECT DISTINCT ON (comment_id)
+                        id,
+                        comment_id
+                    FROM reddit_comments
+                    WHERE created_utc > NOW() - INTERVAL '24 hours'
+                )
+                SELECT rc.comment_id, body
+                FROM latest_comment_ids lci
+                JOIN reddit_comments rc ON rc.id = lci.id
+                WHERE embedding IS NULL
+                LIMIT 1000;
+            """
+            with get_connection() as conn:
+                result = conn.execute(text(sql))
+                rows = result.fetchall()
+
+            if not rows:
+                logger.info("No more comments to embed")
+                break
+
+            # Extract IDs and bodies
+            ids = [row.comment_id for row in rows]
+            bodies = [row.body for row in rows]
+
+            # Generate embeddings
+            logger.info(f"Generating embeddings for {len(bodies)} comments")
+            embeddings = embedding_model.encode(
+                bodies,
+                show_progress_bar=False,
+                batch_size=32,
+                normalize_embeddings=True,
+            )
+
+            # Update database
+            generated_at = datetime.now(timezone.utc)
+            with get_connection() as conn:
+                for comment_id, embedding in zip(ids, embeddings):
+                    update_sql = f"""
+                        UPDATE historical_reddit_comments
+                        SET
+                            {COLUMN_NAME} = :embedding,
+                            {TIMESTAMP_COLUMN} = :generated_at
+                        WHERE comment_id = :comment_id
+                    """
+                    conn.execute(
+                        text(update_sql),
+                        {
+                            "embedding": embedding.tolist(),
+                            "generated_at": generated_at,
+                            "comment_id": comment_id,
+                        },
+                    )
+                conn.commit()
+
+            total_embedded += len(ids)
+
+            # Track progress
+            tracker.update_progress(
+                min(total_embedded / total_to_embed, 0.95), persist=True
+            )
+            tracker.update_status_message(f"Embedded {total_embedded:,} comments")
+
+            track_records_processed(
+                task_name="generate_historical_embeddings",
+                count=len(ids),
+                record_type="reddit_comment_embedding",
+            )
+
+            logger.info(f"Total embedded so far: {total_embedded:,}")
+
+        logger.info(f"Embedding generation complete: {total_embedded:,} comments")
+        tracker.update_status_message(f"Complete: {total_embedded:,} comments embedded")
+        tracker.complete_task()
+
+        return {
+            "total_embedded": total_embedded,
+            "model": EMBEDDING_MODEL,
+        }
+
+    except Exception as e:
+        logger.exception("Error generating embeddings")
+        tracker.fail_task(str(e))
+        raise
+
+
+if __name__ == "__main__":
+    generate_real_time_embeddings()
