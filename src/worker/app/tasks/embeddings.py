@@ -62,8 +62,7 @@ def generate_historical_embeddings(self):
             mlflow.log_param("task_id", self.request.id)
 
             total_embedded = 0
-
-            while True:
+            for _ in range(10):
                 # Get batch of comments without embeddings in this column
                 sql = f"""
                     SELECT comment_id, body
