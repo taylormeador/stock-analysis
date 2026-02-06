@@ -52,7 +52,7 @@ app.conf.beat_schedule = {
     },
     "generate-historical-embeddings": {
         "task": "app.tasks.embeddings.generate_historical_embeddings",
-        "schedule": 3600.0,
+        "schedule": crontab(hour="11", minute="0"),
     },
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",
