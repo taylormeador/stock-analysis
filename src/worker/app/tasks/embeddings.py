@@ -49,7 +49,7 @@ def generate_historical_embeddings(self):
     """
     tracker = ETLStatusTracker(
         task_id=self.request.id,
-        component_name="Historical Comment Embeddings",
+        component_name="Reddit Historical Comment Embeddings",
         task_description=f"Generating embeddings with {EMBEDDING_MODEL}",
     )
     tracker.start_task()
