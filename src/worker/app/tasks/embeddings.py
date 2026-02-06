@@ -50,7 +50,7 @@ def generate_historical_embeddings(self):
     tracker = ETLStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Historical Comment Embeddings",
-        task_description=f"Generating embeddings for historical comments with {EMBEDDING_MODEL}",
+        task_description=f"Generates embeddings for historical comments with {EMBEDDING_MODEL}",
     )
     tracker.start_task()
     embedding_model = load_model()
@@ -180,7 +180,7 @@ def generate_real_time_embeddings(self):
     tracker = ETLStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Real-Time Comment Embeddings",
-        task_description=f"Generating embeddings in real-time with {EMBEDDING_MODEL}",
+        task_description=f"Generates embeddings in real-time with {EMBEDDING_MODEL}",
     )
     tracker.start_task()
     embedding_model = load_model()
