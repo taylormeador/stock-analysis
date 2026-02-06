@@ -187,17 +187,16 @@ def generate_real_time_embeddings(self):
 
     try:
         sql = """
-            WITH latest_comment_ids AS (
+            SELECT comment_id, body
+            FROM (
                 SELECT DISTINCT ON (comment_id)
-                    id,
-                    comment_id
+                    comment_id,
+                    body,
+                    embedding
                 FROM reddit_comments
                 WHERE created_utc > NOW() - INTERVAL '24 hours'
                 ORDER BY comment_id, scraped_at DESC
-            )
-            SELECT rc.comment_id, body
-            FROM latest_comment_ids lci
-            JOIN reddit_comments rc ON rc.id = lci.id
+            ) latest
             WHERE embedding IS NULL
             LIMIT 10000;
         """
