@@ -186,7 +186,6 @@ def generate_real_time_embeddings(self):
     embedding_model = load_model()
 
     try:
-        total_embedded = 0
         sql = """
             WITH latest_comment_ids AS (
                 SELECT DISTINCT ON (comment_id)
@@ -218,6 +217,9 @@ def generate_real_time_embeddings(self):
 
         # Generate embeddings
         logger.info(f"Generating embeddings for {len(bodies)} comments")
+        tracker.update_status_message(
+            f"Generating embeddings for {len(bodies)} comments"
+        )
         embeddings = embedding_model.encode(
             bodies,
             show_progress_bar=False,
@@ -252,12 +254,12 @@ def generate_real_time_embeddings(self):
             record_type="reddit_comment_embedding",
         )
 
-        logger.info(f"Embedding generation complete: {total_embedded:,} comments")
-        tracker.update_status_message(f"Complete: {total_embedded:,} comments embedded")
+        logger.info(f"Embedding generation complete: {len(ids):,} comments")
+        tracker.update_status_message(f"Embedded {len(ids):,} comments")
         tracker.complete_task()
 
         return {
-            "total_embedded": total_embedded,
+            "total_embedded": len(ids),
             "model": EMBEDDING_MODEL,
         }
 
