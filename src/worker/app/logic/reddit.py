@@ -332,6 +332,7 @@ class HistoricalRedditTracking:
         )
         with db.get_connection() as conn:
             conn.execute(stmt)
+            conn.commit()
 
     def set_end_time(self):
         now = datetime.now(timezone.utc)
@@ -342,6 +343,7 @@ class HistoricalRedditTracking:
         )
         with db.get_connection() as conn:
             conn.execute(stmt)
+            conn.commit()
 
     def set_file_status(self, status: str):
         """`status` should be one of "READY", "IN_PROGRESS", "FAILED", "COMPLETE"."""
