@@ -40,10 +40,11 @@ services:
     environment:
       - MLFLOW_BACKEND_STORE_URI=${MLFLOW_DB}
       - MLFLOW_ARTIFACT_ROOT=/mlflow-artifacts
+      - GUNICORN_CMD_ARGS=--timeout 300 --workers 2
     volumes:
       - mlflow_artifacts:/mlflow-artifacts
-    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri ${MLFLOW_DB} --default-artifact-root /mlflow-artifacts
-
+    command: mlflow server --host 0.0.0.0 --port 5000 --allowed-hosts "*" --backend-store-uri ${MLFLOW_DB} --default-artifact-root /mlflow-artifacts --serve-artifacts
+  
   prometheus:
     image: prom/prometheus:latest
     container_name: stock-analysis-prometheus
