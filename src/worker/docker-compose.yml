@@ -20,13 +20,14 @@ services:
       - ./data:/data
     command: celery -A app.main worker --loglevel=info -Q celery -E
     restart: unless-stopped
+    profiles: [worker]
 
   celery-worker-historical:
     build:
       context: .
       dockerfile: Dockerfile
     image: stock-analysis-celery:latest
-    container_name: stock-analysis-celery-worker-historical
+    container_name: stock-analysis-celery-worker-long
     expose:
       - "9809"
     environment:
@@ -43,6 +44,7 @@ services:
       - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
     command: celery -A app.main worker --loglevel=info -Q historical -E
     restart: unless-stopped
+    profiles: [worker-long]
 
   celery-worker-gpu:
     build:
@@ -67,7 +69,7 @@ services:
       - ./data:/data
     command: celery -A app.main worker --loglevel=info --max-tasks-per-child=10 -Q gpu -E
     restart: unless-stopped
-    profiles: [gpu]
+    profiles: [worker-gpu]
 
 
   celery-beat:
@@ -84,6 +86,7 @@ services:
       - ./app:/app/app
     command: celery -A app.main beat --loglevel=info
     restart: unless-stopped
+    profiles: [brain]
 
   flower:
     image: stock-analysis-celery:latest
@@ -102,6 +105,7 @@ services:
       - "5555:5555"
     command: celery -A app.main flower --port=5555 --prometheus_metrics
     restart: unless-stopped
+    profiles: [brain]
 
   celery-exporter:
     image: danihodovic/celery-exporter:latest
@@ -112,6 +116,7 @@ services:
       - CE_BROKER_URL=${REDIS_URL}
       - CE_ENABLE_EVENTS=true
     restart: unless-stopped
+    profiles: [brain]
 
 networks:
   default:
