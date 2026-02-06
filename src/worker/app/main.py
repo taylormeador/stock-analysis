@@ -45,23 +45,26 @@ app.conf.beat_schedule = {
         "kwargs": {"filter": "top", "limit": 25},
         "schedule": 600.0,
     },
+    "scrape-reddit-historical-data": {
+        "task": "app.tasks.scraping.scrape_reddit_historical_data",
+        "schedule": crontab(hour="8", minute="0"),
+    },
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",
-        "schedule": crontab(hour="1", minute="0"),
+        "schedule": crontab(hour="8", minute="0"),
     },
     "update-current-prices": {
         "task": "app.tasks.apis.update_current_prices_cache",
         "schedule": 120.0,
     },
     # I don't know when the data is updated so we look back a couple days
-    # Run at 23:00 UTC = 17:00/18:00 CST/CDT
     "fetch-daily-cboe-stats": {
         "task": "app.tasks.scraping.scrape_cboe_daily_stats",
         "kwargs": {"start_date_str": two_days_ago_str, "end_date_str": today_str},
-        "schedule": crontab(hour="23", minute="0"),
+        "schedule": crontab(hour="8", minute="0"),
     },
     "get-fred-data": {
         "task": "app.tasks.apis.get_fred_data",
-        "schedule": crontab(hour="23", minute="0"),
+        "schedule": crontab(hour="8", minute="0"),
     },
 }
