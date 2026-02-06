@@ -55,6 +55,8 @@ CREATE TABLE historical_reddit_tracking (
     id SERIAL PRIMARY KEY,
     file_name VARCHAR(200),  -- relative to mount on prod vm
     file_type VARCHAR(16),  -- comments, or submissions
-    status VARCHAR(20)  -- READY, IN_PROGRESS, COMPLETE
+    status VARCHAR(20)  -- READY, IN_PROGRESS, COMPLETE, FAILED
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ
 )
 

@@ -11,6 +11,7 @@ import os
 import requests
 import zstandard as zstd
 from sqlalchemy import insert, update
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
 
 import app.database.db as db
 import app.database.models as models
@@ -306,52 +307,81 @@ def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTr
     return
 
 
-def scrape_historical_data(tracker: ETLStatusTracker | None = None):
-    # Get a file to scrape
-    tracking_table = models.historical_reddit_tracking
-    stmt = tracking_table.select().where(tracking_table.c.status == "READY").limit(1)
-    with db.get_connection() as conn:
-        file_info = conn.execute(stmt).first()
+class HistoricalRedditTracking:
+    def __init__(self):
+        self.model = models.historical_reddit_tracking
+        self.file_info = self._get_file_info()
+        self._set_start_time()
 
-    if not file_info:
-        logger.info("no historical reddit files ready")
-        if tracker:
-            tracker.complete_task()
+    def _get_file_info(self):
+        stmt = self.model.select().where(self.model.c.status == "READY").limit(1)
+        with db.get_connection() as conn:
+            result = conn.execute(stmt).first()
 
-        return
+        if result:
+            return result
 
-    def set_file_status_failed():
+        raise ValueError("No file ready for scraping")
+
+    def _set_start_time(self):
+        now = datetime.now(timezone.utc)
         stmt = (
-            update(tracking_table)
-            .where(tracking_table.c.id == file_info.id)
-            .values(status="FAILED")
+            update(self.model)
+            .where(self.model.c.id == self.file_info.id)
+            .values(start_time=now)
+        )
+        with db.get_connection() as conn:
+            conn.execute(stmt)
+
+    def set_end_time(self):
+        now = datetime.now(timezone.utc)
+        stmt = (
+            update(self.model)
+            .where(self.model.c.id == self.file_info.id)
+            .values(end_time=now)
+        )
+        with db.get_connection() as conn:
+            conn.execute(stmt)
+
+    def set_file_status(self, status: str):
+        """`status` should be one of "READY", "IN_PROGRESS", "FAILED", "COMPLETE"."""
+        stmt = (
+            update(self.model)
+            .where(self.model.c.id == self.file_info.id)
+            .values(status=status)
         )
         with db.get_connection() as conn:
             conn.execute(stmt)
             conn.commit()
 
-        logger.info(f"reverted file {file_info.file_name} back to READY")
+        logger.info(f"updated file {self.file_info.file_name} to {status}")
+
+
+def scrape_historical_data(tracker: ETLStatusTracker | None = None):
+    # Get a file to scrape
+    try:
+        historical_tracking = HistoricalRedditTracking()
+        file_info = historical_tracking.file_info
+    except ValueError:
+        logger.info("no historical reddit files ready")
+        return
 
     # Mark the file as being scraped
-    stmt = (
-        update(tracking_table)
-        .where(tracking_table.c.id == file_info.id)
-        .values(status="IN_PROGRESS")
-    )
-    with db.get_connection() as conn:
-        conn.execute(stmt)
-        conn.commit()
+    historical_tracking.set_file_status("IN_PROGRESS")
     logger.info(f"scraping file {file_info.file_name}")
 
     # determine db model
     if file_info.file_type == "comments":
         model = models.historical_reddit_comments
         record_type = "reddit_comment"
+        pk = "comment_id"
     elif file_info.file_type == "submissions":
         model = models.historical_reddit_posts
         record_type = "reddit_posts"
+        pk = "post_id"
     else:
-        set_file_status_failed()
+        historical_tracking.set_file_status("FAILED")
+        historical_tracking.set_end_time()
         raise ValueError("unexpected file type for historical reddit data")
 
     # track progress
@@ -364,7 +394,7 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
         )
 
     # Scrape and insert batches
-    batch_size = 1000
+    batch_size = 5000
     batch = []
     try:
         with open(file_info.file_name, "rb") as fh:
@@ -420,9 +450,8 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
 
                             # Bulk insert to DB
                             if len(batch) >= batch_size:
-                                stmt = model.insert().values(
-                                    batch
-                                )  # TODO make this update on conflict
+                                stmt = postgres_insert(model).values(batch)
+                                stmt = stmt.on_conflict_do_nothing(index_elements=[pk])
                                 with db.get_connection() as conn:
                                     conn.execute(stmt)
                                     conn.commit()
@@ -435,11 +464,12 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
                                     record_type=record_type,
                                 )
                                 if tracker:
-                                    progress = bytes_processed / file_size
-
-                                    # allow file progress to be between 0.1 and 0.95 of total task
+                                    # Let file progress be 1-95% of total completion
+                                    progress = max(
+                                        bytes_processed / file_size - 0.05, 0.01
+                                    )
                                     tracker.update_progress(
-                                        percent_complete=max(progress - 0.05, 0.01),
+                                        percent_complete=progress,
                                         persist=True,
                                     )
 
@@ -465,15 +495,20 @@ def scrape_historical_data(tracker: ETLStatusTracker | None = None):
                         record_type=record_type,
                     )
                     if tracker:
-                        tracker.update_progress(0.97, persist=True)
+                        tracker.update_progress(0.99, persist=True)
 
                 print(
                     f"reddit historical data ETL complete for file {file_info.file_name}"
                 )
 
+        # Mark the file/task complete
+        historical_tracking.set_file_status("COMPLETE")
+        historical_tracking.set_end_time()
+
     except Exception as e:
         logger.error(f"error while processing historical reddit file: {e}")
-        set_file_status_failed()
+        historical_tracking.set_file_status("FAILED")
+        historical_tracking.set_end_time()
         raise
 
 
