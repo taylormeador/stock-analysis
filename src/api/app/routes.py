@@ -16,12 +16,14 @@ async def get_whats_hot():
 
     top_comments = await whats_hot.get_top_comments()
     ticker_mentions = await whats_hot.get_ticker_mentions()
+    topic_snapshots = await whats_hot.get_topic_snapshots()
 
     logger.info("got whats hot data")
 
     dfs = {
         "ticker_mentions": ticker_mentions.to_dict("records"),
         "top_comments": top_comments.to_dict("records"),
+        "topic_snapshots": topic_snapshots,
     }
 
     return {"data": dfs}

@@ -1,7 +1,8 @@
 import logging
 from sqlalchemy import text
 import pandas as pd
-from db import AsyncSessionLocal
+
+from app.db import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 

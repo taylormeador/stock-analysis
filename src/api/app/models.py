@@ -1,15 +1,9 @@
 from sqlalchemy import (
     Table,
-    Text,
     Column,
-    Date,
     Integer,
-    Float,
     String,
     MetaData,
-    TIMESTAMP,
-    BigInteger,
-    Numeric,
     Boolean,
 )
 

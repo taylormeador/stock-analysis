@@ -1,11 +1,9 @@
 import logging
 import pandas as pd
 from sqlalchemy import text
-import db
-import models
-import yfinance as yf
 
-import price_cache
+import app.db as db
+import app.price_cache as price_cache
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +115,38 @@ async def get_top_comments():
     return df
 
 
+async def get_topic_snapshots():
+    # Get the summaries for the most snapshots in the past ?? interval
+    sql = """
+        SELECT
+            count,
+            top_words,
+            representative_docs,
+            top_tickers,
+            avg_score,
+            max_score,
+            llm_theme,
+            llm_sentiment,
+            llm_confidence,
+            llm_insight,
+            generated_at
+        FROM reddit_topic_cluster_summaries
+        WHERE generated_at > NOW() - INTERVAL '1 Week'
+        ORDER BY generated_at DESC;
+    """
+    async with db.AsyncSessionLocal() as session:
+        result = await session.execute(text(sql))
+        rows = result.fetchall()
+
+    df = pd.DataFrame(rows)
+    snapshots = []
+    for snapshot in df.generated_at.unique():
+        snapshots.append(df[df.generated_at == snapshot])
+
+    return snapshots
+
+
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(get_ticker_mentions())
+    asyncio.run(get_topic_snapshots())
