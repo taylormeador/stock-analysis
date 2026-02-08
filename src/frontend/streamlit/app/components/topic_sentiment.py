@@ -163,7 +163,7 @@ def create_topic_sentiment_chart(
         # Format sample comment for hover (first representative doc)
         sample_comment = (
             topic["representative_docs"][0][:200] + "..."
-            if topic["representative_docs"]
+            if topic["representative_docs"] and len(topic["representative_docs"]) > 0
             else "N/A"
         )
 
@@ -266,17 +266,12 @@ def create_topic_sentiment_chart(
     return fig
 
 
-def create_multi_snapshot_chart(
-    snapshots: List[Dict[str, any]], initial_index: int = 0
-) -> go.Figure:
+def create_multi_snapshot_chart(snapshots: List[pd.DataFrame]) -> go.Figure:
     """
     Create chart with slider to navigate between multiple snapshots.
 
     Args:
-        snapshots: List of dicts with keys:
-            - 'timestamp': str
-            - 'topic_summary': pd.DataFrame
-        initial_index: Which snapshot to show initially
+        snapshots: List of DataFrames, each representing one snapshot
 
     Returns:
         Plotly Figure with slider
@@ -291,13 +286,17 @@ def create_multi_snapshot_chart(
 
     # Create frames for each snapshot
     frames = []
-    for snapshot in snapshots:
+    for snapshot_df in snapshots:
+        # Get timestamp from the dataframe (all rows have same generated_at)
+        timestamp = snapshot_df["generated_at"].iloc[0]
+        timestamp_str = pd.to_datetime(timestamp).strftime("%Y-%m-%d %H:%M UTC")
+
         # Assign colors for this snapshot
-        ticker_color_map = assign_ticker_colors(snapshot["topic_summary"])
+        ticker_color_map = assign_ticker_colors(snapshot_df)
 
         # Prepare data
         plot_data = []
-        for _, topic in snapshot["topic_summary"].iterrows():
+        for _, topic in snapshot_df.iterrows():
             dominant_ticker = get_dominant_ticker(topic["top_tickers"])
             color = (
                 ticker_color_map.get(dominant_ticker, DEFAULT_COLOR)
@@ -323,6 +322,7 @@ def create_multi_snapshot_chart(
             sample_comment = (
                 topic["representative_docs"][0][:200] + "..."
                 if topic["representative_docs"]
+                and len(topic["representative_docs"]) > 0
                 else "N/A"
             )
 
@@ -381,29 +381,38 @@ def create_multi_snapshot_chart(
                 )
             )
 
-        frames.append(go.Frame(data=frame_traces, name=snapshot["timestamp"]))
+        frames.append(go.Frame(data=frame_traces, name=timestamp_str))
 
     # Create initial figure with first snapshot
-    fig = go.Figure(data=frames[initial_index].data, frames=frames)
+    initial_timestamp = pd.to_datetime(snapshots[0]["generated_at"].iloc[0]).strftime(
+        "%Y-%m-%d %H:%M UTC"
+    )
+    fig = go.Figure(data=frames[0].data, frames=frames)
 
     # Add slider
     sliders = [
         dict(
-            active=initial_index,
+            active=0,
             steps=[
                 dict(
                     method="animate",
                     args=[
-                        [snapshot["timestamp"]],
+                        [
+                            pd.to_datetime(
+                                snapshot_df["generated_at"].iloc[0]
+                            ).strftime("%Y-%m-%d %H:%M UTC")
+                        ],
                         dict(
                             mode="immediate",
                             frame=dict(duration=300, redraw=True),
                             transition=dict(duration=300),
                         ),
                     ],
-                    label=snapshot["timestamp"],
+                    label=pd.to_datetime(snapshot_df["generated_at"].iloc[0]).strftime(
+                        "%Y-%m-%d %H:%M UTC"
+                    ),
                 )
-                for snapshot in snapshots
+                for snapshot_df in snapshots
             ],
             x=0.1,
             y=0,
@@ -415,7 +424,7 @@ def create_multi_snapshot_chart(
     # Update layout
     fig.update_layout(
         title=dict(
-            text=f"WSB Topic Sentiment & Confidence - {snapshots[initial_index]['timestamp']}",
+            text=f"WSB Topic Sentiment & Confidence - {initial_timestamp}",
             font=dict(size=18, color="#00FF41"),
         ),
         xaxis=dict(
@@ -444,40 +453,6 @@ def create_multi_snapshot_chart(
         ),
         height=700,
         sliders=sliders,
-        updatemenus=[
-            dict(
-                type="buttons",
-                showactive=False,
-                y=1.15,
-                x=0.1,
-                xanchor="left",
-                yanchor="top",
-                buttons=[
-                    dict(
-                        label="▶ Play",
-                        method="animate",
-                        args=[
-                            None,
-                            dict(
-                                frame=dict(duration=2000, redraw=True),
-                                fromcurrent=True,
-                                mode="immediate",
-                            ),
-                        ],
-                    ),
-                    dict(
-                        label="⏸ Pause",
-                        method="animate",
-                        args=[
-                            [None],
-                            dict(
-                                frame=dict(duration=0, redraw=False), mode="immediate"
-                            ),
-                        ],
-                    ),
-                ],
-            )
-        ],
     )
 
     # Add quadrant lines
@@ -485,46 +460,3 @@ def create_multi_snapshot_chart(
     fig.add_vline(x=0, line_dash="dot", line_color="rgba(0, 255, 65, 0.2)")
 
     return fig
-
-
-if __name__ == "__main__":
-    # Test with sample data
-    import datetime
-
-    sample_data = pd.DataFrame(
-        [
-            {
-                "topic_id": 0,
-                "count": 150,
-                "llm_theme": "NVDA earnings beat with strong AI guidance",
-                "llm_sentiment": 0.8,
-                "llm_confidence": 0.9,
-                "llm_insight": "Retail extremely bullish on continued AI dominance",
-                "top_tickers": {"NVDA": 120, "AMD": 20, "TSM": 10},
-                "representative_docs": ["NVDA to the moon! AI revolution baby 🚀"],
-            },
-            {
-                "topic_id": 1,
-                "count": 80,
-                "llm_theme": "Fed rate decision uncertainty causing hesitation",
-                "llm_sentiment": -0.3,
-                "llm_confidence": 0.6,
-                "llm_insight": "Mixed sentiment with defensive positioning",
-                "top_tickers": {"SPY": 50, "QQQ": 30},
-                "representative_docs": ["Waiting for FOMC before any big moves"],
-            },
-            {
-                "topic_id": 2,
-                "count": 200,
-                "llm_theme": "TSLA technical breakdown discussion",
-                "llm_sentiment": -0.7,
-                "llm_confidence": 0.75,
-                "llm_insight": "Strong bearish technical setup noted",
-                "top_tickers": {"TSLA": 180, "RIVN": 15, "LCID": 5},
-                "representative_docs": ["TSLA breaking key support, puts printing"],
-            },
-        ]
-    )
-
-    fig = create_topic_sentiment_chart(sample_data, "2025-01-15 14:00 ET")
-    fig.show()

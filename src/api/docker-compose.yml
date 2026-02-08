@@ -10,8 +10,9 @@ services:
       - ENVIRONMENT=development
       - STOCK_ANALYSIS_DB=${STOCK_ANALYSIS_DB}
       - REDIS_URL=${REDIS_URL}
+      - PYTHONPATH=/app
     volumes:
-      - ./app:/app
+      - ./app:/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - stock-analysis-network

@@ -41,7 +41,7 @@ if not json_response.get("data"):
 # Extract data
 ticker_data = json_response.get("data", {}).get("ticker_mentions", [])
 comments_data = json_response.get("data", {}).get("top_comments", [])
-snapshots_data = json_response.get("data", {}).get("snapshots", [])
+snapshots_data = json_response.get("data", {}).get("topic_snapshots", [])
 
 if not ticker_data or not comments_data or not snapshots_data:
     st.warning(":material/warning: No data found in the latest update.")
@@ -49,6 +49,7 @@ if not ticker_data or not comments_data or not snapshots_data:
 
 mentions_df = pd.DataFrame(ticker_data)
 comments_df = pd.DataFrame(comments_data)
+snapshots = [pd.DataFrame(snapshot) for snapshot in snapshots_data]
 
 # Calculate summary metrics
 total_mentions = (
@@ -349,7 +350,7 @@ with tab2:
 
 with tab3:
     st.subheader("Topic Clusters")
-    fig = create_multi_snapshot_chart(snapshots_df)
+    fig = create_multi_snapshot_chart(snapshots)
     st.plotly_chart(fig, width="stretch")
 
 

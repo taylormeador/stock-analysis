@@ -1,9 +1,10 @@
-from fastapi import APIRouter
-import logging
-import logic.whats_hot as whats_hot
-import logic.etl_status as etl_status
 import asyncio
-import db
+import logging
+
+from fastapi import APIRouter
+
+import app.logic.etl_status as etl_status
+import app.logic.whats_hot as whats_hot
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,9 @@ async def get_whats_hot():
     dfs = {
         "ticker_mentions": ticker_mentions.to_dict("records"),
         "top_comments": top_comments.to_dict("records"),
-        "topic_snapshots": topic_snapshots,
+        "topic_snapshots": [
+            snapshot.to_dict("records") for snapshot in topic_snapshots
+        ],
     }
 
     return {"data": dfs}
