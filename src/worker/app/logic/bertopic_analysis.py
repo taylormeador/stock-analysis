@@ -10,10 +10,12 @@ Usage:
 
 import argparse
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
+from anthropic import Anthropic
 from bertopic import BERTopic
 from sqlalchemy import text
 
@@ -22,6 +24,9 @@ import sys
 
 sys.path.append("/app")
 from app.database.db import get_connection
+
+# Initialize Anthropic client
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,7 +71,7 @@ def fetch_embeddings_for_period(
         {embedding_column} as embedding
     FROM historical_reddit_comments
     WHERE 
-        created_utc BETWEEN '2025-12-24' AND '2026-01-01'
+        created_utc BETWEEN '2025-12-31' AND '2026-01-01'
         AND {embedding_column} IS NOT NULL
         AND body IS NOT NULL
         AND LENGTH(body) > 10
@@ -193,6 +198,85 @@ def get_topic_info(topic_model: BERTopic, df: pd.DataFrame, topics: np.ndarray):
     return pd.DataFrame(enhanced_topics)
 
 
+def summarize_topic_with_llm(
+    topic_id: int, representative_docs: list, top_words: str, top_tickers: dict
+) -> dict:
+    """
+    Use Claude to generate a natural language summary of a topic.
+
+    Args:
+        topic_id: The topic ID
+        representative_docs: List of representative documents from the cluster
+        top_words: The c-TF-IDF top words
+        top_tickers: Dictionary of top tickers mentioned
+
+    Returns:
+        Dictionary with summary, sentiment, and confidence
+    """
+    logger.info(f"Generating LLM summary for topic {topic_id}")
+
+    # Prepare the prompt
+    prompt = f"""Analyze this cluster of Reddit comments from r/wallstreetbets and provide a structured summary.
+
+                Top words (from clustering): {top_words}
+                Top tickers mentioned: {', '.join([f"{k} ({v})" for k, v in list(top_tickers.items())[:5]])}
+
+                Representative comments from this cluster:
+                {chr(10).join([f"{i+1}. {doc}" for i, doc in enumerate(representative_docs[:5])])}
+
+                Please provide:
+                1. Theme Summary (2-3 sentences): What is the main topic/narrative being discussed?
+                2. Market Sentiment: Is the overall sentiment BULLISH, BEARISH, or NEUTRAL?
+                3. Confidence Level: How confident are you in the sentiment assessment? (HIGH/MEDIUM/LOW)
+                4. Key Insight: One sentence capturing the most important takeaway
+
+                Format your response as:
+                THEME: [your summary]
+                SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
+                CONFIDENCE: [HIGH/MEDIUM/LOW]
+                INSIGHT: [key insight]
+    """
+
+    try:
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",  # Haiku for cost efficiency
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        # Parse the response
+        response_text = message.content[0].text
+
+        # Extract structured fields
+        lines = response_text.strip().split("\n")
+        result = {"theme": "", "sentiment": "", "confidence": "", "insight": ""}
+
+        for line in lines:
+            if line.startswith("THEME:"):
+                result["theme"] = line.replace("THEME:", "").strip()
+            elif line.startswith("SENTIMENT:"):
+                result["sentiment"] = line.replace("SENTIMENT:", "").strip()
+            elif line.startswith("CONFIDENCE:"):
+                result["confidence"] = line.replace("CONFIDENCE:", "").strip()
+            elif line.startswith("INSIGHT:"):
+                result["insight"] = line.replace("INSIGHT:", "").strip()
+
+        logger.info(
+            f"Topic {topic_id} - Sentiment: {result['sentiment']}, Confidence: {result['confidence']}"
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error calling Claude API: {e}")
+        return {
+            "theme": "Error generating summary",
+            "sentiment": "UNKNOWN",
+            "confidence": "LOW",
+            "insight": "Failed to analyze",
+        }
+
+
 def analyze_topics(hours: int = 24, min_cluster_size: int = 50):
     """
     Main analysis function that orchestrates the entire pipeline.
@@ -225,23 +309,52 @@ def analyze_topics(hours: int = 24, min_cluster_size: int = 50):
     # Step 3: Extract topic information
     topic_summary = get_topic_info(topic_model, df, topics)
 
-    # Step 4: Display results
+    # Step 4: Generate LLM summaries for each topic
     logger.info("\n" + "=" * 80)
-    logger.info("TOPIC SUMMARY")
+    logger.info("Generating LLM summaries...")
+    logger.info("=" * 80)
+
+    llm_summaries = []
+    for _, topic in topic_summary.iterrows():
+        summary = summarize_topic_with_llm(
+            topic_id=topic["topic_id"],
+            representative_docs=topic["representative_docs"],
+            top_words=topic["top_words"],
+            top_tickers=topic["top_tickers"],
+        )
+        llm_summaries.append(summary)
+
+    # Add LLM summaries to the dataframe
+    topic_summary["llm_theme"] = [s["theme"] for s in llm_summaries]
+    topic_summary["llm_sentiment"] = [s["sentiment"] for s in llm_summaries]
+    topic_summary["llm_confidence"] = [s["confidence"] for s in llm_summaries]
+    topic_summary["llm_insight"] = [s["insight"] for s in llm_summaries]
+
+    # Step 5: Display results
+    logger.info("\n" + "=" * 80)
+    logger.info("TOPIC SUMMARY WITH LLM ANALYSIS")
     logger.info("=" * 80)
 
     for _, topic in topic_summary.iterrows():
-        logger.info(f"\n--- Topic {topic['topic_id']} ---")
-        logger.info(f"Count: {topic['count']} documents")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"TOPIC {topic['topic_id']}")
+        logger.info(f"{'='*60}")
+        logger.info(f"Documents: {topic['count']}")
         logger.info(f"Top words: {topic['top_words']}")
         logger.info(f"Top tickers: {topic['top_tickers']}")
         logger.info(
-            f"Avg score: {topic['avg_score']:.1f}, Max score: {topic['max_score']}"
+            f"Engagement: Avg score {topic['avg_score']:.1f}, Max {topic['max_score']}"
         )
-        logger.info(f"Time range: {topic['time_range']}")
-        logger.info("\nRepresentative documents:")
+        logger.info("\n--- LLM ANALYSIS ---")
+        logger.info(f"Theme: {topic['llm_theme']}")
+        logger.info(
+            f"Sentiment: {topic['llm_sentiment']} (Confidence: {topic['llm_confidence']})"
+        )
+        logger.info(f"Key Insight: {topic['llm_insight']}")
+        logger.info("\nSample comments:")
         for i, doc in enumerate(topic["representative_docs"][:2], 1):
-            logger.info(f"  {i}. {doc[:200]}...")
+            logger.info(f"  {i}. {doc[:150]}...")
+        logger.info("")
 
     # Save visualizations (optional - BERTopic has many built-in visualizations)
     logger.info("\nGenerating visualizations...")
