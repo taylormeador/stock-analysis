@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from app.celery_app import app
 from app.database.db import get_connection
+import app.logic.bertopic_analysis as logic
 from app.utils import (
     ETLStatusTracker,
     SingleInstanceTask,
@@ -264,6 +265,27 @@ def generate_real_time_embeddings(self):
 
     except Exception as e:
         logger.exception("Error generating embeddings")
+        tracker.fail_task(str(e))
+        raise
+
+
+@app.task(base=SingleInstanceTask, bind=True)
+@track_task_metrics
+def summarize_real_time_topics(self, min_cluster_size: int = 50):
+    tracker = ETLStatusTracker(
+        task_id=self.request.id,
+        component_name="Reddit Real-Time Topic Cluster Summary",
+        task_description="LLM generated analysis of Reddit comment data",
+    )
+    tracker.start_task()
+
+    try:
+        logic.analyze_topics(tracker, min_cluster_size)
+        tracker.complete_task()
+        return True
+
+    except Exception as e:
+        logger.exception("Exception while summarizing reddit topics")
         tracker.fail_task(str(e))
         raise
 

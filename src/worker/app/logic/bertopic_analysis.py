@@ -11,7 +11,6 @@ Usage:
 import argparse
 import logging
 import os
-from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -19,67 +18,42 @@ from anthropic import Anthropic
 from bertopic import BERTopic
 from sqlalchemy import text
 
-# Assuming your worker database connection setup
-import sys
-
-sys.path.append("/app")
 from app.database.db import get_connection
+from app.database.models import reddit_topic_cluster_summaries as model
+from app.utils import ETLStatusTracker
 
-# Initialize Anthropic client
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-def fetch_embeddings_for_period(
-    hours: int = 24, embedding_model: str = "all-MiniLM-L6-v2"
-):
+
+def fetch_embeddings():
     """
-    Fetch comment embeddings from the database for the specified time period.
-
-    Args:
-        hours: Number of hours to look back from now
-        embedding_model: Name of the embedding model (matches column naming convention)
+    Fetch comment embeddings from the database.
 
     Returns:
         DataFrame with columns: id, comment_id, body, ticker, score, created_utc, embedding
     """
-    logger.info(
-        f"Fetching embeddings from last {hours} hours using model {embedding_model}"
-    )
+    logger.info("Fetching embeddings from last 24 hours")
 
-    # Calculate time threshold
-    threshold = datetime.now(timezone.utc) - timedelta(hours=hours)
-
-    # Query comments with embeddings
-    # Adjust the embedding column name based on your naming convention
-    embedding_column = (
-        f"{embedding_model.replace('/', '_').replace('-', '_')}_embedding"
-    )
-
-    query = f"""
-    SELECT
-        comment_id,
-        body,
-        ticker,
-        score,
-        created_utc,
-        {embedding_column} as embedding
-    FROM historical_reddit_comments
-    WHERE 
-        created_utc BETWEEN '2025-12-31' AND '2026-01-01'
-        AND {embedding_column} IS NOT NULL
-        AND body IS NOT NULL
-        AND LENGTH(body) > 10
-    ORDER BY created_utc DESC
+    query = """
+        SELECT DISTINCT on (comment_id)
+            comment_id,
+            body,
+            ticker,
+            score,
+            created_utc,
+            embedding
+        FROM reddit_comments
+        WHERE 
+            created_utc >= NOW() - INTERVAL '24 Hours'
+            AND embedding IS NOT NULL
+            AND body IS NOT NULL
+            AND LENGTH(body) > 10
+        ORDER BY comment_id, created_utc DESC;
     """
-
     with get_connection() as conn:
-        df = pd.read_sql(text(query), conn, params={"threshold": threshold})
+        df = pd.read_sql(text(query), conn)
 
     logger.info(f"Fetched {len(df)} comments with embeddings")
 
@@ -87,7 +61,7 @@ def fetch_embeddings_for_period(
     # pgvector stores as string like '[0.1, 0.2, ...]'
     if len(df) > 0:
         df["embedding"] = df["embedding"].apply(
-            lambda x: (
+            lambda x: (  # type: ignore
                 np.array(x)
                 if isinstance(x, (list, np.ndarray))
                 else np.fromstring(x.strip("[]"), sep=",")
@@ -97,7 +71,7 @@ def fetch_embeddings_for_period(
     return df
 
 
-def run_bertopic_clustering(df: pd.DataFrame, min_cluster_size: int = 50):
+def run_bertopic_clustering(df: pd.DataFrame, min_cluster_size: int = 100):
     """
     Run BERTopic clustering on the embeddings.
 
@@ -111,7 +85,7 @@ def run_bertopic_clustering(df: pd.DataFrame, min_cluster_size: int = 50):
     logger.info(f"Running BERTopic with min_cluster_size={min_cluster_size}")
 
     # Extract embeddings as a 2D array
-    embeddings = np.vstack(df["embedding"].values)
+    embeddings = np.vstack(df["embedding"].values)  # type: ignore
     documents = df["body"].tolist()
 
     logger.info(f"Embeddings shape: {embeddings.shape}")
@@ -119,10 +93,10 @@ def run_bertopic_clustering(df: pd.DataFrame, min_cluster_size: int = 50):
     # Initialize BERTopic
     # Using pre-computed embeddings, so we don't need an embedding model
     topic_model = BERTopic(
-        embedding_model=None,  # We already have embeddings
+        embedding_model=None,
         min_topic_size=min_cluster_size,
-        nr_topics="auto",  # Let it determine optimal number
-        calculate_probabilities=True,  # Needed for confidence scores
+        nr_topics="auto",
+        calculate_probabilities=True,
         verbose=True,
     )
 
@@ -166,12 +140,9 @@ def get_topic_info(topic_model: BERTopic, df: pd.DataFrame, topics: np.ndarray):
 
         # Get documents in this topic
         topic_docs = df_with_topics[df_with_topics["topic"] == topic_id]
-
-        # Get representative documents (BERTopic provides this)
         representative_docs = topic_model.get_representative_docs(topic_id)
 
-        # Calculate sentiment distribution (using your existing FinBERT predictions if available)
-        # For now, we'll just aggregate based on what's in the data
+        top_words = topic_info[topic_info["Topic"] == topic_id]["Name"].values[0]
 
         # Ticker distribution
         ticker_dist = topic_docs["ticker"].value_counts().head(5).to_dict()
@@ -184,14 +155,13 @@ def get_topic_info(topic_model: BERTopic, df: pd.DataFrame, topics: np.ndarray):
             {
                 "topic_id": topic_id,
                 "count": len(topic_docs),
-                "top_words": topic_info[topic_info["Topic"] == topic_id]["Name"].values[
-                    0
-                ],
-                "representative_docs": representative_docs[:3],  # Top 3 representative
+                "top_words": top_words,
+                "representative_docs": representative_docs[:3],
                 "top_tickers": ticker_dist,
                 "avg_score": avg_score,
                 "max_score": max_score,
-                "time_range": f"{topic_docs['created_utc'].min()} to {topic_docs['created_utc'].max()}",
+                "time_range_start": topic_docs["created_utc"].min(),
+                "time_range_end": topic_docs["created_utc"].max(),
             }
         )
 
@@ -199,7 +169,10 @@ def get_topic_info(topic_model: BERTopic, df: pd.DataFrame, topics: np.ndarray):
 
 
 def summarize_topic_with_llm(
-    topic_id: int, representative_docs: list, top_words: str, top_tickers: dict
+    topic_id: int,
+    representative_docs: list,
+    top_words: str,
+    top_tickers: dict,
 ) -> dict:
     """
     Use Claude to generate a natural language summary of a topic.
@@ -216,53 +189,66 @@ def summarize_topic_with_llm(
     logger.info(f"Generating LLM summary for topic {topic_id}")
 
     # Prepare the prompt
-    prompt = f"""Analyze this cluster of Reddit comments from r/wallstreetbets and provide a structured summary.
+    prompt = f"""
+        Analyze this cluster of Reddit comments from r/wallstreetbets and provide a structured summary.
 
-                Top words (from clustering): {top_words}
-                Top tickers mentioned: {', '.join([f"{k} ({v})" for k, v in list(top_tickers.items())[:5]])}
+        Top words (from clustering): {top_words}
+        Top tickers mentioned: {', '.join([f"{k} ({v})" for k, v in list(top_tickers.items())[:5]])}
 
-                Representative comments from this cluster:
-                {chr(10).join([f"{i+1}. {doc}" for i, doc in enumerate(representative_docs[:5])])}
+        Representative comments from this cluster:
+        {chr(10).join([f"{i+1}. {doc}" for i, doc in enumerate(representative_docs[:5])])}
 
-                Please provide:
-                1. Theme Summary (2-3 sentences): What is the main topic/narrative being discussed?
-                2. Market Sentiment: Is the overall sentiment BULLISH, BEARISH, or NEUTRAL?
-                3. Confidence Level: How confident are you in the sentiment assessment? (HIGH/MEDIUM/LOW)
-                4. Key Insight: One sentence capturing the most important takeaway
+        Please provide:
+        1. Theme Summary (2-3 sentences): What is the main topic/narrative being discussed?
+        2. Sentiment Score: Rate the overall market sentiment as a number from -1.0 (very bearish) to +1.0 (very bullish), with 0.0 being neutral
+        3. Confidence Score: Rate your confidence in the sentiment assessment from 0.0 (very uncertain) to 1.0 (very confident)
+        4. Key Insight: One sentence capturing the most important takeaway
 
-                Format your response as:
-                THEME: [your summary]
-                SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
-                CONFIDENCE: [HIGH/MEDIUM/LOW]
-                INSIGHT: [key insight]
-    """
+        Format your response EXACTLY as:
+        THEME: [your summary]
+        SENTIMENT: [number from -1.0 to 1.0]
+        CONFIDENCE: [number from 0.0 to 1.0]
+        INSIGHT: [key insight]
+
+        Example:
+        THEME: Discussion about NVDA earnings beat expectations with strong guidance.
+        SENTIMENT: 0.75
+        CONFIDENCE: 0.85
+        INSIGHT: Retail traders are highly bullish on NVDA's AI dominance continuing.
+            """
 
     try:
         message = client.messages.create(
-            model="claude-haiku-4-5-20251001",  # Haiku for cost efficiency
+            model="claude-haiku-4-5-20251001",
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )
 
         # Parse the response
-        response_text = message.content[0].text
-
-        # Extract structured fields
+        response_text = message.content[0].text  # type: ignore
         lines = response_text.strip().split("\n")
-        result = {"theme": "", "sentiment": "", "confidence": "", "insight": ""}
+        result = {"theme": "", "sentiment": 0.0, "confidence": 0.0, "insight": ""}
 
         for line in lines:
             if line.startswith("THEME:"):
                 result["theme"] = line.replace("THEME:", "").strip()
             elif line.startswith("SENTIMENT:"):
-                result["sentiment"] = line.replace("SENTIMENT:", "").strip()
+                try:
+                    result["sentiment"] = float(line.replace("SENTIMENT:", "").strip())
+                except ValueError:
+                    result["sentiment"] = 0.0
             elif line.startswith("CONFIDENCE:"):
-                result["confidence"] = line.replace("CONFIDENCE:", "").strip()
+                try:
+                    result["confidence"] = float(
+                        line.replace("CONFIDENCE:", "").strip()
+                    )
+                except ValueError:
+                    result["confidence"] = 0.5
             elif line.startswith("INSIGHT:"):
                 result["insight"] = line.replace("INSIGHT:", "").strip()
 
         logger.info(
-            f"Topic {topic_id} - Sentiment: {result['sentiment']}, Confidence: {result['confidence']}"
+            f"Topic {topic_id} - Sentiment: {result['sentiment']:.2f}, Confidence: {result['confidence']:.2f}"
         )
 
         return result
@@ -271,26 +257,25 @@ def summarize_topic_with_llm(
         logger.error(f"Error calling Claude API: {e}")
         return {
             "theme": "Error generating summary",
-            "sentiment": "UNKNOWN",
-            "confidence": "LOW",
+            "sentiment": 0.0,
+            "confidence": 0.0,
             "insight": "Failed to analyze",
         }
 
 
-def analyze_topics(hours: int = 24, min_cluster_size: int = 50):
+def analyze_topics(tracker: ETLStatusTracker, min_cluster_size: int = 50):
     """
     Main analysis function that orchestrates the entire pipeline.
 
     Args:
-        hours: Number of hours to look back
         min_cluster_size: Minimum cluster size for BERTopic
     """
-    logger.info("=" * 80)
     logger.info("Starting BERTopic Analysis")
-    logger.info("=" * 80)
+    tracker.update_status_message("Starting BERTopic analysis...")
 
     # Step 1: Fetch data
-    df = fetch_embeddings_for_period(hours=hours)
+    df = fetch_embeddings()
+    tracker.update_progress(0.2)
 
     if len(df) < min_cluster_size:
         logger.warning(
@@ -299,20 +284,24 @@ def analyze_topics(hours: int = 24, min_cluster_size: int = 50):
         logger.warning(
             "Cannot perform meaningful clustering. Try increasing the time window."
         )
+        tracker.update_status_message(
+            "Not enough documents found to perform clustering"
+        )
         return None
 
     # Step 2: Run clustering
-    topic_model, topics, probabilities = run_bertopic_clustering(
-        df, min_cluster_size=min_cluster_size
-    )
+    tracker.update_status_message("Clustering topics...")
+    topic_model, topics, probabilities = run_bertopic_clustering(df, min_cluster_size)
+    tracker.update_progress(0.4)
 
     # Step 3: Extract topic information
-    topic_summary = get_topic_info(topic_model, df, topics)
+    tracker.update_status_message("Extracting topic info...")
+    topic_summary = get_topic_info(topic_model, df, topics)  # type: ignore
+    tracker.update_progress(0.7)
 
     # Step 4: Generate LLM summaries for each topic
-    logger.info("\n" + "=" * 80)
     logger.info("Generating LLM summaries...")
-    logger.info("=" * 80)
+    tracker.update_status_message("Generating LLM summaries...")
 
     llm_summaries = []
     for _, topic in topic_summary.iterrows():
@@ -323,6 +312,7 @@ def analyze_topics(hours: int = 24, min_cluster_size: int = 50):
             top_tickers=topic["top_tickers"],
         )
         llm_summaries.append(summary)
+    tracker.update_progress(0.90)
 
     # Add LLM summaries to the dataframe
     topic_summary["llm_theme"] = [s["theme"] for s in llm_summaries]
@@ -330,52 +320,17 @@ def analyze_topics(hours: int = 24, min_cluster_size: int = 50):
     topic_summary["llm_confidence"] = [s["confidence"] for s in llm_summaries]
     topic_summary["llm_insight"] = [s["insight"] for s in llm_summaries]
 
-    # Step 5: Display results
-    logger.info("\n" + "=" * 80)
-    logger.info("TOPIC SUMMARY WITH LLM ANALYSIS")
-    logger.info("=" * 80)
+    # Write to db
+    logger.info("Writing to database...")
+    topic_summary = topic_summary.drop(columns=["topic_id"])
+    stmt = model.insert().values(topic_summary.to_dict("records"))
+    with get_connection() as conn:
+        conn.execute(stmt)
+        conn.commit()
 
-    for _, topic in topic_summary.iterrows():
-        logger.info(f"\n{'='*60}")
-        logger.info(f"TOPIC {topic['topic_id']}")
-        logger.info(f"{'='*60}")
-        logger.info(f"Documents: {topic['count']}")
-        logger.info(f"Top words: {topic['top_words']}")
-        logger.info(f"Top tickers: {topic['top_tickers']}")
-        logger.info(
-            f"Engagement: Avg score {topic['avg_score']:.1f}, Max {topic['max_score']}"
-        )
-        logger.info("\n--- LLM ANALYSIS ---")
-        logger.info(f"Theme: {topic['llm_theme']}")
-        logger.info(
-            f"Sentiment: {topic['llm_sentiment']} (Confidence: {topic['llm_confidence']})"
-        )
-        logger.info(f"Key Insight: {topic['llm_insight']}")
-        logger.info("\nSample comments:")
-        for i, doc in enumerate(topic["representative_docs"][:2], 1):
-            logger.info(f"  {i}. {doc[:150]}...")
-        logger.info("")
-
-    # Save visualizations (optional - BERTopic has many built-in visualizations)
-    logger.info("\nGenerating visualizations...")
-    try:
-        # These will save to current directory as HTML files
-        fig_topics = topic_model.visualize_topics()
-        fig_topics.write_html("topic_visualization.html")
-        logger.info("Saved topic_visualization.html")
-
-        # Embeddings visualization requires UMAP to be fitted
-        # This might be slow for large datasets
-        embeddings = np.vstack(df["embedding"].values)
-        fig_docs = topic_model.visualize_documents(
-            df["body"].tolist(),
-            embeddings=embeddings,
-            hide_document_hover=True,  # Faster rendering
-        )
-        fig_docs.write_html("document_visualization.html")
-        logger.info("Saved document_visualization.html")
-    except Exception as e:
-        logger.warning(f"Could not generate visualizations: {e}")
+    message = f"Found {len(topic_summary)} topics from {len(df)} comments"
+    logger.info(message)
+    tracker.update_status_message(message)
 
     return {
         "model": topic_model,
@@ -391,12 +346,6 @@ if __name__ == "__main__":
         description="Run BERTopic clustering on Reddit comments"
     )
     parser.add_argument(
-        "--hours",
-        type=int,
-        default=24,
-        help="Number of hours to look back (default: 24)",
-    )
-    parser.add_argument(
         "--min-cluster-size",
         type=int,
         default=50,
@@ -405,7 +354,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    results = analyze_topics(hours=args.hours, min_cluster_size=args.min_cluster_size)
+    tracker = ETLStatusTracker(
+        task_id="delete-this-row",
+        component_name="Reddit Real-Time Topic Cluster Summary",
+        task_description="LLM generated analysis of Reddit comment data",
+    )
+    tracker.start_task()
+
+    results = analyze_topics(tracker, min_cluster_size=args.min_cluster_size)
 
     if results:
         logger.info("\n" + "=" * 80)

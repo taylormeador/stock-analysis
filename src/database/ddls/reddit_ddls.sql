@@ -100,3 +100,20 @@ CREATE TABLE current_top_reddit_comments (
 	CONSTRAINT current_top_comments_pkey PRIMARY KEY (id)
 );
 
+
+CREATE TABLE reddit_topic_cluster_summaries (
+    id SERIAL NOT NULL PRIMARY KEY,
+    model VARCHAR(100),
+    count INTEGER,
+    top_words TEXT,
+    representative_docs JSONB,
+    top_tickers JSONB,
+    avg_score FLOAT,
+    max_score FLOAT,
+    time_range_start TIMESTAMPTZ,
+    time_range_end TIMESTAMPTZ,
+    llm_theme TEXT,
+    llm_sentiment FLOAT,
+    llm_confidence FLOAT,
+    llm_insight TEXT
+);

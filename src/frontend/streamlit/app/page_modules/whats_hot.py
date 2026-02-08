@@ -6,6 +6,9 @@ import streamlit as st
 
 from styles import apply_custom_css, colors, format_large_number, format_percentage
 from utils import get_json
+from components.topic_sentiment import (
+    create_multi_snapshot_chart,
+)
 
 apply_custom_css()
 
@@ -38,8 +41,9 @@ if not json_response.get("data"):
 # Extract data
 ticker_data = json_response.get("data", {}).get("ticker_mentions", [])
 comments_data = json_response.get("data", {}).get("top_comments", [])
+snapshots_data = json_response.get("data", {}).get("snapshots", [])
 
-if not ticker_data or not comments_data:
+if not ticker_data or not comments_data or not snapshots_data:
     st.warning(":material/warning: No data found in the latest update.")
     st.stop()
 
@@ -122,10 +126,15 @@ comments_df = comments_df[["body", "score"]]
 comments_df = comments_df.rename(columns=column_rename)
 
 # Create two tabs for different views
-tab1, tab2 = st.tabs(
-    [":material/table: Table View", ":material/bar_chart: Visualization"]
+tab1, tab2, tab3 = st.tabs(
+    [
+        ":material/table: Table View",
+        ":material/bar_chart: Ticker Visualization",
+        ":material/bar_chart: Topic Visualization",
+    ]
 )
 
+# TODO add topics table?
 with tab1:
     st.subheader("Ticker Mention Rankings")
 
@@ -337,6 +346,12 @@ with tab2:
                 st.markdown(f"**{row['ticker']}**")
         else:
             st.caption("No tickers left")
+
+with tab3:
+    st.subheader("Topic Clusters")
+    fig = create_multi_snapshot_chart(snapshots_df)
+    st.plotly_chart(fig, width="stretch")
+
 
 # Sidebar info
 st.sidebar.markdown("### :material/info: Data Info")

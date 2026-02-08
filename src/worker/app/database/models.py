@@ -11,6 +11,7 @@ from sqlalchemy import (
     BigInteger,
     Numeric,
     Boolean,
+    JSON,
 )
 from pgvector.sqlalchemy import Vector
 
@@ -199,4 +200,23 @@ historical_reddit_tracking = Table(
     Column("status", String(20)),  # READY, IN_PROGRESS, COMPLETE, FAILED
     Column("start_time", TIMESTAMP(timezone=True)),
     Column("end_time", TIMESTAMP(timezone=True)),
+)
+
+reddit_topic_cluster_summaries = Table(
+    "reddit_topic_cluster_summaries",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("model", String(100)),
+    Column("count", Integer),
+    Column("top_words", Text),
+    Column("representative_docs", JSON),
+    Column("top_tickers", JSON),
+    Column("avg_score", Float),
+    Column("max_score", Float),
+    Column("time_range_start", TIMESTAMP(timezone=True)),
+    Column("time_range_end", TIMESTAMP(timezone=True)),
+    Column("llm_theme", Text),
+    Column("llm_sentiment", Float),
+    Column("llm_confidence", Float),
+    Column("llm_insight", Text),
 )

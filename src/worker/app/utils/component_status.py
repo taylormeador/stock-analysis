@@ -55,7 +55,7 @@ class ETLStatusTracker:
             conn.execute(stmt)
             conn.commit()
 
-    def update_progress(self, percent_complete: float, persist: bool = False):
+    def update_progress(self, percent_complete: float, persist: bool = True):
         """This is a float 0-1.0 representing % complete."""
         self.values["progress"] = str(percent_complete)
 
