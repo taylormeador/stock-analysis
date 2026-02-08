@@ -28,5 +28,6 @@ setup(
         "zstandard==0.25.0",
         "sentence-transformers==3.3.1",
         "pgvector==0.4.2",
+        "bertopic==0.17.4",
     ],
 )
