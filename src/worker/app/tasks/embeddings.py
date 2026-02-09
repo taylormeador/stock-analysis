@@ -269,7 +269,7 @@ def generate_real_time_embeddings(self):
         raise
 
 
-@app.task(base=SingleInstanceTask, bind=True)
+@app.task(base=SingleInstanceTask, bind=True, queue="gpu")
 @track_task_metrics
 def summarize_real_time_topics(self, min_cluster_size: int = 50):
     tracker = ETLStatusTracker(
