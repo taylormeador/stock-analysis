@@ -71,7 +71,7 @@ def realtime_component_status():
 
         with col3:
             st.markdown("**Status**")
-            st.caption(row.status_message)
+            st.caption(row.status_message[:100])
 
         with col4:
             delta = now - pd.to_datetime(row.start_time)
