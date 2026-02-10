@@ -37,5 +37,5 @@ hacker_page = st.Page(
     icon=":material/terminal:",
 )
 
-pg = st.navigation([home_page, whats_hot, backtest_page, status_page, hacker_page])
+pg = st.navigation([home_page, whats_hot, status_page, hacker_page])
 pg.run()
