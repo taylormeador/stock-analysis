@@ -137,6 +137,14 @@ def extract_ticker(text: str):
     return None
 
 
+def extract_tickers(text: str):
+    """Returns list of tickers or None"""
+    words = set(re.findall(r"\b[A-Z]{2,5}\b", text.upper()))
+    found_tickers = words & TICKERS
+
+    return found_tickers or None
+
+
 def insert_post(post):
     posts_statement = insert(models.reddit_posts)
     with db.get_connection() as conn:
@@ -311,7 +319,6 @@ class HistoricalRedditTracking:
     def __init__(self):
         self.model = models.historical_reddit_tracking
         self.file_info = self._get_file_info()
-        self._set_start_time()
 
     def _get_file_info(self):
         stmt = self.model.select().where(self.model.c.status == "READY").limit(1)
@@ -323,7 +330,7 @@ class HistoricalRedditTracking:
 
         raise ValueError("No file ready for scraping")
 
-    def _set_start_time(self):
+    def set_start_time(self):
         now = datetime.now(timezone.utc)
         stmt = (
             update(self.model)
@@ -359,7 +366,7 @@ class HistoricalRedditTracking:
         logger.info(f"updated file {self.file_info.file_name} to {status}")
 
 
-def scrape_historical_data(tracker: TaskStatusTracker | None = None):
+def scrape_historical_data(tracker: TaskStatusTracker):
     # Get a file to scrape
     try:
         historical_tracking = HistoricalRedditTracking()
@@ -370,6 +377,7 @@ def scrape_historical_data(tracker: TaskStatusTracker | None = None):
 
     # Mark the file as being scraped
     historical_tracking.set_file_status("IN_PROGRESS")
+    historical_tracking.set_start_time()
     logger.info(f"scraping file {file_info.file_name}")
 
     # determine db model
@@ -390,10 +398,7 @@ def scrape_historical_data(tracker: TaskStatusTracker | None = None):
     file_size = os.path.getsize(file_info.file_name)
     logger.info(f"File size: {file_size:,} bytes")
     task_name = "scrape_reddit_historical_data"
-    if tracker:
-        tracker.update_status_message(
-            f"Scraping {file_info.file_name} {file_size:,} bytes"
-        )
+    tracker.update_status_message(f"Scraping {file_info.file_name} {file_size:,} bytes")
 
     # Scrape and insert batches
     batch_size = 5000
@@ -465,15 +470,12 @@ def scrape_historical_data(tracker: TaskStatusTracker | None = None):
                                     count=batch_size,
                                     record_type=record_type,
                                 )
-                                if tracker:
-                                    # Let file progress be 1-95% of total completion
-                                    progress = max(
-                                        bytes_processed / file_size - 0.05, 0.01
-                                    )
-                                    tracker.update_progress(
-                                        percent_complete=progress,
-                                        persist=True,
-                                    )
+                                # Let file progress be 1-95% of total completion
+                                progress = max(bytes_processed / file_size - 0.05, 0.01)
+                                tracker.update_progress(
+                                    percent_complete=progress,
+                                    persist=True,
+                                )
 
                         if i % 100000 == 0:
                             logger.info(f"Processed {i:,} lines")
@@ -483,6 +485,7 @@ def scrape_historical_data(tracker: TaskStatusTracker | None = None):
 
                     except Exception as e:
                         logger.error(e)
+                        logger.error(line)
 
                 if batch:
                     stmt = model.insert().values(batch)
@@ -497,8 +500,7 @@ def scrape_historical_data(tracker: TaskStatusTracker | None = None):
                     count=len(batch),
                     record_type=record_type,
                 )
-                if tracker:
-                    tracker.update_status_message(f"Processed {file_size:,} bytes")
+                tracker.update_status_message(f"Processed {file_size:,} bytes")
 
                 historical_tracking.set_file_status("COMPLETE")
                 historical_tracking.set_end_time()
@@ -514,4 +516,4 @@ def scrape_historical_data(tracker: TaskStatusTracker | None = None):
 
 
 if __name__ == "__main__":
-    scrape_historical_data()
+    pass
