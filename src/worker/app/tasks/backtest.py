@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(bind=True)
-def run_backtest(self):
+def run_backtest(self, backtest_params):
     tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Backtest Runner",
@@ -17,7 +17,7 @@ def run_backtest(self):
     tracker.start_task()
 
     try:
-        backtest.run()
+        backtest.run(backtest_params)
         tracker.complete_task()
 
     except Exception as e:
