@@ -31,9 +31,9 @@ task_deltas_df = pd.DataFrame(data["task_time_deltas"])
 
 
 # Overall system status
-st.markdown("### :material/search: System Health Overview")
-system_health_overview()
-st.divider()
+# st.markdown("### :material/search: System Health Overview")
+# system_health_overview()
+# st.divider()
 
 # ETL component real time dashboard
 st.subheader(":material/account_tree: Pipeline Components")
@@ -63,6 +63,6 @@ mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
 failed_tasks_count = failed_task_df["count"].iloc[0]
 
 st.sidebar.markdown("### :material/analytics: Quick Stats (24h)")
-st.sidebar.metric(":material/timer: Uptime", "TODO 99.9%")
+# st.sidebar.metric(":material/timer: Uptime", "TODO 99.9%")
 st.sidebar.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
 st.sidebar.metric(":material/error: Failed Tasks", f"{failed_tasks_count}")
