@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 import app.database.db as db
 from app.database.models import fred_macro_data
-from app.utils import ETLStatusTracker, Status
+from app.utils import TaskStatusTracker, Status
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ FRED_API_KEY = os.getenv("FRED_API_KEY")
 fred = fredapi.Fred(api_key=FRED_API_KEY)
 
 
-def get_fred_data(tracker: ETLStatusTracker):
+def get_fred_data(tracker: TaskStatusTracker):
     logger.info("hitting FRED API")
 
     scraped_at = datetime.now(timezone.utc)

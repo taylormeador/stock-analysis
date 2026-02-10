@@ -3,7 +3,7 @@ import logging
 import app.logic.fred as fred
 import app.logic.stock_data as stocks
 from app.celery_app import app
-from app.utils import ETLStatusTracker, SingleInstanceTask
+from app.utils import TaskStatusTracker, SingleInstanceTask
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ def fetch_stock_data(self, start_date: str | None = None, end_date: str | None =
     Date args should be in form "%Y-%m-%d" and they will default to yesterday/today.
     """
     logger.info("Starting stock price fetch")
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Stock Price Data",
         task_description="Daily OHLCV data with technical indicators",
@@ -40,7 +40,7 @@ def update_current_prices_cache(self):
     Fetch current prices for tracked tickers and cache in Redis.
     Runs every 1-2 minutes to keep prices fresh during market hours.
     """
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Stock Price Data",
         task_description="Real-time price data for cache",
@@ -61,7 +61,7 @@ def update_current_prices_cache(self):
 @app.task(bind=True)
 def get_fred_data(self):
     """Get macro data from FRED API."""
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="FRED Macro Indicators",
         task_description="Treasury yields, Fed funds rate, dollar index, unemployment",

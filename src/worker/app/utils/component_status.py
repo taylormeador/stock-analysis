@@ -26,7 +26,7 @@ class Status(Enum):
     COMPLETE = "Complete"
 
 
-class ETLStatusTracker:
+class TaskStatusTracker:
     """Conveneience object for tracking status of ETL runs in the db and Redis.
 
     start_task() should be called after instantiation, in the task function.

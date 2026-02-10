@@ -9,7 +9,7 @@ from app.celery_app import app
 from app.database.db import get_connection
 import app.logic.bertopic_analysis as logic
 from app.utils import (
-    ETLStatusTracker,
+    TaskStatusTracker,
     SingleInstanceTask,
     track_records_processed,
     track_task_metrics,
@@ -48,7 +48,7 @@ def generate_historical_embeddings(self):
     Generate embeddings for historical Reddit comments.
     Processes in batches and logs to MLflow.
     """
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Historical Comment Embeddings",
         task_description=f"Generates embeddings for historical comments with {EMBEDDING_MODEL}",
@@ -178,7 +178,7 @@ def generate_real_time_embeddings(self):
     """
     Generate embeddings for current Reddit comments.
     """
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Real-Time Comment Embeddings",
         task_description=f"Generates embeddings in real-time with {EMBEDDING_MODEL}",
@@ -272,7 +272,7 @@ def generate_real_time_embeddings(self):
 @app.task(base=SingleInstanceTask, bind=True, queue="gpu")
 @track_task_metrics
 def summarize_real_time_topics(self, min_cluster_size: int = 50):
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Real-Time Topic Cluster Summary",
         task_description="LLM generated analysis of Reddit comment data",

@@ -4,7 +4,7 @@ import app.logic.cboe as cboe
 import app.logic.reddit as reddit
 from app.celery_app import app
 from app.utils import (
-    ETLStatusTracker,
+    TaskStatusTracker,
     SingleInstanceTask,
     track_task_metrics,
 )
@@ -20,7 +20,7 @@ def scrape_reddit_wsb_daily_thread(
     limit: int,
 ):
     """Scrape Reddit WSB daily thread for ticker mentions."""
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="WSB Daily Thread Scraper",
         task_description=f"Scrapes r/wallstreetbets daily discussion {filter} comments",
@@ -41,7 +41,7 @@ def scrape_reddit_wsb_daily_thread(
 @app.task(bind=True, queue="historical")
 @track_task_metrics
 def scrape_reddit_historical_data(self):
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Historical Data Scraper",
         task_description="Scrapes downloaded Reddit historical data",
@@ -66,7 +66,7 @@ def scrape_cboe_daily_stats(
     end_date_str: str | None = None,
 ):
     """Scrape CBOE website for daily options statistics."""
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="CBOE Options Data",
         task_description="Put/call ratios, volume, and open interest",

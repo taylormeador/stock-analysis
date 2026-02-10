@@ -1,4 +1,4 @@
-from app.utils.component_status import ETLStatusTracker, Status
+from app.utils.component_status import TaskStatusTracker, Status
 from app.utils.rate_limiter import DistributedRateLimiter
 from app.utils.s3 import write_to_s3
 from app.utils.single_instance_task import SingleInstanceTask
@@ -12,7 +12,7 @@ __all__ = [
     TICKERS,
     get_tickers,
     write_to_s3,
-    ETLStatusTracker,
+    TaskStatusTracker,
     Status,
     start_metrics_server,
     track_records_processed,

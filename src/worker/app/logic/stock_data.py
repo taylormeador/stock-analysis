@@ -12,7 +12,7 @@ import redis
 
 import app.database.db as db
 import app.database.models as models
-from app.utils import ETLStatusTracker, get_tickers
+from app.utils import TaskStatusTracker, get_tickers
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,7 @@ def load_price_data(df: pd.DataFrame, ticker: str, start_date: str, end_date: st
 
 
 def fetch_stock_data(
-    tracker: ETLStatusTracker,
+    tracker: TaskStatusTracker,
     start_date: str | None = None,
     end_date: str | None = None,
 ):
@@ -233,7 +233,7 @@ def fetch_stock_data(
         logger.warning(f"Failed tickers: {', '.join(failed_tickers)}")
 
 
-def update_cache(tracker: ETLStatusTracker):
+def update_cache(tracker: TaskStatusTracker):
     logger.info("Updating current prices cache")
 
     # Create ticker objects

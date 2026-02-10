@@ -18,7 +18,7 @@ import app.database.models as models
 from app.utils import (
     TICKERS,
     DistributedRateLimiter,
-    ETLStatusTracker,
+    TaskStatusTracker,
     track_records_processed,
 )
 
@@ -227,7 +227,7 @@ def scrape(
             insert_comments(comments)
 
 
-def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: ETLStatusTracker):
+def scrape_reddit_wsb_daily_thread(filter: str, limit: int, tracker: TaskStatusTracker):
     """Scrape Reddit WSB daily thread for ticker mentions."""
     logger.info("scraping Reddit WSB daily thread...")
     tracker.update_status_message("Scraping...")
@@ -359,7 +359,7 @@ class HistoricalRedditTracking:
         logger.info(f"updated file {self.file_info.file_name} to {status}")
 
 
-def scrape_historical_data(tracker: ETLStatusTracker | None = None):
+def scrape_historical_data(tracker: TaskStatusTracker | None = None):
     # Get a file to scrape
     try:
         historical_tracking = HistoricalRedditTracking()

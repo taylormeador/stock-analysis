@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 import app.database.db as db
 from app.database.models import cboe_daily_stats
-from app.utils import ETLStatusTracker
+from app.utils import TaskStatusTracker
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ ratio_mapping = {
 
 
 def scrape_daily_market_stats(
-    tracker: ETLStatusTracker,
+    tracker: TaskStatusTracker,
     start_date_str: str | None = None,
     end_date_str: str | None = None,
 ):

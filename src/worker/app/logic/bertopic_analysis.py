@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 from app.database.db import get_connection
 from app.database.models import reddit_topic_cluster_summaries as model
-from app.utils import ETLStatusTracker
+from app.utils import TaskStatusTracker
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +263,7 @@ def summarize_topic_with_llm(
         }
 
 
-def analyze_topics(tracker: ETLStatusTracker, min_cluster_size: int = 50):
+def analyze_topics(tracker: TaskStatusTracker, min_cluster_size: int = 50):
     """
     Main analysis function that orchestrates the entire pipeline.
 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    tracker = ETLStatusTracker(
+    tracker = TaskStatusTracker(
         task_id="delete-this-row",
         component_name="Reddit Real-Time Topic Cluster Summary",
         task_description="LLM generated analysis of Reddit comment data",

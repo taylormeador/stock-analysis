@@ -50,6 +50,12 @@ async def get_etl_status():
     return {"data": data}
 
 
+@router.get("/backtest")
+async def get_backtest():
+    """TODO"""
+    return {"data": None}
+
+
 if __name__ == "__main__":
     import asyncio
 
