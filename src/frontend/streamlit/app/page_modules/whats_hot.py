@@ -99,6 +99,9 @@ st.divider()
 
 # Format columns for better display
 display_df = mentions_df.copy()
+display_df[["day_change", "year_change"]] = (
+    display_df[["day_change", "year_change"]] * 100
+)
 for col in ("mention_pct_change", "day_change", "year_change"):
     display_df[col] = display_df[col].apply(lambda x: format_percentage(x))
 
