@@ -19,7 +19,7 @@ home_page = st.Page(
 whats_hot = st.Page(
     page="page_modules/whats_hot.py",
     title="What's Hot",
-    icon=":material/show_chart:",
+    icon=":material/mode_heat:",
 )
 backtest_page = st.Page(
     page="page_modules/backtest/backtest_page.py",

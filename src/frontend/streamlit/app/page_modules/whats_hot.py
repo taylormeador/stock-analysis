@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Page header
-st.title(":material/trending_up: What's Hot")
+st.title(":material/mode_heat: What's Hot")
 st.caption("Top trending tickers from r/WallStreetBets daily discussion")
 st.divider()
 
