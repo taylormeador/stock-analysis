@@ -25,7 +25,7 @@ scrape_configs:
 
   - job_name: 'celery-workers-gpu'
     static_configs:
-      - targets: ['stock-analysis-celery-worker-gpu:9808']
+      - targets: ['10.0.10.155:9808']
     metrics_path: '/metrics'
 
   # FastAPI metrics (if you add prometheus middleware)

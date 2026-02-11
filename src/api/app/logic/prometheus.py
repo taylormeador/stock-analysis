@@ -1,42 +1,66 @@
+# Add to requirements.txt: requests
+
 import requests
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
-PROM_URL = "http://10.0.10.127:9090"  # <-- change this
+PROMETHEUS_URL = "http://10.0.10.127:9090"
 
-QUERY = "flower_worker_online"
 
-# Time range: last 24 hours
-end = datetime.now(timezone.utc)
-start = end - timedelta(hours=24)
+async def get_worker_status():
+    """Get current worker availability from Prometheus"""
+    query = "celery_worker_up"
+    response = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query})
+    data = response.json()
 
-params = {
-    "query": QUERY,
-    "start": start.timestamp(),
-    "end": end.timestamp(),
-    "step": 60,  # 1-minute resolution; adjust as needed
-}
+    # Parse results - returns worker names and their status (1=up, 0=down)
+    # Result structure: data["data"]["result"] is list of {metric: {...}, value: [timestamp, value]}
 
-resp = requests.get(
-    f"{PROM_URL}/api/v1/query_range",
-    params=params,
-    timeout=30,
-)
+    return data
 
-resp.raise_for_status()
-data = resp.json()
-print(data)
 
-if data["status"] != "success":
-    raise RuntimeError(data)
+async def get_task_throughput():
+    """Get tasks processed in last hour"""
+    query = "sum(increase(celery_task_runtime_seconds_count[1h]))"
+    response = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query})
+    return response.json()
 
-# Extract values
-results = data["data"]["result"]
 
-for series in results:
-    metric_labels = series["metric"]
-    values = series["values"]  # list of [timestamp, value]
+async def get_prometheus_targets():
+    """Get health of all Prometheus scrape targets"""
+    response = requests.get(f"{PROMETHEUS_URL}/api/v1/targets")
+    targets = response.json()["data"]["activeTargets"]
 
-    print("Labels:", metric_labels)
-    print("Sample points:", len(values))
-    print("First point:", values[0])
-    print("Last point:", values[-1])
+    # Each target has: scrapeUrl, health (up/down), lastScrape, lastError
+    return targets
+
+
+async def get_worker_status_history():
+    """Get worker availability over last 24 hours"""
+    query = "celery_worker_up"
+    now = datetime.now()
+    start = now - timedelta(hours=24)
+
+    response = requests.get(
+        f"{PROMETHEUS_URL}/api/v1/query_range",
+        params={
+            "query": query,
+            "start": start.timestamp(),
+            "end": now.timestamp(),
+            "step": "5m",  # Data point every 5 minutes
+        },
+    )
+    return response.json()
+
+
+async def main():
+    targets = await get_prometheus_targets()
+    task_throughput = await get_task_throughput()
+    worker_status = await get_worker_status()
+    worker_status_histry = await get_worker_status_history()
+    breakpoint()
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(main())

@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     image: stock-analysis-celery:latest
     container_name: stock-analysis-celery-worker
+    hostname: stock-analysis-celery-worker
     expose:
       - "9808"
     environment:
@@ -23,14 +24,15 @@ services:
     restart: unless-stopped
     profiles: [worker]
 
-  celery-worker-historical:
+  celery-worker-long:
     build:
       context: .
       dockerfile: Dockerfile
     image: stock-analysis-celery:latest
     container_name: stock-analysis-celery-worker-long
+    hostname: stock-analysis-celery-worker-long
     expose:
-      - "9809"
+      - "9808"
     environment:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
@@ -54,8 +56,9 @@ services:
       dockerfile: Dockerfile
     image: stock-analysis-celery:latest
     container_name: stock-analysis-celery-worker-gpu
+    hostname: stock-analysis-celery-worker-gpu
     expose:
-      - "9809"
+      - "9808"
     environment:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
@@ -95,6 +98,7 @@ services:
   flower:
     image: stock-analysis-celery:latest
     container_name: stock-analysis-flower
+    hostname: stock-analysis-flower
     environment:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
@@ -115,6 +119,7 @@ services:
   celery-exporter:
     image: danihodovic/celery-exporter:latest
     container_name: stock-analysis-celery-exporter
+    hostname: stock-analysis-celery-exporter
     ports:
       - "9808:9808"
     environment:
