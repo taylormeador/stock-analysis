@@ -59,11 +59,11 @@ def realtime_component_status():
             if row.status == "Complete":
                 st.success(f"**{row.status}**")
             elif row.status == "Retrying":
-                st.warning(f"**{row.status}**")
+                st.warning(f"**{row.status} - {row.progress * 100:.0f}%**")
             elif row.status == "Failed":
-                st.error(f"**{row.status}**")
+                st.error(f"**{row.status} - {row.progress * 100:.0f}%**")
             else:
-                st.info(f"**{row.status}**")
+                st.info(f"**{row.status} - {row.progress * 100:.0f}%**")
 
         with col2:
             st.markdown(f"**{row.component_name}**")
@@ -71,7 +71,7 @@ def realtime_component_status():
 
         with col3:
             st.markdown("**Status**")
-            st.caption(row.status_message[:100])
+            st.caption(row.status_message[:150])
 
         with col4:
             delta = now - pd.to_datetime(row.start_time)
@@ -79,7 +79,6 @@ def realtime_component_status():
             st.caption(f":material/schedule: Last run: {ago}")
             st.caption(f":material/avg_time: Run time: {row.run_time}s")
 
-        st.caption(f":material/progress_activity: %{row.progress * 100:.0f} complete")
         st.progress(row.progress)
 
 
