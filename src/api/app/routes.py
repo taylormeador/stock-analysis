@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter
 
 import app.logic.etl_status as etl_status
+import app.logic.prometheus as prometheus
 import app.logic.whats_hot as whats_hot
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,8 @@ async def get_etl_status():
         etl_status.get_etl_task_statuses(),
         etl_status.get_failed_task_count(),
         etl_status.get_task_time_deltas(),
+        prometheus.get_tasks_processed_last_24h(),
+        prometheus.get_task_failure_rate(),
     ]
     results = await asyncio.gather(*tasks)
 
@@ -45,6 +48,8 @@ async def get_etl_status():
         "etl_task_statuses": results[0].to_dict("records"),
         "failed_task_count": results[1].to_dict("records"),
         "task_time_deltas": results[2].to_dict("records"),
+        "num_tasks_processed": results[3],
+        "task_failure_rate": results[4],
     }
 
     return {"data": data}

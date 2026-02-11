@@ -4,7 +4,7 @@ from styles import apply_custom_css
 from utils import get_json
 
 from components.etl_status import (
-    system_health_overview,
+    # system_health_overview,
     realtime_component_status,
     task_performance,
 )
@@ -28,7 +28,8 @@ if not data:
 etl_status_df = pd.DataFrame(data["etl_task_statuses"])
 failed_task_df = pd.DataFrame(data["failed_task_count"])
 task_deltas_df = pd.DataFrame(data["task_time_deltas"])
-
+num_tasks_processed = data["num_tasks_processed"]
+task_failure_rate = data["task_failure_rate"]
 
 # Overall system status
 # st.markdown("### :material/search: System Health Overview")
@@ -61,8 +62,11 @@ st.info(
 # Sidebar
 mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
 failed_tasks_count = failed_task_df["count"].iloc[0]
+failure_rate = int(task_failure_rate * 100)
 
 st.sidebar.markdown("### :material/analytics: Quick Stats (24h)")
-# st.sidebar.metric(":material/timer: Uptime", "TODO 99.9%")
+st.sidebar.metric(
+    ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
+)
+st.sidebar.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
 st.sidebar.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
-st.sidebar.metric(":material/error: Failed Tasks", f"{failed_tasks_count}")

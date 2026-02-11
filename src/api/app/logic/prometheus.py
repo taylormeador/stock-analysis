@@ -52,11 +52,46 @@ async def get_worker_status_history():
     return response.json()
 
 
+async def get_tasks_processed_last_24h():
+    """How many tasks did each worker complete in last 24h?"""
+    query = "sum by (hostname) (increase(celery_task_succeeded_total[24h]))"
+
+    response = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query})
+    data = response.json()["data"]
+
+    task_counts = {}
+    for result in data["result"]:
+        hostname = result["metric"]["hostname"]
+        task_count = int(round(float(result["value"][1])))
+        task_counts[hostname] = task_count
+
+    return task_counts
+
+
+async def get_task_failure_rate():
+    """What % of tasks are failing?"""
+    query = "sum(rate(celery_task_failed_total[24h])) / sum(rate(celery_task_received_total[24h])) * 100"
+
+    response = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query})
+    data = response.json()["data"]
+
+    # This will look like:
+    # {'status': 'success', 'data': {'resultType': 'vector', 'result': [{'metric': {}, 'value': [1770770873.034, '0.057707230258682796']}]}}
+    failure_rate = data["result"][0]["value"][1]
+    if failure_rate:
+        return round(float(failure_rate), 2)
+
+    return None
+
+
 async def main():
     targets = await get_prometheus_targets()
     task_throughput = await get_task_throughput()
     worker_status = await get_worker_status()
-    worker_status_histry = await get_worker_status_history()
+    worker_status_history = await get_worker_status_history()
+    num_tasks_processed = await get_tasks_processed_last_24h()
+    failure_rate = await get_task_failure_rate()
+
     breakpoint()
 
 
