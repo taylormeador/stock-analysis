@@ -27,7 +27,10 @@ async def get_ticker_mentions():
             WHERE post_id = (SELECT post_id FROM daily_thread)
             ORDER BY comment_id, scraped_at DESC
         )
-        SELECT ticker, count(ticker) as ticker_mentions
+        SELECT 
+            ticker, 
+            count(ticker) as ticker_mentions,
+            count(ticker)::float / sum(count(ticker)) OVER () as mention_share
         FROM latest_comment_ids lci
         JOIN reddit_comments rc ON rc.id = lci.id
         GROUP BY ticker
@@ -62,13 +65,19 @@ async def get_ticker_mentions():
 
     cols = {
         "ticker_mentions_x": "ticker_mentions_1",
+        "mention_share_x": "mention_share_1",
         "ticker_mentions_y": "ticker_mentions_2",
+        "mention_share_y": "mention_share_2",
         "ticker_mentions": "ticker_mentions_3",
+        "mention_share": "mention_share_3",
     }
     mentions_df = mentions_df.rename(columns=cols)
 
     mentions_df["mention_pct_change"] = (
         mentions_df["ticker_mentions_1"] / mentions_df["ticker_mentions_3"] - 1
+    ) * 100
+    mentions_df["mention_share_pct_change"] = (
+        mentions_df["mention_share_1"] / mentions_df["mention_share_3"] - 1
     ) * 100
 
     # join current price data

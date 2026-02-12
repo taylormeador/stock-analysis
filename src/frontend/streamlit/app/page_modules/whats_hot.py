@@ -100,11 +100,22 @@ st.divider()
 
 # Format columns for better display
 display_df = mentions_df.copy()
-display_df[["day_change", "year_change"]] = (
-    display_df[["day_change", "year_change"]] * 100
-)
+pct_cols = [
+    "day_change",
+    "year_change",
+    "mention_share_1",
+    "mention_share_2",
+    "mention_share_3",
+]
+display_df[pct_cols] = display_df[pct_cols] * 100
+
 for col in ("mention_pct_change", "day_change", "year_change"):
     display_df[col] = display_df[col].apply(lambda x: format_percentage(x))
+
+for col in ("mention_share_1", "mention_share_2", "mention_share_3"):
+    display_df[col] = display_df[col].apply(
+        lambda x: format_percentage(x, include_sign=False)
+    )
 
 
 display_df = display_df.sort_values(["ticker_mentions_1"], ascending=False)
@@ -113,13 +124,19 @@ cols = {
     "price": "Price",
     "day_change": "Day Change",
     "year_change": "Year Change",
-    "ticker_mentions_1": "Current Thread Mentions",
-    "ticker_mentions_2": "Previous Thread Mentions",
-    "ticker_mentions_3": "Thread Before Last Mentions",
-    "mention_pct_change": "% Change",
+    "ticker_mentions_1": "Current Count",
+    "mention_share_1": "Current %",
+    "ticker_mentions_2": "Previous Count",
+    "mention_share_2": "Previous %",
+    "ticker_mentions_3": "Thread Before Last Count",
+    "mention_share_3": "Thread Before Last %",
+    "mention_pct_change": "Count Change %",
 }
 display_df = display_df.rename(columns=cols)
 display_df = display_df[cols.values()]
+
+int_cols = ["Current Count", "Previous Count", "Thread Before Last Count"]
+display_df[int_cols] = display_df[int_cols].astype(int)
 display_df.reset_index(inplace=True, drop=True)
 
 
@@ -143,8 +160,27 @@ tab1, tab2, tab3 = st.tabs(
 with tab1:
     st.subheader("Ticker Mention Rankings")
 
+    # Create styled dataframe with red/green coloring
+    def color_percentage(val):
+        """Color positive values green, negative values red"""
+        if isinstance(val, str) and "%" in val:
+            # Remove % and + signs to get numeric value
+            num_val = float(val.replace("%", "").replace("+", ""))
+            if num_val > 0:
+                return f"color: {colors.bright_green}"
+            elif num_val < 0:
+                return "color: #FF4444"  # Red
+            else:
+                return f"color: {colors.text_gray}"
+        return ""
+
+    styled_df = display_df.style.applymap(
+        color_percentage,
+        subset=["Day Change", "Year Change", "Count Change %"],
+    ).format({"Price": "${:.2f}"})
+
     st.dataframe(
-        display_df,
+        styled_df,
         width="stretch",
         height="content",
     )
