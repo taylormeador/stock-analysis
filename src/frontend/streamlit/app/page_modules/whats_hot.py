@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from styles import apply_custom_css, colors, format_large_number, format_percentage
-from utils import get_json, live_utc_clock
+from utils import get_json, live_clock
 from components.topic_sentiment import (
     create_multi_snapshot_chart,
 )
@@ -361,7 +361,7 @@ with tab3:
 # Sidebar info
 with st.sidebar:
     st.sidebar.markdown("### :material/schedule: Time")
-    live_utc_clock()
+    live_clock()
 
     st.markdown("### :material/candlestick_chart: Market Context")
 

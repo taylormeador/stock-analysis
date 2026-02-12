@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from styles import apply_custom_css
-from utils import get_json, live_utc_clock
+from utils import get_json, live_clock
 
 from components.etl_status import (
     # system_health_overview,
@@ -62,7 +62,7 @@ st.info(
 # Sidebar
 with st.sidebar:
     st.markdown("### :material/schedule: Time")
-    live_utc_clock()
+    live_clock()
 
     mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
     failed_tasks_count = failed_task_df["count"].iloc[0]

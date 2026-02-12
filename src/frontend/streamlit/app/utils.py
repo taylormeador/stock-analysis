@@ -10,6 +10,7 @@ import os
 from typing import Dict
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -40,6 +41,15 @@ def get_json(endpoint: str) -> Dict:
 
 
 @st.fragment(run_every="30s")
-def live_utc_clock():
+def live_clock():
     now = datetime.now(timezone.utc)
     st.caption(f"**UTC:** {now.strftime('%H:%M')}")
+
+    now = datetime.now(ZoneInfo("America/New_York"))
+    st.caption(f"**Eastern:** {now.strftime('%H:%M')}")
+
+    now = datetime.now(ZoneInfo("America/Denver"))
+    st.caption(f"**Denver:** {now.strftime('%H:%M')}")
+
+    now = datetime.now(ZoneInfo("Antarctica/South_Pole"))
+    st.caption(f"**South Pole:** {now.strftime('%H:%M')}")
