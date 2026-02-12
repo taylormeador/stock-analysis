@@ -271,7 +271,7 @@ def generate_real_time_embeddings(self):
 
 @app.task(base=SingleInstanceTask, bind=True, queue="gpu")
 @track_task_metrics
-def summarize_real_time_topics(self, min_cluster_size: int = 50):
+def summarize_real_time_topics(self, min_cluster_size: int = 100):
     tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Reddit Real-Time Topic Cluster Summary",

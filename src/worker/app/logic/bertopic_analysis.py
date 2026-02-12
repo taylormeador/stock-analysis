@@ -71,7 +71,7 @@ def fetch_embeddings():
     return df
 
 
-def run_bertopic_clustering(df: pd.DataFrame, min_cluster_size: int = 100):
+def run_bertopic_clustering(df: pd.DataFrame, min_cluster_size: int):
     """
     Run BERTopic clustering on the embeddings.
 
@@ -263,7 +263,7 @@ def summarize_topic_with_llm(
         }
 
 
-def analyze_topics(tracker: TaskStatusTracker, min_cluster_size: int = 50):
+def analyze_topics(tracker: TaskStatusTracker, min_cluster_size: int):
     """
     Main analysis function that orchestrates the entire pipeline.
 
