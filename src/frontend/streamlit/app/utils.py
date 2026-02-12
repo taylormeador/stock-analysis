@@ -39,7 +39,7 @@ def get_json(endpoint: str) -> Dict:
     return {"data": []}
 
 
-@st.fragment(run_every="60s")
+@st.fragment(run_every="30s")
 def live_utc_clock():
     now = datetime.now(timezone.utc)
-    st.caption(f"**UTC:** {now.strftime('%H:%M:%S')}")
+    st.caption(f"**UTC:** {now.strftime('%H:%M')}")
