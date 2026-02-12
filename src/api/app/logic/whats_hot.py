@@ -115,6 +115,32 @@ async def get_top_comments():
     return df
 
 
+async def get_topic_snapshot():
+    """Gets the most recent topic snapshot."""
+    sql = """
+        SELECT
+            count,
+            top_words,
+            representative_docs,
+            top_tickers,
+            avg_score,
+            max_score,
+            llm_theme,
+            llm_sentiment,
+            llm_confidence,
+            llm_insight,
+            generated_at
+        FROM reddit_topic_cluster_summaries
+        ORDER BY generated_at DESC
+        LIMIT 10;
+    """
+    async with db.AsyncSessionLocal() as session:
+        result = await session.execute(text(sql))
+        rows = result.fetchall()
+
+    return pd.DataFrame(rows)
+
+
 async def get_topic_snapshots():
     # Get the summaries for the most snapshots in the past ?? interval
     sql = """

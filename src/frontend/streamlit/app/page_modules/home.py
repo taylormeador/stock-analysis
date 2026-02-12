@@ -6,11 +6,20 @@ from utils import get_json
 
 apply_custom_css()
 
+# Get data
+response = get_json("/home")
+if not response.get("data"):
+    st.error("No data found")
+
+snapshot = response["data"]["snapshot"]
+ticker_mentions = response["data"]["ticker_mentions"]
+etl_task_statuses = response["data"]["etl_task_statuses"]
+
 # Hero section
 st.title(":material/query_stats: CurveFitter9000")
 st.caption(
     "Systematic trading research platform combining sentiment analysis, "
-    "backtesting, and ML predictions"
+    "backtesting, and wishful thinking to provide actionable market insights"
 )
 st.page_link(
     page="https://github.com/taylormeador/stock-analysis",
@@ -29,66 +38,62 @@ st.markdown("### :material/psychology: Real-Time Sentiment Pipeline")
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    # Get live topic cluster data
-    response = get_json("/whats-hot")
-    if response.get("data") and response["data"].get("topic_snapshots"):
-        snapshots = response["data"]["topic_snapshots"]
-        if snapshots:
-            # Show the most recent snapshot
-            latest_snapshot = pd.DataFrame(snapshots[0]).iloc[:10]
+    # Show most recent topic cluster data (top 10 clusters)
+    if snapshot:
+        latest_snapshot = pd.DataFrame(snapshot)[:10]
 
-            # Create a mini version of the topic sentiment chart
-            fig = go.Figure()
+        # Create a mini version of the topic sentiment chart
+        fig = go.Figure()
 
-            for _, topic in latest_snapshot.iterrows():
-                # Sentiment-based color scheme
-                sentiment = topic["llm_sentiment"]
-                if sentiment > 0.3:
-                    marker_color = colors.bright_green  # Bullish
-                elif sentiment < -0.3:
-                    marker_color = colors.orange  # Bearish
-                else:
-                    marker_color = colors.blue  # Neutral
+        for _, topic in latest_snapshot.iterrows():
+            # Sentiment-based color scheme
+            sentiment = topic["llm_sentiment"]
+            if sentiment > 0.3:
+                marker_color = colors.bright_green  # Bullish
+            elif sentiment < -0.3:
+                marker_color = colors.orange  # Bearish
+            else:
+                marker_color = colors.blue  # Neutral
 
-                fig.add_trace(
-                    go.Scatter(
-                        x=[topic["llm_sentiment"]],
-                        y=[topic["llm_confidence"]],
-                        mode="markers+text",
-                        text=topic["llm_theme"][:30] + "...",
-                        textposition="top center",
-                        marker=dict(
-                            size=topic["count"] / 3,
-                            color=marker_color,
-                            opacity=0.7,
-                        ),
-                        hovertext=f"{topic['llm_theme']}<br>Count: {topic['count']}<br>Sentiment: {topic['llm_sentiment']:.2f}",
-                        hoverinfo="text",
-                        showlegend=False,
-                    )
+            fig.add_trace(
+                go.Scatter(
+                    x=[topic["llm_sentiment"]],
+                    y=[topic["llm_confidence"]],
+                    mode="markers+text",
+                    text=topic["llm_theme"][:30] + "...",
+                    textposition="top center",
+                    marker=dict(
+                        size=topic["count"] / 10,
+                        color=marker_color,
+                        opacity=0.7,
+                    ),
+                    hovertext=f"{topic['llm_theme']}<br>Count: {topic['count']}<br>Sentiment: {topic['llm_sentiment']:.2f}",
+                    hoverinfo="text",
+                    showlegend=False,
                 )
-
-            fig.update_layout(
-                xaxis=dict(
-                    title="Sentiment (Bearish ← → Bullish)",
-                    range=[-1.1, 1.1],
-                    gridcolor="rgba(0, 255, 65, 0.1)",
-                    zeroline=True,
-                    zerolinecolor="rgba(0, 255, 65, 0.3)",
-                ),
-                yaxis=dict(
-                    title="Confidence",
-                    range=[-0.05, 1.05],
-                    gridcolor="rgba(0, 255, 65, 0.1)",
-                ),
-                plot_bgcolor=colors.dark_bg,
-                paper_bgcolor=colors.dark_bg,
-                font=dict(color=colors.text_gray, family="monospace"),
-                height=400,
-                margin=dict(l=40, r=40, t=20, b=40),
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(
+            xaxis=dict(
+                title="Sentiment (Bearish ← → Bullish)",
+                range=[-1.1, 1.1],
+                gridcolor="rgba(0, 255, 65, 0.1)",
+                zeroline=True,
+                zerolinecolor="rgba(0, 255, 65, 0.3)",
+            ),
+            yaxis=dict(
+                title="Confidence",
+                range=[-0.05, 1.05],
+                gridcolor="rgba(0, 255, 65, 0.1)",
+            ),
+            plot_bgcolor=colors.dark_bg,
+            paper_bgcolor=colors.dark_bg,
+            font=dict(color=colors.text_gray, family="monospace"),
+            height=400,
+            margin=dict(l=40, r=40, t=20, b=40),
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Topic clustering pipeline running - check back in a few minutes")
 
@@ -275,21 +280,12 @@ st.markdown(
 """
 )
 
-st.markdown(
-    """
-**Infrastructure**: Docker Compose on Debian VM (Proxmox hypervisor)  
-**Deployment**: Cloudflare Tunnel for secure API routing, no exposed ports  
-**Monitoring**: Prometheus metrics, Grafana dashboards, custom ETL status tracking
-"""
-)
-
 # Sidebar
 with st.sidebar:
     st.markdown("### :material/trending_up: Live Trending")
 
-    trending_response = get_json("/whats-hot")
-    if trending_response.get("data"):
-        trending_df = pd.DataFrame(trending_response["data"]["ticker_mentions"])
+    if ticker_mentions:
+        trending_df = pd.DataFrame(ticker_mentions)
         if not trending_df.empty:
             top_tickers = trending_df.nlargest(5, "ticker_mentions_1")
             for _, ticker_data in top_tickers.iterrows():
@@ -302,14 +298,17 @@ with st.sidebar:
                         else None
                     ),
                 )
+        else:
+            st.error("No data")
+    else:
+        st.error("No data")
 
     st.divider()
 
     st.markdown("### :material/dns: System Health")
 
-    etl_status = get_json("/etl-status")
-    if etl_status.get("data"):
-        df = pd.DataFrame(etl_status["data"]["etl_task_statuses"])
+    if etl_task_statuses:
+        df = pd.DataFrame(etl_task_statuses)
 
         # Calculate health metrics
         total_tasks = len(df)
@@ -352,9 +351,8 @@ with st.sidebar:
         - pandas, pandas-ta
         
         **Infrastructure:**
-        - Docker Compose
+        - Docker + Debian + Proxmox
         - Prometheus + Grafana
-        - nginx reverse proxy
-        - Cloudflare Tunnel
+        - nginx + Cloudflare Tunnel
         """
     )

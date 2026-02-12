@@ -12,9 +12,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
+@router.get("/home")
+async def get_home():
+    """Get data for home page."""
+    tasks = [
+        whats_hot.get_topic_snapshot(),
+        whats_hot.get_ticker_mentions(),
+        etl_status.get_etl_task_statuses(),
+        prometheus.get_celery_stats(),
+    ]
+    results = await asyncio.gather(*tasks)
+
+    data = {
+        "snapshot": results[0].to_dict("records"),
+        "ticker_mentions": results[1].to_dict("records"),
+        "etl_task_statuses": results[2].to_dict("records"),
+        "celery_stats": results[3],
+    }
+
+    return {"data": data}
+
+
 @router.get("/whats-hot")
 async def get_whats_hot():
     logger.info("calculating data for hot dashboard")
+    # TODO use async
 
     top_comments = await whats_hot.get_top_comments()
     ticker_mentions = await whats_hot.get_ticker_mentions()

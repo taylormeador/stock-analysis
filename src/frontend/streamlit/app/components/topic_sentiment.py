@@ -327,7 +327,8 @@ def create_multi_snapshot_chart(snapshots: List[pd.DataFrame]) -> go.Figure:
             )
 
             hover_text = (
-                f"<b>{topic['llm_theme'][:100]}</b><br>"
+                f"<b>{topic['llm_theme'][:150]}</b><br>"
+                f"<b>{topic['llm_theme'][150:400]}</b><br>"
                 f"<br>"
                 f"<b>Sentiment:</b> {topic['llm_sentiment']:.2f} | <b>Confidence:</b> {topic['llm_confidence']:.2f}<br>"
                 f"<b>Comments:</b> {topic['count']}<br>"
@@ -342,7 +343,7 @@ def create_multi_snapshot_chart(snapshots: List[pd.DataFrame]) -> go.Figure:
                 {
                     "sentiment": topic["llm_sentiment"],
                     "confidence": topic["llm_confidence"],
-                    "size": topic["count"],
+                    "size": topic["count"] / 2,
                     "color": color,
                     "ticker_label": dominant_ticker if dominant_ticker else "Mixed",
                     "hover_text": hover_text,
