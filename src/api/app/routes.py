@@ -61,6 +61,12 @@ async def get_backtest():
     return {"data": None}
 
 
+@router.get("/celery-stats")
+async def get_celery_stats_endpoint():
+    stats = await prometheus.get_celery_stats()
+    return {"data": stats}
+
+
 if __name__ == "__main__":
     import asyncio
 

@@ -15,5 +15,6 @@ setup(
         "pandas<3.0.0",
         "yfinance==1.1.0",
         "redis==7.1.0",
+        "psycopg2-binary==2.9.11",
     ],
 )

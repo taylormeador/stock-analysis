@@ -1,7 +1,10 @@
-# Add to requirements.txt: requests
-
 import requests
+import logging
+import httpx
 from datetime import datetime, timedelta
+
+
+logger = logging.getLogger(__name__)
 
 PROMETHEUS_URL = "http://10.0.10.127:9090"
 
@@ -82,6 +85,84 @@ async def get_task_failure_rate():
         return round(float(failure_rate), 2)
 
     return None
+
+
+async def get_celery_stats():
+    """Get Celery worker and queue stats from Prometheus."""
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            # Get number of active workers
+            worker_query = "celery_worker_up"
+            worker_response = await client.get(
+                f"{PROMETHEUS_URL}/api/v1/query", params={"query": worker_query}
+            )
+            worker_data = worker_response.json()
+
+            # Count workers that are up (value = 1)
+            active_workers = sum(
+                1
+                for result in worker_data.get("data", {}).get("result", [])
+                if float(result["value"][1]) == 1.0
+            )
+
+            # Get total queue depth across all queues
+            queue_query = "sum(celery_queue_length)"
+            queue_response = await client.get(
+                f"{PROMETHEUS_URL}/api/v1/query", params={"query": queue_query}
+            )
+            queue_data = queue_response.json()
+
+            queue_depth = 0
+            results = queue_data.get("data", {}).get("result", [])
+            if results:
+                queue_depth = int(float(results[0]["value"][1]))
+
+            # Get tasks processed in last hour (for "tasks/hour" metric)
+            throughput_query = "sum(increase(celery_task_succeeded_total[1h]))"
+            throughput_response = await client.get(
+                f"{PROMETHEUS_URL}/api/v1/query", params={"query": throughput_query}
+            )
+            throughput_data = throughput_response.json()
+
+            tasks_per_hour = 0
+            results = throughput_data.get("data", {}).get("result", [])
+            if results:
+                tasks_per_hour = int(float(results[0]["value"][1]))
+
+            # Get failure rate
+            failure_query = """
+                sum(rate(celery_task_failed_total[1h])) / 
+                sum(rate(celery_task_received_total[1h])) * 100
+            """
+            failure_response = await client.get(
+                f"{PROMETHEUS_URL}/api/v1/query", params={"query": failure_query}
+            )
+            failure_data = failure_response.json()
+
+            failure_rate = 0.0
+            results = failure_data.get("data", {}).get("result", [])
+            if results:
+                failure_rate = float(results[0]["value"][1])
+
+            success_rate = 100.0 - failure_rate if failure_rate > 0 else 100.0
+
+            return {
+                "active_workers": active_workers,
+                "total_workers": 3,
+                "queue_depth": queue_depth,
+                "tasks_per_hour": tasks_per_hour,
+                "success_rate": round(success_rate, 1),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get Prometheus metrics: {e}")
+            return {
+                "active_workers": 0,
+                "total_workers": 3,
+                "queue_depth": 0,
+                "tasks_per_hour": 0,
+                "success_rate": 0.0,
+            }
 
 
 async def main():

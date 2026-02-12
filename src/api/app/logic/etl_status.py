@@ -1,10 +1,15 @@
 import logging
-from sqlalchemy import text
-import pandas as pd
+import os
 
+import httpx
+import pandas as pd
+import redis
 from app.db import AsyncSessionLocal
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
+
+redis_client = redis.Redis.from_url(os.environ["REDIS_URL"])
 
 
 async def get_etl_task_statuses():

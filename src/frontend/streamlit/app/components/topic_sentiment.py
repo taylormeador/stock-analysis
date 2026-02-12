@@ -451,7 +451,7 @@ def create_multi_snapshot_chart(snapshots: List[pd.DataFrame]) -> go.Figure:
             bordercolor="#00FF41",
             borderwidth=1,
         ),
-        height=700,
+        height=1000,
         sliders=sliders,
     )
 
