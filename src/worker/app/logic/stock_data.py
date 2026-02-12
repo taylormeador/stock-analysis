@@ -240,7 +240,7 @@ def update_cache(tracker: TaskStatusTracker):
     tickers = get_tickers()
     ticker_objects = yf.Tickers(" ".join(sorted(tickers)))
 
-    price_data = []
+    price_data = {}
     for ticker_symbol in tickers:
         try:
             ticker = ticker_objects.tickers[ticker_symbol]
@@ -254,12 +254,11 @@ def update_cache(tracker: TaskStatusTracker):
             year_change = fast_info.get("yearChange")
 
             ticker_data = {
-                "ticker": ticker_symbol,
                 "price": last_price,
                 "day_change": day_change,
                 "year_change": year_change,
             }
-            price_data.append(ticker_data)
+            price_data[ticker_symbol] = ticker_data
             tracker.update_progress(len(price_data) / len(tickers), persist=True)
 
         except Exception as e:
