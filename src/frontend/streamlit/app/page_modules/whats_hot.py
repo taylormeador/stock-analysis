@@ -228,49 +228,84 @@ with tab1:
         "generated_at": None,
     }
 
-    @st.dialog("Topic Details")
-    def show_topic_details(topic_row):
-        st.subheader(topic_row["LLM Theme"])
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write(topic_row.top_tickers)
+    # TODO I might want to use this elsewhere later
+    # @st.dialog("Topic Details")
+    # def show_topic_details(topic_row):
+    #     st.subheader(topic_row["LLM Theme"])
+    #     col1, col2 = st.columns(2)
+    #     with col1:
+    #         st.write(topic_row.top_tickers)
 
-        with col2:
-            st.write(topic_row.representative_docs)
-            # for doc in topic_row.representative_docs:
-            #     st.write(doc)
+    #     with col2:
+    #         st.write(topic_row.representative_docs)
 
-        st.divider()
+    #     st.divider()
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Sentiment", topic_row["Sentiment"])
-        with col2:
-            st.metric("Confidence", f"{topic_row['Confidence']:.2f}")
+    #     col1, col2 = st.columns(2)
+    #     with col1:
+    #         st.metric("Sentiment", topic_row["Sentiment"])
+    #     with col2:
+    #         st.metric("Confidence", f"{topic_row['Confidence']:.2f}")
 
-        st.write(topic_row["llm_insight"])
+    #     st.write(topic_row["llm_insight"])
 
-        st.divider()
+    #     st.divider()
 
-        st.write("**Generated At:**", topic_row["generated_at"])
+    #     st.write("**Generated At:**", topic_row["generated_at"])
 
-    @st.fragment
-    def topic_table():
-        event = st.dataframe(
-            display_topics,
-            width="stretch",
-            height="content",
-            column_config=col_config,
-            on_select="rerun",
-            selection_mode="single-row",
-        )
+    # @st.fragment
+    # def topic_cards():
+    #     for idx, (_, row) in enumerate(display_topics.iterrows()):
+    #         with st.container(border=True):
+    #             col1, col2, col3, col4 = st.columns([8, 1, 1, 1])
+    #             with col1:
+    #                 st.write(f"**{row['LLM Theme']}**")
+    #             with col2:
+    #                 st.caption(f"Count: {row['Count']}")
+    #                 st.caption(f"Max Score: {int(row['Max Score'])}")
+    #             with col3:
+    #                 st.caption(f"Sentiment: {row['Sentiment']}")
+    #                 st.caption(f"Confidence: {row['Confidence']}")
+    #             with col4:
+    #                 if st.button("→", key=f"expand_{idx}"):
+    #                     show_topic_details(row)
 
-        # Show dialog when row is selected
-        if event.selection.rows:
-            selected_idx = event.selection.rows[0]
-            show_topic_details(display_topics.iloc[selected_idx])
+    # topic_cards()
 
-    topic_table()
+    for idx, (_, row) in enumerate(display_topics.iterrows()):
+        with st.container(border=True):
+            # Collapsed view
+            col1, col2, col3, col4 = st.columns([8, 1, 1, 1])
+            with col1:
+                st.write(f"**{row['LLM Theme']}**")
+            with col2:
+                st.caption(f"Count: {row['Count']}")
+                st.caption(f"Max Score: {int(row['Max Score'])}")
+            with col3:
+                st.caption(f"Sentiment: {row['Sentiment']}")
+                st.caption(f"Confidence: {row['Confidence']}")
+            with col4:
+                expand_key = f"expand_{idx}"
+
+            # Use expander inside the container for details
+            with st.expander("View Details", expanded=False):
+                col1, col2, col3 = st.columns([1, 1, 8])
+                with col1:
+                    st.metric("Sentiment", row["Sentiment"])
+                with col2:
+                    st.metric("Confidence", f"{row['Confidence']:.2f}")
+                st.write(row["llm_insight"])
+                st.divider()
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(row.top_tickers)
+
+                with col2:
+                    st.write(row.representative_docs)
+                st.divider()
+
+                st.write("**Generated At:**", row["generated_at"])
 
     st.caption(
         f"Showing **top {len(display_topics)} topics** from the latest WSB daily discussion thread"
