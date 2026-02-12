@@ -12,12 +12,6 @@ from components.topic_sentiment import (
 
 apply_custom_css()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
-
 logger = logging.getLogger(__name__)
 
 # Page header
@@ -200,6 +194,88 @@ with tab1:
     st.caption(
         f"Showing **top {len(comments_df)} comments** from the latest WSB daily discussion thread"
     )
+
+    # Topic Clusters Table
+    topics = snapshots[0]
+    topics["avg_score"] = topics["avg_score"].round(2)
+    cols = {
+        "count": "Count",
+        "avg_score": "Avg Score",
+        "max_score": "Max Score",
+        "llm_theme": "LLM Theme",
+        "llm_sentiment": "Sentiment",
+        "llm_confidence": "Confidence",
+        "top_tickers": "top_tickers",
+        "llm_insight": "llm_insight",
+        "generated_at": "generated_at",
+        "representative_docs": "representative_docs",
+    }
+    display_topics = topics.rename(columns=cols)
+    display_topics = display_topics[cols.values()]
+    col_config = {
+        "Count": st.column_config.Column(
+            width=5,
+            help="Number of comments in the cluster",
+        ),
+        "Avg Score": st.column_config.Column(width=1),
+        "Max Score": st.column_config.Column(width=1),
+        "LLM Theme": st.column_config.Column(width=800),
+        "LLM Sentiment": st.column_config.Column(width=1),
+        "LLM Confidence": st.column_config.Column(width=1),
+        "llm_insight": None,
+        "top_tickers": None,
+        "representative_docs": None,
+        "generated_at": None,
+    }
+
+    @st.dialog("Topic Details")
+    def show_topic_details(topic_row):
+        st.subheader(topic_row["LLM Theme"])
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(topic_row.top_tickers)
+
+        with col2:
+            st.write(topic_row.representative_docs)
+            # for doc in topic_row.representative_docs:
+            #     st.write(doc)
+
+        st.divider()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Sentiment", topic_row["Sentiment"])
+        with col2:
+            st.metric("Confidence", f"{topic_row['Confidence']:.2f}")
+
+        st.write(topic_row["llm_insight"])
+
+        st.divider()
+
+        st.write("**Generated At:**", topic_row["generated_at"])
+
+    @st.fragment
+    def topic_table():
+        event = st.dataframe(
+            display_topics,
+            width="stretch",
+            height="content",
+            column_config=col_config,
+            on_select="rerun",
+            selection_mode="single-row",
+        )
+
+        # Show dialog when row is selected
+        if event.selection.rows:
+            selected_idx = event.selection.rows[0]
+            show_topic_details(display_topics.iloc[selected_idx])
+
+    topic_table()
+
+    st.caption(
+        f"Showing **top {len(display_topics)} topics** from the latest WSB daily discussion thread"
+    )
+
 
 with tab2:
     st.subheader("Mention Trend Comparison")
