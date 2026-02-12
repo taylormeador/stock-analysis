@@ -36,23 +36,25 @@ async def get_home():
 @router.get("/whats-hot")
 async def get_whats_hot():
     logger.info("calculating data for hot dashboard")
-    # TODO use async
 
-    top_comments = await whats_hot.get_top_comments()
-    ticker_mentions = await whats_hot.get_ticker_mentions()
-    topic_snapshots = await whats_hot.get_topic_snapshots()
+    tasks = [
+        whats_hot.get_ticker_mentions(),
+        whats_hot.get_top_comments(),
+        whats_hot.get_topic_snapshots(),
+        whats_hot.get_market_data(),
+    ]
+    results = await asyncio.gather(*tasks)
 
     logger.info("got whats hot data")
 
-    dfs = {
-        "ticker_mentions": ticker_mentions.to_dict("records"),
-        "top_comments": top_comments.to_dict("records"),
-        "topic_snapshots": [
-            snapshot.to_dict("records") for snapshot in topic_snapshots
-        ],
+    data = {
+        "ticker_mentions": results[0].to_dict("records"),
+        "top_comments": results[1].to_dict("records"),
+        "topic_snapshots": [snapshot.to_dict("records") for snapshot in results[2]],
+        "market_data": results[3],
     }
 
-    return {"data": dfs}
+    return {"data": data}
 
 
 @router.get("/etl-status/")

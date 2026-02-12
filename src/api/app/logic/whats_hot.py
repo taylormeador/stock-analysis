@@ -74,7 +74,8 @@ async def get_ticker_mentions():
     # join current price data
     price_data = price_cache.get_current_prices()  # TODO fall back to recent close
     cols = ["ticker", "price", "day_change", "year_change"]
-    price_df = pd.DataFrame(price_data, columns=cols)
+    price_df = pd.DataFrame.from_dict(price_data, orient="index", columns=cols)
+    price_df.ticker = price_df.index
     ticker_mentions = mentions_df.merge(right=price_df, how="left", on="ticker")
     ticker_mentions = ticker_mentions.fillna(value=0, axis=1)
 
@@ -172,7 +173,62 @@ async def get_topic_snapshots():
     return snapshots
 
 
+async def get_market_data():
+    vix_price = price_cache.get_current_price("VIX")
+    spy_price = price_cache.get_current_price("SPY")
+    qqq_price = price_cache.get_current_price("QQQ")
+    iwm_price = price_cache.get_current_price("IWM")
+
+    cboe_sql = """
+        SELECT total_put_call_ratio
+        FROM cboe_daily_stats
+        ORDER BY date DESC
+        LIMIT 1;
+    """
+
+    treasury_sql = """
+        SELECT treasury_ten_year
+        FROM fred_macro_data
+        WHERE treasury_ten_year != 'NaN'
+        ORDER BY date DESC
+        LIMIT 1;
+    """
+    dollar_sql = """
+        SELECT dollar_index
+        FROM fred_macro_data
+        WHERE dollar_index != 'NaN'
+        ORDER BY date DESC
+        LIMIT 1;
+    """
+    put_call_ratio, treasury_ten_year, dollar_index = 0, 0, 0
+    async with db.AsyncSessionLocal() as session:
+        cboe_result = await session.execute(text(cboe_sql))
+        data = cboe_result.first()
+        if data and data[0]:
+            put_call_ratio = float(data[0])
+
+        treasury_result = await session.execute(text(treasury_sql))
+        data = treasury_result.first()
+        if data and data[0]:
+            treasury_ten_year = float(data[0])
+
+        dollar_result = await session.execute(text(dollar_sql))
+        data = dollar_result.first()
+        if data and data[0]:
+            dollar_index = float(data[0])
+
+    return {
+        "vix_price": vix_price,
+        "spy_price": spy_price,
+        "qqq_price": qqq_price,
+        "iwm_price": iwm_price,
+        "put_call_ratio": put_call_ratio,
+        "treasury_ten_year": treasury_ten_year,
+        "dollar_index": dollar_index,
+    }
+
+
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(get_topic_snapshots())
+    asyncio.run(get_ticker_mentions())

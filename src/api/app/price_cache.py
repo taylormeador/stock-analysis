@@ -35,4 +35,4 @@ def get_current_price(ticker: str) -> float | None:
         Current price as float, or None if not available
     """
     prices = get_current_prices()
-    return prices.get(ticker, {}).get("price")
+    return prices.get(ticker, {})

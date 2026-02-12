@@ -39,9 +39,10 @@ if not json_response.get("data"):
     st.stop()
 
 # Extract data
-ticker_data = json_response.get("data", {}).get("ticker_mentions", [])
-comments_data = json_response.get("data", {}).get("top_comments", [])
-snapshots_data = json_response.get("data", {}).get("topic_snapshots", [])
+ticker_data = json_response["data"].get("ticker_mentions", [])
+comments_data = json_response["data"].get("top_comments", [])
+snapshots_data = json_response["data"].get("topic_snapshots", [])
+market_data = json_response["data"].get("market_data", [])
 
 if not ticker_data or not comments_data or not snapshots_data:
     st.warning(":material/warning: No data found in the latest update.")
@@ -358,8 +359,41 @@ with tab3:
 
 
 # Sidebar info
-st.sidebar.markdown("### :material/info: Data Info")
-st.sidebar.success("**STATUS:** TODO - fix this")
-st.sidebar.caption(
-    f"**LAST UPDATE:** TODO - fix this\n\n**TOTAL TICKERS:** {len(mentions_df)}\n\n**TOTAL MENTIONS:** {format_large_number(total_mentions)}"
-)
+st.sidebar.markdown("### :material/candlestick_chart: Market Context")
+
+vix_data = market_data["vix_price"]
+spy_data = market_data["spy_price"]
+qqq_data = market_data["qqq_price"]
+iwm_data = market_data["iwm_price"]
+put_call_ratio = market_data["put_call_ratio"]
+dollar_index = market_data["dollar_index"]
+
+
+if vix_data:
+    st.sidebar.metric(
+        "VIX",
+        f"{vix_data['price']:.2f}",
+        delta=f"{vix_data['day_change']*100:.2f}%",
+    )
+if spy_data:
+    st.sidebar.metric(
+        "SPY",
+        f"${spy_data['price']:.2f}",
+        delta=f"{spy_data['day_change']*100:.2f}%",
+    )
+if qqq_data:
+    st.sidebar.metric(
+        "QQQ",
+        f"{qqq_data['price']:.2f}",
+        delta=f"{qqq_data['day_change']*100:.2f}%",
+    )
+if iwm_data:
+    st.sidebar.metric(
+        "IWM",
+        f"{iwm_data['price']:.2f}",
+        delta=f"{iwm_data['day_change']*100:.2f}%",
+    )
+if put_call_ratio:
+    st.sidebar.metric("Put/Call Ratio", f"{put_call_ratio:.2f}")
+if dollar_index:
+    st.sidebar.metric("Dollar Index", f"{dollar_index:.2f}")
