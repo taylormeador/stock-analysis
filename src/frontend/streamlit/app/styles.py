@@ -93,6 +93,11 @@ def apply_custom_css():
             border-color: {colors.bright_green} !important;
             color: {colors.bright_green} !important;
         }}
+
+        /* Reduce top padding */
+        .block-container {{
+            padding-top: 1rem !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
