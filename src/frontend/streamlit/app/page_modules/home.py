@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from styles import apply_custom_css, colors
-from utils import get_json
+from utils import get_json, live_utc_clock
 
 apply_custom_css()
 
@@ -282,6 +282,9 @@ st.markdown(
 
 # Sidebar
 with st.sidebar:
+    st.markdown("### :material/schedule: Time")
+    live_utc_clock()
+
     st.markdown("### :material/trending_up: Live Trending")
 
     if ticker_mentions:

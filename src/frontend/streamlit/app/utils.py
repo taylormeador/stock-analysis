@@ -9,6 +9,9 @@ import logging
 import os
 from typing import Dict
 import time
+from datetime import datetime, timezone
+
+import streamlit as st
 
 import requests
 
@@ -34,3 +37,9 @@ def get_json(endpoint: str) -> Dict:
             logger.exception("error getting data from API")
 
     return {"data": []}
+
+
+@st.fragment(run_every="60s")
+def live_utc_clock():
+    now = datetime.now(timezone.utc)
+    st.caption(f"**UTC:** {now.strftime('%H:%M:%S')}")

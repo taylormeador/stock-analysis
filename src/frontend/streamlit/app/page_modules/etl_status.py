@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from styles import apply_custom_css
-from utils import get_json
+from utils import get_json, live_utc_clock
 
 from components.etl_status import (
     # system_health_overview,
@@ -60,13 +60,17 @@ st.info(
 )
 
 # Sidebar
-mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
-failed_tasks_count = failed_task_df["count"].iloc[0]
-failure_rate = int(task_failure_rate * 100)
+with st.sidebar:
+    st.markdown("### :material/schedule: Time")
+    live_utc_clock()
 
-st.sidebar.markdown("### :material/analytics: Quick Stats (24h)")
-st.sidebar.metric(
-    ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
-)
-st.sidebar.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
-st.sidebar.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
+    mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
+    failed_tasks_count = failed_task_df["count"].iloc[0]
+    failure_rate = int(task_failure_rate * 100)
+
+    st.sidebar.markdown("### :material/analytics: Quick Stats (24h)")
+    st.sidebar.metric(
+        ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
+    )
+    st.sidebar.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
+    st.sidebar.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")

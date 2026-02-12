@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from styles import apply_custom_css, colors, format_large_number, format_percentage
-from utils import get_json
+from utils import get_json, live_utc_clock
 from components.topic_sentiment import (
     create_multi_snapshot_chart,
 )
@@ -359,41 +359,44 @@ with tab3:
 
 
 # Sidebar info
-st.sidebar.markdown("### :material/candlestick_chart: Market Context")
+with st.sidebar:
+    st.sidebar.markdown("### :material/schedule: Time")
+    live_utc_clock()
 
-vix_data = market_data["vix_price"]
-spy_data = market_data["spy_price"]
-qqq_data = market_data["qqq_price"]
-iwm_data = market_data["iwm_price"]
-put_call_ratio = market_data["put_call_ratio"]
-dollar_index = market_data["dollar_index"]
+    st.markdown("### :material/candlestick_chart: Market Context")
 
+    vix_data = market_data["vix_price"]
+    spy_data = market_data["spy_price"]
+    qqq_data = market_data["qqq_price"]
+    iwm_data = market_data["iwm_price"]
+    put_call_ratio = market_data["put_call_ratio"]
+    dollar_index = market_data["dollar_index"]
 
-if vix_data:
-    st.sidebar.metric(
-        "VIX",
-        f"{vix_data['price']:.2f}",
-        delta=f"{vix_data['day_change']*100:.2f}%",
-    )
-if spy_data:
-    st.sidebar.metric(
-        "SPY",
-        f"${spy_data['price']:.2f}",
-        delta=f"{spy_data['day_change']*100:.2f}%",
-    )
-if qqq_data:
-    st.sidebar.metric(
-        "QQQ",
-        f"{qqq_data['price']:.2f}",
-        delta=f"{qqq_data['day_change']*100:.2f}%",
-    )
-if iwm_data:
-    st.sidebar.metric(
-        "IWM",
-        f"{iwm_data['price']:.2f}",
-        delta=f"{iwm_data['day_change']*100:.2f}%",
-    )
-if put_call_ratio:
-    st.sidebar.metric("Put/Call Ratio", f"{put_call_ratio:.2f}")
-if dollar_index:
-    st.sidebar.metric("Dollar Index", f"{dollar_index:.2f}")
+    if vix_data:
+        st.sidebar.metric(
+            "VIX",
+            f"{vix_data['price']:.2f}",
+            delta=f"{vix_data['day_change']*100:.2f}%",
+        )
+    if spy_data:
+        st.sidebar.metric(
+            "SPY",
+            f"${spy_data['price']:.2f}",
+            delta=f"{spy_data['day_change']*100:.2f}%",
+        )
+    if qqq_data:
+        st.sidebar.metric(
+            "QQQ",
+            f"{qqq_data['price']:.2f}",
+            delta=f"{qqq_data['day_change']*100:.2f}%",
+        )
+    if iwm_data:
+        st.sidebar.metric(
+            "IWM",
+            f"{iwm_data['price']:.2f}",
+            delta=f"{iwm_data['day_change']*100:.2f}%",
+        )
+    if put_call_ratio:
+        st.sidebar.metric("Put/Call Ratio", f"{put_call_ratio:.2f}")
+    if dollar_index:
+        st.sidebar.metric("Dollar Index", f"{dollar_index:.2f}")
