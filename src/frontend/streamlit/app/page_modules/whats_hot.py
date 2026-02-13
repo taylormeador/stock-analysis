@@ -57,7 +57,9 @@ top_ticker_mentions = mentions_df.iloc[0]["ticker_mentions_1"]
 top_ticker_mentions_delta = (
     top_ticker_mentions - mentions_df.iloc[0]["ticker_mentions_3"]
 )
-avg_change = mentions_df["mention_pct_change"].mean()
+mentions_df["share_pct_change"] = (
+    mentions_df["mention_share_1"] - mentions_df["mention_share_3"]
+)
 
 # Display metrics in columns
 col1, col2, col3, col4 = st.columns(4)
@@ -82,11 +84,7 @@ with col3:
     )
 
 with col4:
-    st.metric(
-        label=":material/percent: Avg % Change",
-        value=format_percentage(avg_change),
-        delta_color="normal" if avg_change >= 0 else "inverse",
-    )
+    st.metric(label=":material/percent: Some Metric", value="TODO")
 
 st.divider()
 
@@ -99,10 +97,11 @@ pct_cols = [
     "mention_share_1",
     "mention_share_2",
     "mention_share_3",
+    "share_pct_change",
 ]
 display_df[pct_cols] = display_df[pct_cols] * 100
 
-for col in ("mention_pct_change", "day_change", "year_change"):
+for col in ("mention_pct_change", "day_change", "year_change", "share_pct_change"):
     display_df[col] = display_df[col].apply(lambda x: format_percentage(x))
 
 for col in ("mention_share_1", "mention_share_2", "mention_share_3"):
@@ -123,7 +122,7 @@ cols = {
     "mention_share_2": "Previous %",
     "ticker_mentions_3": "Thread Before Last Count",
     "mention_share_3": "Thread Before Last %",
-    "mention_pct_change": "Count Change %",
+    "share_pct_change": "% Change",
 }
 display_df = display_df.rename(columns=cols)
 display_df = display_df[cols.values()]

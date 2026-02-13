@@ -23,7 +23,7 @@ def ticker_mentions(display_df: pd.DataFrame):
 
     styled_df = display_df.style.applymap(
         color_percentage,
-        subset=["Day Change", "Year Change", "Count Change %"],
+        subset=["Day Change", "Year Change", "% Change"],
     ).format({"Price": "${:.2f}"})
 
     st.dataframe(
