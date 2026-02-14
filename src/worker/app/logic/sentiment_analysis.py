@@ -76,77 +76,77 @@ def run_vader_analysis(tracker: TaskStatusTracker):
             LEFT JOIN comment_sentiment cs ON hrc.comment_id = cs.comment_id
             WHERE cs.vader_compound IS NULL
             ORDER BY hrc.created_utc DESC
-            LIMIT :batch_size;
+            LIMIT :batch_size
+            FOR UPDATE OF hrc SKIP LOCKED;
         """
         with db.get_connection() as conn:
-            result = conn.execute(text(sql), {"batch_size": SENTIMENT_BATCH_SIZE})
-            rows = result.fetchall()
+            with conn.begin():
+                result = conn.execute(text(sql), {"batch_size": SENTIMENT_BATCH_SIZE})
+                rows = result.fetchall()
 
-        if not rows:
-            logger.info("No more comments to process with VADER")
-            break
+                if not rows:
+                    logger.info("No more comments to process with VADER")
+                    break
 
-        # Extract comment_ids and bodies
-        comment_ids = [row.comment_id for row in rows]
-        bodies = [row.body for row in rows]
+                # Extract comment_ids and bodies
+                comment_ids = [row.comment_id for row in rows]
+                bodies = [row.body for row in rows]
 
-        # Generate VADER sentiment
-        logger.info(f"Generating VADER sentiment for {len(bodies)} comments")
-        tracker.update_status_message(
-            f"Batch {batch_num + 1}/{SENTIMENT_NUM_BATCHES}: Processing {len(bodies)} comments"
-        )
-
-        sentiment_scores = []
-        for body in bodies:
-            scores = analyzer.polarity_scores(body)
-            sentiment_scores.append(
-                {
-                    "compound": scores["compound"],
-                    "pos": scores["pos"],
-                    "neg": scores["neg"],
-                    "neu": scores["neu"],
-                }
-            )
-
-        # Update database
-        processed_at = datetime.now(timezone.utc)
-        with db.get_connection() as conn:
-            for comment_id, scores in zip(comment_ids, sentiment_scores):
-                upsert_sql = """
-                    INSERT INTO comment_sentiment (
-                        comment_id,
-                        vader_compound,
-                        vader_pos,
-                        vader_neg,
-                        vader_neu,
-                        processed_at
-                    ) VALUES (
-                        :comment_id,
-                        :compound,
-                        :pos,
-                        :neg,
-                        :neu,
-                        :processed_at
-                    )
-                    ON CONFLICT (comment_id) DO UPDATE SET
-                        vader_compound = EXCLUDED.vader_compound,
-                        vader_pos = EXCLUDED.vader_pos,
-                        vader_neg = EXCLUDED.vader_neg,
-                        vader_neu = EXCLUDED.vader_neu,
-                        processed_at = EXCLUDED.processed_at;
-                """
-                conn.execute(
-                    text(upsert_sql),
-                    {
-                        "comment_id": comment_id,
-                        "compound": scores["compound"],
-                        "pos": scores["pos"],
-                        "neg": scores["neg"],
-                        "neu": scores["neu"],
-                        "processed_at": processed_at,
-                    },
+                # Generate VADER sentiment
+                logger.info(f"Generating VADER sentiment for {len(bodies)} comments")
+                tracker.update_status_message(
+                    f"Batch {batch_num + 1}/{SENTIMENT_NUM_BATCHES}: Processing {len(bodies)} comments"
                 )
-            conn.commit()
+
+                sentiment_scores = []
+                for body in bodies:
+                    scores = analyzer.polarity_scores(body)
+                    sentiment_scores.append(
+                        {
+                            "compound": scores["compound"],
+                            "pos": scores["pos"],
+                            "neg": scores["neg"],
+                            "neu": scores["neu"],
+                        }
+                    )
+
+                # Update database
+                processed_at = datetime.now(timezone.utc)
+                for comment_id, scores in zip(comment_ids, sentiment_scores):
+                    upsert_sql = """
+                        INSERT INTO comment_sentiment (
+                            comment_id,
+                            vader_compound,
+                            vader_pos,
+                            vader_neg,
+                            vader_neu,
+                            processed_at
+                        ) VALUES (
+                            :comment_id,
+                            :compound,
+                            :pos,
+                            :neg,
+                            :neu,
+                            :processed_at
+                        )
+                        ON CONFLICT (comment_id) DO UPDATE SET
+                            vader_compound = EXCLUDED.vader_compound,
+                            vader_pos = EXCLUDED.vader_pos,
+                            vader_neg = EXCLUDED.vader_neg,
+                            vader_neu = EXCLUDED.vader_neu,
+                            processed_at = EXCLUDED.processed_at;
+                    """
+                    conn.execute(
+                        text(upsert_sql),
+                        {
+                            "comment_id": comment_id,
+                            "compound": scores["compound"],
+                            "pos": scores["pos"],
+                            "neg": scores["neg"],
+                            "neu": scores["neu"],
+                            "processed_at": processed_at,
+                        },
+                    )
 
         total_processed += len(comment_ids)
 
@@ -180,73 +180,75 @@ def run_finbert_analysis(tracker: TaskStatusTracker):
             LEFT JOIN comment_sentiment cs ON hrc.comment_id = cs.comment_id
             WHERE cs.finbert_label IS NULL
             ORDER BY hrc.created_utc DESC
-            LIMIT :batch_size;
+            LIMIT :batch_size
+            FOR UPDATE OF hrc SKIP LOCKED;
         """
         with db.get_connection() as conn:
-            result = conn.execute(text(sql), {"batch_size": SENTIMENT_BATCH_SIZE})
-            rows = result.fetchall()
+            with conn.begin():
+                result = conn.execute(text(sql), {"batch_size": SENTIMENT_BATCH_SIZE})
+                rows = result.fetchall()
 
-        if not rows:
-            logger.info("No more comments to process with FinBERT")
-            break
+                if not rows:
+                    logger.info("No more comments to process with FinBERT")
+                    break
 
-        # Extract comment_ids and bodies
-        comment_ids = [row.comment_id for row in rows]
-        bodies = [row.body for row in rows]
+                # Extract comment_ids and bodies
+                comment_ids = [row.comment_id for row in rows]
+                bodies = [row.body for row in rows]
 
-        # Generate FinBERT sentiment
-        logger.info(f"Generating FinBERT sentiment for {len(bodies)} comments")
-        tracker.update_status_message(
-            f"Batch {batch_num + 1}/{SENTIMENT_NUM_BATCHES}: Processing {len(bodies)} comments"
-        )
-
-        sentiment_results = analyze_finbert_sentiment(tokenizer, model, device, bodies)
-
-        # Update database
-        processed_at = datetime.now(timezone.utc)
-        with db.get_connection() as conn:
-            for comment_id, result in zip(comment_ids, sentiment_results):
-                upsert_sql = """
-                    INSERT INTO comment_sentiment (
-                        comment_id,
-                        finbert_label,
-                        finbert_score,
-                        processed_at
-                    ) VALUES (
-                        :comment_id,
-                        :label,
-                        :score,
-                        :processed_at
-                    )
-                    ON CONFLICT (comment_id) DO UPDATE SET
-                        finbert_label = EXCLUDED.finbert_label,
-                        finbert_score = EXCLUDED.finbert_score,
-                        processed_at = EXCLUDED.processed_at;
-                """
-                conn.execute(
-                    text(upsert_sql),
-                    {
-                        "comment_id": comment_id,
-                        "label": result["label"],
-                        "score": result["score"],
-                        "processed_at": processed_at,
-                    },
+                # Generate FinBERT sentiment
+                logger.info(f"Generating FinBERT sentiment for {len(bodies)} comments")
+                tracker.update_status_message(
+                    f"Batch {batch_num + 1}/{SENTIMENT_NUM_BATCHES}: Processing {len(bodies)} comments"
                 )
-            conn.commit()
 
-        total_processed += len(comment_ids)
+                sentiment_results = analyze_finbert_sentiment(
+                    tokenizer, model, device, bodies
+                )
 
-        # Track progress
-        tracker.update_progress(
-            min(
-                total_processed / (SENTIMENT_NUM_BATCHES * SENTIMENT_BATCH_SIZE),
-                0.95,
-            ),
-            persist=True,
-        )
-        tracker.update_status_message(
-            f"Processed {total_processed:,} comments with FinBERT"
-        )
+                # Update database
+                processed_at = datetime.now(timezone.utc)
+                for comment_id, result in zip(comment_ids, sentiment_results):
+                    upsert_sql = """
+                        INSERT INTO comment_sentiment (
+                            comment_id,
+                            finbert_label,
+                            finbert_score,
+                            processed_at
+                        ) VALUES (
+                            :comment_id,
+                            :label,
+                            :score,
+                            :processed_at
+                        )
+                        ON CONFLICT (comment_id) DO UPDATE SET
+                            finbert_label = EXCLUDED.finbert_label,
+                            finbert_score = EXCLUDED.finbert_score,
+                            processed_at = EXCLUDED.processed_at;
+                    """
+                    conn.execute(
+                        text(upsert_sql),
+                        {
+                            "comment_id": comment_id,
+                            "label": result["label"],
+                            "score": result["score"],
+                            "processed_at": processed_at,
+                        },
+                    )
+
+            total_processed += len(comment_ids)
+
+            # Track progress
+            tracker.update_progress(
+                min(
+                    total_processed / (SENTIMENT_NUM_BATCHES * SENTIMENT_BATCH_SIZE),
+                    0.95,
+                ),
+                persist=True,
+            )
+            tracker.update_status_message(
+                f"Processed {total_processed:,} comments with FinBERT"
+            )
 
         logger.info(f"Total processed so far: {total_processed:,}")
 
