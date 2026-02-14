@@ -13,6 +13,7 @@ pip install -e .
 # Start Celery worker for GPU queue
 celery -A app.main worker \
   --queues=gpu \
-  --pool=solo \
+  --pool=threads \
+  --concurrency=4 \
   --loglevel=info \
   --hostname=stock-analysis-celery-worker-gpu
