@@ -5,8 +5,6 @@ from datetime import timedelta, date
 from app.celery_app import app
 from app.tasks import scraping  # noqa: F401
 from app.tasks import apis  # noqa: F401
-from app.tasks import data_prep  # noqa: F401
-from app.tasks import model_training  # noqa: F401
 from app.tasks import embeddings  # noqa: F401
 from app.tasks import sentiment  # noqa: F401
 
