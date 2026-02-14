@@ -3,14 +3,16 @@ import os
 from datetime import datetime, timezone
 
 import mlflow
+import torch
+from sentence_transformers import SentenceTransformer
 from sqlalchemy import text
 
+import app.logic.bertopic_analysis as logic
 from app.celery_app import app
 from app.database.db import get_connection
-import app.logic.bertopic_analysis as logic
 from app.utils import (
-    TaskStatusTracker,
     SingleInstanceTask,
+    TaskStatusTracker,
     track_records_processed,
     track_task_metrics,
 )
@@ -27,17 +29,19 @@ TIMESTAMP_COLUMN = "all_minilm_l6_v2_generated_at"
 
 
 def load_model():
-    """
-    Load the embedding model. This is done lazily to avoid having
-    all containers load it into memory. Since the task is run infrequently
-    and not a part of the real-time pipeline, this tradeoff makes sense.
-    The latency is permitted.
-    """
-    from sentence_transformers import SentenceTransformer
 
     logger.info(f"Loading embedding model: {EMBEDDING_MODEL}")
-    model = SentenceTransformer(EMBEDDING_MODEL)
-    logger.info(f"Model loaded: {EMBEDDING_MODEL}")
+
+    # Detect device
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+
+    model = SentenceTransformer(EMBEDDING_MODEL, device=device)
+    logger.info(f"Model loaded on {device}: {EMBEDDING_MODEL}")
     return model
 
 

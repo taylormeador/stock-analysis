@@ -48,8 +48,14 @@ def load_finbert_model():
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
-    # Move to GPU if available
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Metal (MPS) for Mac, CUDA for NVIDIA, CPU fallback
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+
     model = model.to(device)
     model.eval()
 
