@@ -1,11 +1,8 @@
 import os
 
 from celery import Celery
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # Celery configuration
 app = Celery("stock_analysis")
-app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")  # type: ignore
-app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")  # type: ignore
+app.conf.broker_url = os.getenv("CELERY_BROKER_URL")  # type: ignore
+app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND")  # type: ignore
