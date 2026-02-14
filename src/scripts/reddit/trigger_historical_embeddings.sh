@@ -1,2 +1,2 @@
 #!/bin/bash
-curl -X POST http://localhost:5555/api/task/async-apply/app.tasks.embeddings.generate_historical_embeddings
+curl -X POST http://10.0.10.127:5555/api/task/async-apply/app.tasks.embeddings.generate_historical_embeddings
