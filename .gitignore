@@ -1,5 +1,7 @@
 .vscode
 cmd.txt
+creds.txt
+ThetaTerminalv3.jar
 
 # SSL Certificates (NEVER commit these!)
 certbot/

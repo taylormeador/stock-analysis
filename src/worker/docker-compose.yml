@@ -128,6 +128,20 @@ services:
     restart: unless-stopped
     profiles: [brain]
 
+  thetadata-terminal:
+    image: eclipse-temurin:21-jre
+    container_name: thetadata-terminal
+    hostname: thetadata-terminal
+    working_dir: /app
+    volumes:
+      - ./thetadata/ThetaTerminalv3.jar:/app/ThetaTerminalv3.jar:ro
+      - ./thetadata/creds.txt:/app/creds.txt:ro
+    command: java -jar ThetaTerminalv3.jar
+    ports:
+      - "25503:25503"
+    restart: unless-stopped
+    profiles: [brain]
+
 networks:
   default:
     name: stock-analysis-network
