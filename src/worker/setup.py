@@ -30,5 +30,6 @@ setup(
         "pgvector==0.4.2",
         "bertopic==0.17.4",
         "anthropic==0.79.0",
+        "vaderSentiment==3.3.2",
     ],
 )

@@ -60,3 +60,20 @@ CREATE TABLE historical_reddit_tracking (
     end_time TIMESTAMPTZ
 )
 
+-- new comment sentiment table
+CREATE TABLE comment_sentiment (
+    comment_id BIGINT PRIMARY KEY REFERENCES historical_reddit_comments(comment_id),
+    vader_compound FLOAT,
+    vader_pos FLOAT,
+    vader_neg FLOAT,
+    vader_neu FLOAT,
+    finbert_label VARCHAR(20),
+    finbert_score FLOAT,
+    custom_sentiment FLOAT,
+    custom_confidence FLOAT,
+    processed_at TIMESTAMP
+);
+CREATE INDEX idx_comment_sentiment_vader ON comment_sentiment(vader_compound) WHERE vader_compound IS NOT NULL;
+CREATE INDEX idx_comment_sentiment_finbert ON comment_sentiment(finbert_label) WHERE finbert_label IS NOT NULL;
+CREATE INDEX idx_comment_sentiment_custom ON comment_sentiment(custom_sentiment) WHERE custom_sentiment IS NOT NULL;
+CREATE INDEX idx_comment_sentiment_processed_at ON comment_sentiment(processed_at);

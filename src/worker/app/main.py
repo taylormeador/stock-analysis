@@ -8,6 +8,7 @@ from app.tasks import apis  # noqa: F401
 from app.tasks import data_prep  # noqa: F401
 from app.tasks import model_training  # noqa: F401
 from app.tasks import embeddings  # noqa: F401
+from app.tasks import sentiment  # noqa: F401
 
 from celery import signals
 from app.utils import start_metrics_server
@@ -57,6 +58,14 @@ app.conf.beat_schedule = {
     "generate-real-time-embeddings": {
         "task": "app.tasks.embeddings.generate_real_time_embeddings",
         "schedule": 600.0,
+    },
+    "generate-vader-sentiment": {
+        "task": "app.tasks.sentiment.generate_vader_sentiment",
+        "schedule": crontab(hour="*/4", minute="15"),  # Every 4 hours at :15
+    },
+    "generate-finbert-sentiment": {
+        "task": "app.tasks.sentiment.generate_finbert_sentiment",
+        "schedule": crontab(hour="*/4", minute="45"),  # Every 4 hours at :45
     },
     # We want to generate summaries at premarket, mid day, close, and evening.
     # This is not exact due to daylight savings, but it's close enough for my purposes.
