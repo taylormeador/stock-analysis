@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import datetime, timezone
 import timeago
-from utils import get_json
+from utils import get_json, live_clock
 
 from styles import colors
 import plotly.graph_objects as go
@@ -173,3 +173,28 @@ def static_info():
         "The ETL pipeline runs continuously to collect, process, and analyze data from multiple sources. "
         "All tasks are scheduled using **Celery Beat** and executed by distributed workers with **Redis**-based coordination."
     )
+
+
+@st.fragment(run_every="1m")
+def sidebar_stats():
+    # Fetch data from API
+    json_response = get_json("/etl-status")
+    data = json_response["data"]
+
+    if not data:
+        st.error(":material/error: **No data available**\n\n")
+        st.stop()
+
+    task_deltas_df = pd.DataFrame(data["task_time_deltas"])
+    num_tasks_processed = data["num_tasks_processed"]
+    task_failure_rate = data["task_failure_rate"]
+
+    mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
+    failure_rate = int(task_failure_rate * 100)
+
+    st.markdown("### :material/analytics: Quick Stats (24h)")
+    st.metric(
+        ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
+    )
+    st.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
+    st.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")

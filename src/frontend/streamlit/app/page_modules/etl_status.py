@@ -7,6 +7,7 @@ from components.etl_status import (
     # system_health_overview,
     realtime_component_status,
     task_performance,
+    sidebar_stats,
 )
 
 apply_custom_css()
@@ -64,13 +65,4 @@ with st.sidebar:
     st.markdown("### :material/schedule: Time")
     live_clock()
 
-    mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
-    failed_tasks_count = failed_task_df["count"].iloc[0]
-    failure_rate = int(task_failure_rate * 100)
-
-    st.sidebar.markdown("### :material/analytics: Quick Stats (24h)")
-    st.sidebar.metric(
-        ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
-    )
-    st.sidebar.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
-    st.sidebar.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
+    sidebar_stats()
