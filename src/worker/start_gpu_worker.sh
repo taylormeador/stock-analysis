@@ -14,6 +14,6 @@ pip install -e .
 celery -A app.main worker \
   --queues=gpu \
   --pool=threads \
-  --concurrency=4 \
+  --concurrency=2 \
   --loglevel=info \
   --hostname=stock-analysis-celery-worker-gpu@mac-mini

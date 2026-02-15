@@ -1,16 +1,11 @@
 import logging
 import os
-from datetime import datetime, timezone
-
-from sqlalchemy import text
 
 from app.celery_app import app
-from app.database.db import get_connection
 import app.logic.sentiment_analysis as logic
 from app.utils import (
     TaskStatusTracker,
     SingleInstanceTask,
-    track_records_processed,
     track_task_metrics,
 )
 
@@ -21,7 +16,7 @@ SENTIMENT_BATCH_SIZE = int(os.getenv("SENTIMENT_BATCH_SIZE", "10000"))
 SENTIMENT_NUM_BATCHES = int(os.getenv("SENTIMENT_NUM_BATCHES", "10"))
 
 
-@app.task(base=SingleInstanceTask, bind=True, queue="gpu")
+@app.task(base=SingleInstanceTask, bind=True)
 @track_task_metrics
 def generate_vader_sentiment(self):
     """

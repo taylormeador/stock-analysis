@@ -176,7 +176,7 @@ def generate_historical_embeddings(self):
         raise
 
 
-@app.task(base=SingleInstanceTask, bind=True, queue="gpu")
+@app.task(base=SingleInstanceTask, bind=True)
 @track_task_metrics
 def generate_real_time_embeddings(self):
     """
@@ -252,12 +252,6 @@ def generate_real_time_embeddings(self):
                 )
             conn.commit()
 
-        track_records_processed(
-            task_name="generate_historical_embeddings",
-            count=len(ids),
-            record_type="reddit_comment_embedding",
-        )
-
         logger.info(f"Embedding generation complete: {len(ids):,} comments")
         tracker.update_status_message(f"Embedded {len(ids):,} comments")
         tracker.complete_task()
@@ -273,7 +267,7 @@ def generate_real_time_embeddings(self):
         raise
 
 
-@app.task(base=SingleInstanceTask, bind=True, queue="gpu")
+@app.task(base=SingleInstanceTask, bind=True)
 @track_task_metrics
 def summarize_real_time_topics(self, min_cluster_size: int = 100):
     tracker = TaskStatusTracker(
