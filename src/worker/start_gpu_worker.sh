@@ -16,4 +16,4 @@ celery -A app.main worker \
   --pool=threads \
   --concurrency=4 \
   --loglevel=info \
-  --hostname=stock-analysis-celery-worker-gpu
+  --hostname=stock-analysis-celery-worker-gpu@mac-mini
