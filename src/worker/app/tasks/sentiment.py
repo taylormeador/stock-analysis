@@ -16,7 +16,7 @@ SENTIMENT_BATCH_SIZE = int(os.getenv("SENTIMENT_BATCH_SIZE", "10000"))
 SENTIMENT_NUM_BATCHES = int(os.getenv("SENTIMENT_NUM_BATCHES", "10"))
 
 
-@app.task(base=SingleInstanceTask, bind=True)
+@app.task(bind=True)
 @track_task_metrics
 def generate_vader_sentiment(self):
     """
