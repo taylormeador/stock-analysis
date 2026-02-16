@@ -45,6 +45,7 @@ def load_model():
     return model
 
 
+# TODO make this work in parallel
 @app.task(base=SingleInstanceTask, bind=True, queue="gpu")
 @track_task_metrics
 def generate_historical_embeddings(self):

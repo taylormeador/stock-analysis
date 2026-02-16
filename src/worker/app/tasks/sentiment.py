@@ -5,7 +5,6 @@ from app.celery_app import app
 import app.logic.sentiment_analysis as logic
 from app.utils import (
     TaskStatusTracker,
-    SingleInstanceTask,
     track_task_metrics,
 )
 
@@ -41,7 +40,7 @@ def generate_vader_sentiment(self):
         raise
 
 
-@app.task(base=SingleInstanceTask, bind=True, queue="gpu")
+@app.task(bind=True, queue="gpu")
 @track_task_metrics
 def generate_finbert_sentiment(self):
     """
