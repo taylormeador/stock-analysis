@@ -8,12 +8,13 @@ apply_custom_css()
 
 # Get data
 response = get_json("/home")
-if not response.get("data"):
-    st.error("No data found")
+data = response.get('data', {})
+if not data:
+    st.error(":material/error: No data found")
 
-snapshot = response["data"]["snapshot"]
-ticker_mentions = response["data"]["ticker_mentions"]
-etl_task_statuses = response["data"]["etl_task_statuses"]
+snapshot = data.get("snapshot")
+ticker_mentions = data.get("ticker_mentions")
+etl_task_statuses = data.get("etl_task_statuses")
 
 # Hero section
 st.title(":material/query_stats: CurveFitter9000")
@@ -143,9 +144,8 @@ with col1:
 
 with col2:
     # Show mini ETL status
-    etl_data = get_json("/etl-status")
-    if etl_data.get("data"):
-        df = pd.DataFrame(etl_data["data"]["etl_task_statuses"])
+    if etl_task_statuses:
+        etl_task_statuses = pd.DataFrame(etl_task_statuses)
 
         # Show compact status for each component
         for _, row in df.head(9).iterrows():
@@ -311,7 +311,6 @@ with st.sidebar:
     st.markdown("### :material/dns: System Health")
 
     if etl_task_statuses:
-        df = pd.DataFrame(etl_task_statuses)
 
         # Calculate health metrics
         total_tasks = len(df)

@@ -29,6 +29,7 @@ async def get_home():
         "etl_task_statuses": results[2].to_dict("records"),
         "celery_stats": results[3],
     }
+    logger.info(data)
 
     return {"data": data}
 

@@ -52,6 +52,11 @@ def realtime_component_status():
         json_response["data"]["etl_task_statuses"]
     )  # TODO use query param for partial update?
 
+
+    if not json_response.get('data'):
+        st.error(":material/error: **No data available**\n\n")
+        st.stop()
+
     now = datetime.now(timezone.utc)
     for _, row in df.iterrows():
         col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
