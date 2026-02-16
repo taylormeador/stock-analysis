@@ -1,0 +1,65 @@
+########################################
+Configure postgres to replicate
+
+# Create replication user
+su - postgres
+psql
+CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD '<password>';
+\q
+exit
+
+# Edit config files
+nano /etc/postgresql/15/main/postgresql.conf
+# Add/modify:
+# wal_level = replica
+# max_wal_senders = 3
+# wal_keep_size = 1GB
+
+nano /etc/postgresql/15/main/pg_hba.conf
+# Add at the end:
+# host replication replicator 10.0.10.123/32 scram-sha-256
+
+# Restart postgres
+systemctl restart postgresql
+
+
+########################################
+Configure postgres to catch up to lead node
+
+# Stop postgres
+systemctl stop postgresql
+
+# Remove existing data (we'll recreate from primary)
+rm -rf /var/lib/postgresql/15/main/*
+
+# Run pg_basebackup to clone from primary
+su - postgres
+pg_basebackup -h 10.0.10.121 -U replicator -D /var/lib/postgresql/15/main -Fp -Xs -P -R
+
+# Enter password when prompted
+exit
+
+# Start postgres - it will now be in standby mode
+systemctl start postgresql
+
+# Verify it's replicating
+su - postgres
+psql -c "SELECT pg_is_in_recovery();"
+# Should return 't' (true)
+exit
+
+
+# Promote to primary
+su - postgres
+/usr/lib/postgresql/15/bin/pg_ctl promote -D /var/lib/postgresql/15/main
+
+# Or using SQL
+psql -c "SELECT pg_promote();"
+
+exit
+
+# Verify it's now primary
+su - postgres
+psql -c "SELECT pg_is_in_recovery();"
+# Should return 'f' (false) - no longer in recovery
+exit
