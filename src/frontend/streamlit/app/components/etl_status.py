@@ -190,7 +190,7 @@ def sidebar_stats():
     task_failure_rate = data["task_failure_rate"]
 
     mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
-    failure_rate = int(task_failure_rate * 100)
+    failure_rate = int(task_failure_rate)
 
     st.markdown("### :material/analytics: Quick Stats (24h)")
     st.metric(

@@ -3,11 +3,12 @@ import logging
 import httpx
 from datetime import datetime, timedelta
 import asyncio
+import os
 
 
 logger = logging.getLogger(__name__)
 
-PROMETHEUS_URL = "http://10.0.10.127:9090"
+PROMETHEUS_URL = os.getenv("PROMETHEUS_URL")
 
 
 async def get_worker_status():
