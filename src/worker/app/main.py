@@ -85,4 +85,8 @@ app.conf.beat_schedule = {
         "task": "app.tasks.apis.get_fred_data",
         "schedule": crontab(hour="8", minute="0"),
     },
+    "get-td-eod-options-data": {
+        "task": "app.tasks.apis.get_eod_options_data",
+        "schedule": crontab(hour="8", minute="0"),
+    },
 }

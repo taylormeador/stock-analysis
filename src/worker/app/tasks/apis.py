@@ -82,7 +82,7 @@ def get_fred_data(self):
         raise
 
 @app.task(base=SingleInstanceTask, bind=True)
-def get_eod_option_data(self, start_date: str | None = None, end_date: str | None = None):
+def get_eod_options_data(self, start_date: str | None = None, end_date: str | None = None):
     tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Theta Data API",
@@ -114,4 +114,4 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    get_eod_option_data(start_date="2026-01-01", end_date="2026-01-03")
+    get_eod_options_data(start_date="2026-01-01", end_date="2026-01-03")
