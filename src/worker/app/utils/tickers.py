@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import select
 import app.database.models as models
 import app.database.db as db
 
@@ -8,14 +9,15 @@ DATABASE_URL = os.environ["STOCK_ANALYSIS_DB"]
 tickers_table = models.tickers
 
 
-def get_tickers():
+def get_tickers(yf_tickers: bool = False):
     """Gets all tracked tickers"""
-    stmt = tickers_table.select().where(tickers_table.c.is_tracked)
+    col = tickers_table.c.yf_ticker if yf_tickers else tickers_table.c.ticker
+    stmt = select(col).where(tickers_table.c.is_tracked)
     with db.get_connection() as conn:
         results = conn.execute(stmt)
         rows = results.fetchall()
 
-    tickers = [row[1] for row in rows]
+    tickers = [row[0] for row in rows]
     return tickers
 
 
@@ -167,3 +169,6 @@ TICKERS = {
     "OKLO",
     "SMR",
 }
+
+if __name__ == "__main__":
+    get_tickers(yf_tickers = False)

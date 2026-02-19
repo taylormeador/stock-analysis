@@ -237,7 +237,7 @@ def update_cache(tracker: TaskStatusTracker):
     logger.info("Updating current prices cache")
 
     # Create ticker objects
-    tickers = get_tickers()
+    tickers = get_tickers(yf_tickers=True)
     ticker_objects = yf.Tickers(" ".join(sorted(tickers)))
 
     price_data = {}
