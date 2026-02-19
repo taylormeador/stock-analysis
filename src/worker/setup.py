@@ -33,5 +33,6 @@ setup(
         "vaderSentiment==3.3.2",
         "asyncpg==0.31.0",
         "sqlalchemy[asyncio]",
+        "pandas_market_calendars==5.3.0",
     ],
 )
