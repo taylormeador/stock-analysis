@@ -104,7 +104,11 @@ async def get_eod_options_data(tracker: TaskStatusTracker, start_date: str, end_
             tasks.append(get_eod_options_data_async(client, endpoint, ticker, date.strftime("%Y-%m-%d")))
             
     tracker.update_progress(0.3)
-    await asyncio.gather(*tasks)
+    try:
+        await asyncio.gather(*tasks)
+    finally:
+        # The engine will be associated with the first coroutine forever without this
+        await async_db.engine.dispose()
 
 if __name__ == "__main__":
     client = Client()
