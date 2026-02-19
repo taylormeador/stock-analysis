@@ -49,3 +49,21 @@ CREATE TABLE spy_eod_options (
     strike_distance DECIMAL(10, 2),
     strike_distance_pct DECIMAL(4, 3)
 );
+
+CREATE TABLE td_eod_options (
+    id SERIAL PRIMARY KEY,
+    ticker VARCHAR(10),
+    quote_date DATE,
+    expiration DATE,
+    strike INT,
+    call_put VARCHAR(4),
+    open DECIMAL(10, 2),
+    high DECIMAL(10, 2),
+    low DECIMAL(10, 2),
+    close DECIMAL(10, 2),
+    volume INTEGER,
+    bid DECIMAL(10, 2),
+    ask DECIMAL(10, 2),
+
+    UNIQUE(quote_date, ticker, expiration, strike, call_put)
+);

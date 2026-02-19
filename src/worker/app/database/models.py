@@ -151,6 +151,7 @@ tickers = Table(
     metadata,
     Column("id", Integer, primary_key=True, nullable=False),
     Column("ticker", String(10)),
+    Column("yf_ticker", String(10)),
     Column("is_tracked", Boolean),
 )
 
@@ -219,4 +220,22 @@ reddit_topic_cluster_summaries = Table(
     Column("llm_sentiment", Float),
     Column("llm_confidence", Float),
     Column("llm_insight", Text),
+)
+
+td_eod_options = Table(
+    "td_eod_options",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("ticker", String(10)),
+    Column("quote_date", Date),
+    Column("expiration", Date),
+    Column("strike", Integer),
+    Column("call_put", String(4)),
+    Column("open", Float),
+    Column("high", Float),
+    Column("low", Float),
+    Column("close", Float),
+    Column("volume", Integer),
+    Column("bid", Float),
+    Column("ask", Float),
 )

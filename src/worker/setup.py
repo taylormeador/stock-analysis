@@ -31,5 +31,7 @@ setup(
         "bertopic==0.17.4",
         "anthropic==0.79.0",
         "vaderSentiment==3.3.2",
+        "asyncpg==0.31.0",
+        "sqlalchemy[asyncio]",
     ],
 )
