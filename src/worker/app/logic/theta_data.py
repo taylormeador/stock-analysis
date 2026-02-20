@@ -107,7 +107,42 @@ async def get_eod_options_data_async(client: Client, endpoint, ticker, date):
         }
         to_insert.append(row)
 
-    stmt = pg_insert(models.td_eod_options).on_conflict_do_nothing()
+    stmt = pg_insert(models.td_eod_options)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["quote_date", "ticker", "expiration", "strike", "call_put"],
+        set_={
+            "underlying_price": stmt.excluded.underlying_price,
+            "open": stmt.excluded.open,
+            "high": stmt.excluded.high,
+            "low": stmt.excluded.low,
+            "close": stmt.excluded.close,
+            "volume": stmt.excluded.volume,
+            "bid": stmt.excluded.bid,
+            "ask": stmt.excluded.ask,
+            "delta": stmt.excluded.delta,
+            "gamma": stmt.excluded.gamma,
+            "theta": stmt.excluded.theta,
+            "vega": stmt.excluded.vega,
+            "rho": stmt.excluded.rho,
+            "implied_vol": stmt.excluded.implied_vol,
+            "iv_error": stmt.excluded.iv_error,
+            "d1": stmt.excluded.d1,
+            "d2": stmt.excluded.d2,
+            "color": stmt.excluded.color,
+            "zomma": stmt.excluded.zomma,
+            "speed": stmt.excluded.speed,
+            "epsilon": stmt.excluded.epsilon,
+            "lambda": getattr(stmt.excluded, "lambda"),
+            "vomma": stmt.excluded.vomma,
+            "vera": stmt.excluded.vera,
+            "veta": stmt.excluded.veta,
+            "ultima": stmt.excluded.ultima,
+            "charm": stmt.excluded.charm,
+            "vanna": stmt.excluded.vanna,
+            "dual_delta": stmt.excluded.dual_delta,
+            "dual_gamma": stmt.excluded.dual_gamma,
+        },
+    )
     async with async_db.AsyncSessionLocal() as session:
         await session.execute(stmt, to_insert)
         await session.commit()

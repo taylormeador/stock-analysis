@@ -231,6 +231,7 @@ td_eod_options = Table(
     Column("expiration", Date),
     Column("strike", Integer),
     Column("call_put", String(4)),
+    Column("underlying_price", Float),
     Column("open", Float),
     Column("high", Float),
     Column("low", Float),

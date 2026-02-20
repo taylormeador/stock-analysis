@@ -57,6 +57,7 @@ CREATE TABLE td_eod_options (
     expiration DATE,
     strike FLOAT,
     call_put VARCHAR(4),
+    underlying_price DECIMAL(10, 2),
     open DECIMAL(10, 2),
     high DECIMAL(10, 2),
     low DECIMAL(10, 2),
