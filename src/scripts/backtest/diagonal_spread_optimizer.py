@@ -176,6 +176,7 @@ class DiagonalSpread:
         strike_mask = current_chain.strike == self.long_call.strike
         long_call = current_chain[expiration_mask & strike_mask]
         if len(long_call) != 1:
+            breakpoint()
             raise ValueError("Something wrong while finding long call value")
 
         self.long_call = long_call.iloc[0]
@@ -184,19 +185,39 @@ class DiagonalSpread:
         strike_mask = current_chain.strike == self.short_call.strike
         short_call = current_chain[expiration_mask & strike_mask]
         if len(current_chain[expiration_mask & strike_mask]) != 1:
+            breakpoint()
             raise ValueError("Something wrong while finding short call value")
 
         self.short_call = short_call.iloc[0]
 
         self.current_value, self.long_value, self.short_value = self._calc_price(
-            self.long_slippage, self.short_slippage
+            long_slippage=self.long_slippage,
+            short_slippage=self.short_slippage,
         )
 
 
 @dataclass
 class StrategyParams:
+    """
+    Parameters for the diagonal spread strategy.
+
+    long_delta: Target delta for the long call at entry
+    long_dte: Target DTE for the long call at entry
+    long_close_dte: DTE of the long call at which we close the entire position
+    long_slippage: Percent of bid/ask spread paid for the long call (0.75 = closer to ask)
+    short_delta: Target delta for the short call at entry
+    short_dte: Target DTE for the short call at entry
+    short_slippage: Percent of bid/ask spread paid for the short call (0.25 = closer to bid)
+    short_close_delta: Delta at which to roll the short call defensively
+    short_close_dte: DTE at which to roll the short call regardless of other conditions
+    short_close_profit: Percent of max profit of short call at which to roll short call
+    stop_loss: Percent decrease of entry debit at which to close the entire position
+    profit_target: Percent increase of entry debit at which to close the entire position
+    """
+
     long_delta: float
     long_dte: int
+    long_close_dte: int
     long_slippage: float
     short_delta: float
     short_dte: int
@@ -242,7 +263,7 @@ class DiagonalSpreadStrategy:
 
         call = current_chain.loc[delta_deltas.idxmin()]
         if call.empty:
-            raise ValueError("no call found")
+            logger.error("no call found")
 
         return call  # type: ignore
 
@@ -293,6 +314,22 @@ class DiagonalSpreadStrategy:
         # with db.get_connection() as conn:
         #     conn.execute(text(sql), parameters=sql_params)
 
+    def _open_position(self, current_chain):
+        long_call = self._find_call(current_chain, "long")
+        if long_call.expiration - self.params.long_dte > timedelta(days=10):
+            logger.info("long call near desired DTE not found. Stopping run")
+            return None
+
+        short_call = self._find_call(current_chain, "short")
+        return DiagonalSpread(
+            long_call=long_call,
+            short_call=short_call,
+            stop_loss=self.params.stop_loss,
+            profit_target=self.params.profit_target,
+            long_slippage=self.params.long_slippage,
+            short_slippage=self.params.short_slippage,
+        )
+
     def run(self, df) -> DiagonalSpread:
         # TODO account for transaction fees and commissions
 
@@ -311,37 +348,35 @@ class DiagonalSpreadStrategy:
 
             # On the first day of the simulation, open the spread
             if not self.position:
-                long_call = self._find_call(current_chain, "long")
-                short_call = self._find_call(current_chain, "short")
-                self.position = DiagonalSpread(
-                    long_call=long_call,
-                    short_call=short_call,
-                    stop_loss=self.params.stop_loss,
-                    profit_target=self.params.profit_target,
-                    long_slippage=self.params.long_slippage,
-                    short_slippage=self.params.short_slippage,
-                )
+                self.position = self._open_position(current_chain)
+                if self.position is None:
+                    break
+
             self.position.calc_position_value(current_chain)
 
+            # TODO how to end run?
             # If below stop_loss, close position and end run
             if self.position.current_value < self.position.stop_loss_value:
                 logger.info("*" * 100)
                 logger.info(f"Stop loss reached on {current_date}")
-                logger.info(f"Position value: {self.position.current_value}")
-                logger.info(f"Stop loss value: {self.position.stop_loss_value}")
-                logger.info("*" * 100)
+                logger.info(self.position)
                 return self.position
-                # TODO how to end run?
 
             # If profit target is reached, close position and end run
             if self.position.current_value > self.position.profit_target_value:
                 logger.info("*" * 100)
-                logger.info(f"Profit target reached on {current_date}")
-                logger.info(f"Position value: {self.position.current_value}")
-                logger.info(f"Profit target value: {self.position.profit_target_value}")
-                logger.info("*" * 100)
+                logger.info("Profit target reached")
+                logger.info(self.position)
                 return self.position
-                # TODO how to end run?
+
+            # If the long call DTE is below threshold
+            if self.position.long_call.expiration - current_date <= timedelta(
+                days=self.params.long_close_dte
+            ):
+                logger.info("*" * 100)
+                logger.info("Closing position due to DTE of long call")
+                logger.info(self.position)
+                return self.position
 
             # If the short call hits the profit target, roll down and out
             if self.position.short_value <= self.position.initial_short_value * (
@@ -386,23 +421,29 @@ def main():
     param_grid = {
         "long_delta": [0.9, 0.8, 0.7, 0.6],
         "long_dte": [180, 270, 365],
+        "long_close_dte": [75, 90, 105, 120],
         "long_slippage": [0.75],
         "short_delta": [0.2, 0.3],
         "short_dte": [28, 35, 42],
         "short_slippage": [0.25],
-        "short_close_delta": [0.4, 0.5, 0.6],  # delta at which to roll short strike
-        "short_close_dte": [7, 14, 21],  # DTE at which to close short call
-        "short_close_profit": [0.5, 0.75],  # percent of max profit of short call
-        "stop_loss": [0.05, 0.1, 0.2, 0.3],  # percent decrease of entry debit
-        "profit_target": [0.25, 0.50, 0.75],  # percent profit of entry debit
+        "short_close_delta": [0.4, 0.5, 0.6],
+        "short_close_dte": [7, 14, 21],
+        "short_close_profit": [0.5, 0.75],
+        "stop_loss": [0.05, 0.1, 0.2, 0.3],
+        "profit_target": [0.25, 0.50, 0.75],
     }
     # TODO for ticker in TICKERS:
     for ticker in ("SPY", "AAPL"):
         options_df = get_options_data(ticker)
         for params in StrategyParams.generate_grid(param_grid):
             strategy = DiagonalSpreadStrategy(params)
-            position = strategy.run(options_df)
-            breakpoint()
+            try:
+                position = strategy.run(options_df)
+                logger.info("*" * 100)
+                logger.info("end position")
+                logger.info(position)
+            except:
+                breakpoint()
 
 
 if __name__ == "__main__":
