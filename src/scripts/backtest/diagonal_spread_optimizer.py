@@ -1,10 +1,13 @@
 import itertools
+import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import Iterator, Literal
 
 import db as db
+import exchange_calendars as xcals
 import pandas as pd
 from sqlalchemy import text
 
@@ -45,8 +48,8 @@ TICKERS = [
 
 def get_options_data(
     ticker: str,
-    start_date: str = "2021-01-01",
-    end_date: str = "2021-12-31",
+    start_date: str,
+    end_date: str,
 ):
     sql = f"""
         SELECT
@@ -154,9 +157,6 @@ class DiagonalSpread:
 
         value = long_price - short_price
 
-        logger.info(self)
-        logger.info("*" * 100)
-
         return value, long_price, short_price
 
     def _log_entry(self):
@@ -234,10 +234,21 @@ class StrategyParams:
             yield cls(**dict(zip(grid.keys(), combo)))
 
 
+class TransactionType(Enum):
+    BTO = "BTO"
+    STO = "STO"
+    BTC = "BTC"
+    STC = "STC"
+
+
 class DiagonalSpreadStrategy:
-    def __init__(self, strategy_params: StrategyParams):
+    def __init__(
+        self, strategy_params: StrategyParams, run_id: int, start_date: datetime
+    ):
         self.params = strategy_params
-        self.position = None
+        self.position: DiagonalSpread | None = None
+        self.run_id: int = run_id
+        self.start_date: datetime = start_date
 
     def _find_call(
         self,
@@ -314,14 +325,71 @@ class DiagonalSpreadStrategy:
         # with db.get_connection() as conn:
         #     conn.execute(text(sql), parameters=sql_params)
 
+    def _insert_tx(
+        self,
+        date: str,
+        transaction_type: TransactionType,
+        strike: float,
+        expiration: str,
+        bid: float,
+        ask: float,
+        fill_price: float,
+        quantity: int,
+        pnl: float,
+    ):
+        sql = """
+            INSERT INTO backtest_transactions (
+                run_id,
+                date,
+                transaction_type,
+                strike,
+                expiration,
+                bid,
+                ask,
+                fill_price,
+                quantity,
+                pnl
+            ) VALUES (
+                :run_id,
+                :date,
+                :transaction_type,
+                :strike,
+                :expiration,
+                :bid,
+                :ask,
+                :fill_price,
+                :quantity,
+                :pnl
+            );
+        """
+        params = {
+            "run_id": self.run_id,
+            "date": date,
+            "transaction_type": transaction_type.value,
+            "strike": float(strike),
+            "expiration": expiration,
+            "bid": float(bid),
+            "ask": float(ask),
+            "fill_price": float(fill_price),
+            "quantity": int(quantity),
+            "pnl": float(pnl),
+        }
+        with db.get_connection() as conn:
+            conn.execute(text(sql), parameters=params)
+            conn.commit()
+
     def _open_position(self, current_chain):
         long_call = self._find_call(current_chain, "long")
-        if long_call.expiration - self.params.long_dte > timedelta(days=10):
+        ideal_date = current_chain.quote_date.iloc[0] + timedelta(
+            days=self.params.long_dte
+        )
+        if timedelta(days=-10) < long_call.expiration - ideal_date > timedelta(days=10):
             logger.info("long call near desired DTE not found. Stopping run")
             return None
 
         short_call = self._find_call(current_chain, "short")
-        return DiagonalSpread(
+
+        position = DiagonalSpread(
             long_call=long_call,
             short_call=short_call,
             stop_loss=self.params.stop_loss,
@@ -330,18 +398,38 @@ class DiagonalSpreadStrategy:
             short_slippage=self.params.short_slippage,
         )
 
+        self._insert_tx(
+            date=current_chain.quote_date.iloc[0],
+            transaction_type=TransactionType.BTO,
+            strike=long_call.strike,
+            expiration=long_call.expiration,
+            bid=long_call.bid,
+            ask=long_call.ask,
+            fill_price=position.current_long_value,
+            quantity=1,
+            pnl=0,
+        )
+        self._insert_tx(
+            date=current_chain.quote_date.iloc[0],
+            transaction_type=TransactionType.STO,
+            strike=short_call.strike,
+            expiration=short_call.expiration,
+            bid=short_call.bid,
+            ask=short_call.ask,
+            fill_price=position.current_short_value,
+            quantity=1,
+            pnl=0,
+        )
+        return position
+
     def run(self, df) -> DiagonalSpread:
         # TODO account for transaction fees and commissions
 
-        # TODO I think we need to make start date an input parameter for each position
-        # TODO does it make more sense to loop over quote_date.unique()
-        start_date = df.quote_date.min()
-        dates = [
-            start_date + timedelta(days=i) for i in range(self.params.long_dte + 1)
-        ]
+        run_dates = df[df.quote_date >= self.start_date.date()].quote_date.unique()
+        run_dates = sorted(run_dates)
 
         logger.info(f"running strategy with params: {self.params}")
-        for _, current_date in enumerate(dates):
+        for current_date in run_dates:
             current_chain = df[df.quote_date == current_date]
             if current_chain.empty:
                 continue
@@ -432,18 +520,63 @@ def main():
         "stop_loss": [0.05, 0.1, 0.2, 0.3],
         "profit_target": [0.25, 0.50, 0.75],
     }
+
+    # Configure the date window that we want to open positions in
+    window_start_date = "2021-01-01"
+    window_end_date = "2021-06-01"
+
+    # Get options data for start_date to end_date + max long_call dte
+    dt_format = "%Y-%m-%d"
+    window_end_date_dt = datetime.strptime(window_end_date, dt_format)
+    delta = timedelta(days=max(param_grid["long_dte"]))
+    options_end_date = (window_end_date_dt + delta).strftime(dt_format)
+
+    # create date range for iterating
+    cal = xcals.get_calendar("XNYS")
+    date_range = cal.sessions_in_range(window_start_date, window_end_date)
+
     # TODO for ticker in TICKERS:
     for ticker in ("SPY", "AAPL"):
-        options_df = get_options_data(ticker)
-        for params in StrategyParams.generate_grid(param_grid):
-            strategy = DiagonalSpreadStrategy(params)
-            try:
-                position = strategy.run(options_df)
-                logger.info("*" * 100)
-                logger.info("end position")
-                logger.info(position)
-            except:
-                breakpoint()
+        options_df = get_options_data(ticker, window_start_date, options_end_date)
+        for start_date in date_range:
+            for params in StrategyParams.generate_grid(param_grid):
+                sql = """
+                    INSERT INTO backtest_runs (
+                        strategy_type,
+                        ticker,
+                        start_date,
+                        parameters
+                    ) VALUES (
+                        :strategy_type,
+                        :ticker,
+                        :start_date,
+                        :parameters
+                    )
+                    RETURNING id;
+                """
+                sql_params = {
+                    "strategy_type": "DiagonalSpread",
+                    "ticker": ticker,
+                    "start_date": start_date,
+                    "parameters": json.dumps(asdict(params)),
+                }
+                with db.get_connection() as conn:
+                    result = conn.execute(text(sql), parameters=sql_params)
+                    run_id = result.scalar()
+                    conn.commit()
+
+                if not run_id:
+                    raise RuntimeError("expected to get PK from insert")
+
+                strategy = DiagonalSpreadStrategy(params, run_id, start_date)
+                try:
+                    position = strategy.run(options_df)
+                    logger.info("*" * 100)
+                    logger.info("end position")
+                    logger.info(position)
+                except Exception as e:
+                    logger.exception("error in run()")
+                    breakpoint()
 
 
 if __name__ == "__main__":

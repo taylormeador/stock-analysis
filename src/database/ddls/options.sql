@@ -90,3 +90,7 @@ CREATE TABLE td_eod_options (
 
     UNIQUE(quote_date, ticker, expiration, strike, call_put)
 );
+
+CREATE INDEX idx_td_eod_options_covering
+ON td_eod_options(ticker, call_put, quote_date)
+INCLUDE (underlying_price, expiration, strike, bid, ask, delta);
