@@ -10,7 +10,7 @@ CREATE TABLE backtest_runs (
     sortino_ratio       NUMERIC(8, 4),
     max_drawdown        NUMERIC(8, 4),
     close_reason        VARCHAR(32),  -- stop_loss, profit_target, long_close_dte
-    created_at          TIMESTAMP DEFAULT NOW()
+    created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE backtest_transactions (
