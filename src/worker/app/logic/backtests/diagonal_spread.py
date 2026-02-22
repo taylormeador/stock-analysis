@@ -1,7 +1,6 @@
 import itertools
 import json
 import logging
-import os
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
@@ -10,7 +9,6 @@ from typing import Iterator, Literal
 
 import app.database.db as db
 import exchange_calendars as xcals
-import mlflow
 import numpy as np
 import pandas as pd
 from sqlalchemy import text
@@ -23,9 +21,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
-mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 
 def get_options_data(
@@ -314,7 +309,7 @@ class DiagonalSpreadStrategy:
 
         max_drawdown = (values / values.cummax() - 1).min()
 
-        return sharpe, sortino, max_drawdown
+        return float(sharpe), float(sortino), float(max_drawdown)
 
     def _insert_tx(
         self,
@@ -583,7 +578,6 @@ def run_backtest(
     window_start_date to window_end_date are the days that I will be opening positions. They will extend
     arbitratily far into the future depending on the long call DTE parameter.
     """
-    mlflow.set_experiment("diagonal_spread_parameter_analysis")
     param_grid = {
         "long_delta": [0.9, 0.8, 0.7, 0.6],
         "long_dte": [180, 270, 365],
@@ -622,42 +616,19 @@ def run_backtest(
         for params in StrategyParams.generate_grid(param_grid):
             i += 1
             start_time = time.perf_counter()
-            with mlflow.start_run():
-                mlflow.log_params(asdict(params))
-                mlflow.set_tags(
-                    {
-                        "ticker": ticker,
-                        "start_date": str(start_date.date()),
-                        "window_start": window_start_date,
-                        "window_end": window_end_date,
-                    }
+            strategy = DiagonalSpreadStrategy(ticker, start_date, params)
+            try:
+                tracker.update_status_message(
+                    f"Running backtest {i}/{total_num_runs} for {ticker} with params {params}"
                 )
+                strategy.run(options_df)
+                tracker.update_progress(i / total_num_runs)
 
-                strategy = DiagonalSpreadStrategy(ticker, start_date, params)
-                try:
-                    tracker.update_status_message(
-                        f"Running backtest {i}/{total_num_runs} for {ticker} with params {params}"
-                    )
-                    strategy.run(options_df)
-                    tracker.update_progress(i / total_num_runs)
+            except Exception:
+                logger.exception("error in run()")
 
-                    mlflow.log_metrics(
-                        {
-                            "total_pnl": strategy.position.pnl,  # type: ignore
-                            "sharpe": strategy.sharpe,
-                            "sortino": strategy.sortino,
-                            "max_drawdown": strategy.max_drawdown,
-                        }
-                    )
-                    mlflow.set_tag("close_reason", strategy.close_reason)
-                    mlflow.set_tag("db_run_id", str(strategy.run_id))
-
-                except Exception:
-                    logger.exception("error in run()")
-                    mlflow.set_tag("status", "failed")
-
-                finally:
-                    logger.info(f"run took {time.perf_counter() - start_time}s")
+            finally:
+                logger.info(f"run took {time.perf_counter() - start_time}s")
 
     logger.info(
         f"ran {i} historical backtests in {time.perf_counter() - outer_start_time:.2f}s"
