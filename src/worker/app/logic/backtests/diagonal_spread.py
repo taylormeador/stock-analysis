@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Iterator, Literal
 
+
 import app.database.db as db
 import exchange_calendars as xcals
 import numpy as np
@@ -557,7 +558,7 @@ class DiagonalSpreadStrategy:
                 self._roll_short_call(current_chain)
 
 
-def main():
+def run_backtest(ticker: str, window_start_date: str, window_end_date: str):
     """
     For the first round of backtesting diagonal spreads, we are going to
     buy one diagonal spread each day based on the close price of the previous day.
@@ -566,6 +567,9 @@ def main():
     The short call will be rolled (offensively) at short_close % of the max profit of the short call at entry.
     The short call will be rolled (defensively) at short_roll delta. If it cannot be rolled to the desired strike/DTE TODO
     The entire position will be closed and the run ended at close_at % profit of the entry debit.
+
+    window_start_date to window_end_date are the days that I will be opening positions. They will extend
+    arbitratily far into the future depending on the long call DTE parameter.
     """
 
     param_grid = {
@@ -583,10 +587,6 @@ def main():
         "profit_target": [0.25, 0.50, 0.75],
     }
 
-    # Configure the date window that we want to open positions in
-    window_start_date = "2021-01-01"
-    window_end_date = "2021-06-01"
-
     # Get options data for start_date to end_date + max long_call dte
     dt_format = "%Y-%m-%d"
     window_end_date_dt = datetime.strptime(window_end_date, dt_format)
@@ -599,23 +599,41 @@ def main():
 
     outer_start_time = time.perf_counter()
     i = 0
-    ticker = "SPY"
     options_df = get_options_data(ticker, window_start_date, options_end_date)
     for start_date in date_range:
         for params in StrategyParams.generate_grid(param_grid):
             i += 1
             start_time = time.perf_counter()
-            strategy = DiagonalSpreadStrategy(ticker, start_date, params)
-            try:
-                # TODO log to mlflow
-                position = strategy.run(options_df)
-                logger.debug("*" * 100)
-                logger.debug("end position")
-                logger.debug(position)
-                strategy.end_run()
-                logger.info(f"run finished in {time.perf_counter() - start_time:.2f}s")
-            except:
-                logger.exception("error in run()")
+            with mlflow.start_run():
+                mlflow.log_params(asdict(params))
+                mlflow.set_tags(
+                    {
+                        "ticker": ticker,
+                        "start_date": str(start_date.date()),
+                        "window_start": window_start_date,
+                        "window_end": window_end_date,
+                    }
+                )
+
+                strategy = DiagonalSpreadStrategy(ticker, start_date, params)
+                try:
+                    position = strategy.run(options_df)
+                    strategy.end_run()
+
+                    mlflow.log_metrics(
+                        {
+                            "total_pnl": strategy.metrics["total_pnl"],
+                            "sharpe": strategy.metrics["sharpe"],
+                            "sortino": strategy.metrics["sortino"],
+                            "max_drawdown": strategy.metrics["max_drawdown"],
+                        }
+                    )
+                    mlflow.set_tag("close_reason", strategy.close_reason)
+                    mlflow.set_tag("db_run_id", str(strategy.db_run_id))
+
+                except Exception:
+                    logger.exception("error in run()")
+                    mlflow.set_tag("status", "failed")
 
     logger.info(
         f"ran {i} historical backtests in {time.perf_counter() - outer_start_time:.2f}s"
@@ -623,4 +641,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    pass
