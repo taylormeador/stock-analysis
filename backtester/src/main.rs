@@ -1,45 +1,48 @@
-use sqlx::postgres::PgPoolOptions;
-use chrono::NaiveDate; 
+use postgres::{Client, NoTls};
+use chrono::NaiveDate;
 use dotenvy::dotenv;
 use std::env;
+use rust_decimal::Decimal;
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 struct OptionContract {
     ticker: String,
     quote_date: NaiveDate,
     expiration: NaiveDate,
-    strike: f64,
-    bid: f64,
-    ask: f64,
-    delta: f64,
+    strike: Decimal,
+    bid: Decimal,
+    ask: Decimal,
+    delta: Decimal,
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     dotenv().ok();
 
-    let database_url = env::var("ASYNC_STOCK_ANALYSIS_DB").expect("ASYNC_STOCK_ANALYSIS_DB must be set");
+    let database_url = env::var("STOCK_ANALYSIS_DB").expect("STOCK_ANALYSIS_DB must be set");
 
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
+    let mut client = Client::connect(&database_url, NoTls)
         .expect("Failed to connect to database");
 
     println!("Connected to database");
 
-    let rows = sqlx::query_as::<_, OptionContract>(
+    let rows = client.query(
         "SELECT ticker, quote_date, expiration, strike, bid, ask, delta 
          FROM td_eod_options
          WHERE ticker = $1 AND call_put = 'CALL'
-         LIMIT 10"
-    )
-    .bind("SPY")
-    .fetch_all(&pool)
-    .await
-    .expect("Failed to fetch rows");
+         LIMIT 10",
+        &[&"SPY"],
+    ).expect("Failed to fetch rows");
 
-    for row in rows {
-        println!("{:?}", row);
+    for row in &rows {
+        let contract = OptionContract {
+            ticker: row.get("ticker"),
+            quote_date: row.get("quote_date"),
+            expiration: row.get("expiration"),
+            strike: row.get("strike"),
+            bid: row.get("bid"),
+            ask: row.get("ask"),
+            delta: row.get("delta"),
+        };
+        println!("{:?}", contract);
     }
 }

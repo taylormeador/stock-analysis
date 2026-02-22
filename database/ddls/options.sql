@@ -67,7 +67,7 @@ CREATE TABLE td_eod_options (
     ask DECIMAL(10, 2),
     delta DECIMAL(8, 6),
     gamma DECIMAL(8, 6),
-    theta DECIMAL(8, 6),
+    theta DECIMAL(10, 6),
     vega DECIMAL(8, 6),
     rho DECIMAL(8, 6),
     implied_vol FLOAT,

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-sqlx = { version = "0.8", features = [ "postgres", "runtime-tokio", "chrono", "uuid" ] }
-tokio = { version = "1", features = ["full"] }
+postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 dotenvy = "0.15"
 chrono = "0.4"
+rust_decimal = { version = "1.40.0", features = ["macros", "db-postgres"] }
