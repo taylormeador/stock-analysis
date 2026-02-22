@@ -2,12 +2,12 @@ import logging
 
 import app.logic.backtests.diagonal_spread as pmcc
 from app.celery_app import app
-from app.utils import TaskStatusTracker, SingleInstanceTask
+from app.utils import TaskStatusTracker
 
 logger = logging.getLogger(__name__)
 
 
-@app.task(base=SingleInstanceTask, bind=True)
+@app.task(bind=True)
 def run_pmcc_backtest(self, ticker: str, start_date: str, end_date: str):
     tracker = TaskStatusTracker(
         task_id=self.request.id,
