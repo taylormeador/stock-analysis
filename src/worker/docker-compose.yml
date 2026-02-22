@@ -24,7 +24,7 @@ services:
     volumes:
       - ./app:/app/app
       - ./data:/data
-    command: celery -A app.main worker --loglevel=info -Q celery -E -n %h@${NODE_ID} --prefetch-multiplier=1
+    command: celery -A app.main worker --loglevel=info -Q celery -E -n %h@${NODE_ID} --concurrency=4 --prefetch-multiplier=1
     restart: unless-stopped
     profiles: [worker]
 

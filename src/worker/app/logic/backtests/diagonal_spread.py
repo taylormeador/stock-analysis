@@ -613,7 +613,10 @@ def run_backtest(
 
     outer_start_time = time.perf_counter()
     i = 0
-    total_num_runs = sum(len(v) for v in param_grid.values())
+    total_num_runs = 1
+    for v in param_grid.values():
+        total_num_runs *= len(v)
+
     options_df = get_options_data(ticker, window_start_date, options_end_date)
     for start_date in date_range:
         for params in StrategyParams.generate_grid(param_grid):
