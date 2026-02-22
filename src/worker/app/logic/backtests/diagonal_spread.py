@@ -514,7 +514,7 @@ class DiagonalSpreadStrategy:
                 logger.debug(self.position)
                 self._close_position(current_chain)
                 self.close_reason = "stop_loss"
-                return self.position
+                self._end_run()
 
             # If profit target is reached, close position and end run
             if self.position.current_value > self.position.profit_target_value:
@@ -523,9 +523,9 @@ class DiagonalSpreadStrategy:
                 logger.debug(self.position)
                 self._close_position(current_chain)
                 self.close_reason = "profit_target"
-                return self.position
+                self._end_run()
 
-            # If the long call DTE is below threshold
+            # If the long call DTE is below threshold, close position and end run
             if self.position.long_call.expiration - current_date <= timedelta(
                 days=self.params.long_close_dte
             ):
@@ -534,7 +534,7 @@ class DiagonalSpreadStrategy:
                 logger.debug(self.position)
                 self._close_position(current_chain)
                 self.close_reason = "long_close_dte"
-                return self.position
+                self._end_run()
 
             # If the short call hits the profit target, roll down and out
             if self.position.short_value <= self.position.initial_short_value * (
@@ -607,7 +607,7 @@ def run_backtest(
 
     outer_start_time = time.perf_counter()
     i = 0
-    total_num_runs = 1
+    total_num_runs = len(date_range)
     for v in param_grid.values():
         total_num_runs *= len(v)
 
@@ -619,7 +619,7 @@ def run_backtest(
             strategy = DiagonalSpreadStrategy(ticker, start_date, params)
             try:
                 tracker.update_status_message(
-                    f"Running backtest {i}/{total_num_runs} for {ticker} with params {params}"
+                    f"Running backtest {i}/{total_num_runs} for {ticker}"
                 )
                 strategy.run(options_df)
                 tracker.update_progress(i / total_num_runs)
