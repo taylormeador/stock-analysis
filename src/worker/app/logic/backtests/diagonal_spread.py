@@ -1,18 +1,20 @@
 import itertools
 import json
 import logging
+import os
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Iterator, Literal
 
-
 import app.database.db as db
 import exchange_calendars as xcals
+import mlflow
 import numpy as np
 import pandas as pd
 from sqlalchemy import text
+from app.utils import TaskStatusTracker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,6 +23,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 
 def get_options_data(
@@ -263,14 +268,14 @@ class DiagonalSpreadStrategy:
 
         return run_id
 
-    def end_run(self):
+    def _end_run(self):
         if not self.position:
             raise RuntimeError("ended run with no position")
 
-        sharpe, sortino, max_drawdown = self._calc_metrics()
-        logger.debug(f"Sharpe: {sharpe}")
-        logger.debug(f"Sortino: {sortino}")
-        logger.debug(f"Max Drawdown: {max_drawdown}")
+        self.sharpe, self.sortino, self.max_drawdown = self._calc_metrics()
+        logger.debug(f"Sharpe: {self.sharpe}")
+        logger.debug(f"Sortino: {self.sortino}")
+        logger.debug(f"Max Drawdown: {self.max_drawdown}")
 
         sql = """
             UPDATE backtest_runs
@@ -286,9 +291,9 @@ class DiagonalSpreadStrategy:
         params = {
             "end_date": self.end_date,
             "total_pnl": float(self.position.pnl),
-            "sharpe_ratio": float(sharpe),
-            "sortino_ratio": float(sortino),
-            "max_drawdown": float(max_drawdown),
+            "sharpe_ratio": float(self.sharpe),
+            "sortino_ratio": float(self.sortino),
+            "max_drawdown": float(self.max_drawdown),
             "close_reason": self.close_reason,
             "run_id": self.run_id,
         }
@@ -557,8 +562,15 @@ class DiagonalSpreadStrategy:
                 logger.debug("Rolling short call due to DTE")
                 self._roll_short_call(current_chain)
 
+        self._end_run()
 
-def run_backtest(ticker: str, window_start_date: str, window_end_date: str):
+
+def run_backtest(
+    tracker: TaskStatusTracker,
+    ticker: str,
+    window_start_date: str,
+    window_end_date: str,
+):
     """
     For the first round of backtesting diagonal spreads, we are going to
     buy one diagonal spread each day based on the close price of the previous day.
@@ -571,11 +583,13 @@ def run_backtest(ticker: str, window_start_date: str, window_end_date: str):
     window_start_date to window_end_date are the days that I will be opening positions. They will extend
     arbitratily far into the future depending on the long call DTE parameter.
     """
-
+    mlflow.set_experiment("diagonal_spread_parameter_analysis")
     param_grid = {
         "long_delta": [0.9, 0.8, 0.7, 0.6],
         "long_dte": [180, 270, 365],
         "long_close_dte": [75, 90, 105, 120],
+        # TODO this and short_slippage should be one number and the relative amount for each is computed,
+        # to preserve parity in liquidity assumptions
         "long_slippage": [0.75],
         "short_delta": [0.2, 0.3],
         "short_dte": [28, 35, 42],
@@ -599,6 +613,7 @@ def run_backtest(ticker: str, window_start_date: str, window_end_date: str):
 
     outer_start_time = time.perf_counter()
     i = 0
+    total_num_runs = sum(len(v) for v in param_grid.values())
     options_df = get_options_data(ticker, window_start_date, options_end_date)
     for start_date in date_range:
         for params in StrategyParams.generate_grid(param_grid):
@@ -617,23 +632,29 @@ def run_backtest(ticker: str, window_start_date: str, window_end_date: str):
 
                 strategy = DiagonalSpreadStrategy(ticker, start_date, params)
                 try:
-                    position = strategy.run(options_df)
-                    strategy.end_run()
+                    tracker.update_status_message(
+                        f"Running backtest {i}/{total_num_runs} for {ticker} with params {params}"
+                    )
+                    strategy.run(options_df)
+                    tracker.update_progress(i / total_num_runs)
 
                     mlflow.log_metrics(
                         {
-                            "total_pnl": strategy.metrics["total_pnl"],
-                            "sharpe": strategy.metrics["sharpe"],
-                            "sortino": strategy.metrics["sortino"],
-                            "max_drawdown": strategy.metrics["max_drawdown"],
+                            "total_pnl": strategy.position.pnl,  # type: ignore
+                            "sharpe": strategy.sharpe,
+                            "sortino": strategy.sortino,
+                            "max_drawdown": strategy.max_drawdown,
                         }
                     )
                     mlflow.set_tag("close_reason", strategy.close_reason)
-                    mlflow.set_tag("db_run_id", str(strategy.db_run_id))
+                    mlflow.set_tag("db_run_id", str(strategy.run_id))
 
                 except Exception:
                     logger.exception("error in run()")
                     mlflow.set_tag("status", "failed")
+
+                finally:
+                    logger.info(f"run took {time.perf_counter() - start_time}s")
 
     logger.info(
         f"ran {i} historical backtests in {time.perf_counter() - outer_start_time:.2f}s"
