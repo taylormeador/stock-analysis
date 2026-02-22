@@ -622,7 +622,7 @@ def run_backtest(
                     f"Running backtest {i}/{total_num_runs} for {ticker}"
                 )
                 strategy.run(options_df)
-                tracker.update_progress(i / total_num_runs)
+                tracker.update_progress(float(i / total_num_runs))
 
             except Exception:
                 logger.exception("error in run()")
