@@ -7,9 +7,9 @@ CREATE TABLE backtest_runs (
     parameters          JSONB NOT NULL,
     total_pnl           NUMERIC(12, 2),
     sharpe_ratio        NUMERIC(8, 4),
+    sortino_ratio       NUMERIC(8, 4),
     max_drawdown        NUMERIC(8, 4),
-    win_rate            NUMERIC(5, 4),
-    close_reason_counts JSONB,
+    close_reason        VARCHAR(32),  -- stop_loss, profit_target, long_close_dte
     created_at          TIMESTAMP DEFAULT NOW()
 );
 
@@ -23,8 +23,7 @@ CREATE TABLE backtest_transactions (
     bid             NUMERIC(10, 2) NOT NULL,
     ask             NUMERIC(10, 2) NOT NULL,
     fill_price      NUMERIC(10, 2) NOT NULL,
-    quantity        INTEGER NOT NULL,
-    pnl             NUMERIC(12, 2)
+    quantity        INTEGER NOT NULL
 );
 
 CREATE INDEX idx_transactions_run_id ON backtest_transactions(run_id);
