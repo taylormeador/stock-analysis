@@ -2,6 +2,7 @@ use chrono::NaiveDate;
 use crate::task_status_tracker::TaskStatusTracker;
 use crate::OptionContract;
 use itertools::iproduct;
+use std::fmt;
 
 enum TransactionType {
     BTO,
@@ -36,6 +37,15 @@ struct DiagonalSpreadParams {
     slippage: f64,
     stop_loss: f64,
     profit_target: f64,
+}
+
+impl fmt::Display for DiagonalSpreadParams {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "long_delta={} long_dte={} long_close_dte={} short_delta={} short_dte={} short_close_delta={} short_close_dte={} short_close_profit={} slippage={} self.stop_loss={} self.stop_loss={}",
+        self.long_delta, self.long_dte, self.long_close_dte, self.short_delta, self.short_dte,
+        self.short_close_delta, self.short_close_dte, self.short_close_profit, self.slippage,
+        self.stop_loss, self.profit_target)
+    }
 }
 
 struct DiagonalSpreadStrategy {
@@ -79,9 +89,19 @@ pub fn run_backtest(tracker: TaskStatusTracker, ticker: String, window_start_dat
     &param_grid.stop_loss,
     &param_grid.profit_target,
 ) {
-    println!("{:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}",
-        long_delta, long_dte, long_close_dte, short_delta, short_dte,
-        short_close_delta, short_close_dte, short_close_profit, slippage,
-        stop_loss, profit_target);
+    let strategy_params = DiagonalSpreadParams {
+        long_delta: *long_delta,
+        long_dte: *long_dte,
+        long_close_dte: *long_close_dte,
+        short_delta: *short_delta,
+        short_dte: *short_dte,
+        short_close_delta: *short_close_delta,
+        short_close_dte: *short_close_dte,
+        short_close_profit: *short_close_profit,
+        slippage: *slippage,
+        stop_loss: *stop_loss,
+        profit_target: *profit_target,
+    };
+    println!("Strategy params: {}", strategy_params);
 }
 }
