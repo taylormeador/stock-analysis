@@ -1,6 +1,5 @@
-use postgres::{Client, NoTls};
-use chrono::{NaiveDate, DateTime, Utc};
-use std::env;
+use postgres::Client;
+use chrono::{DateTime, Utc};
 use std::fmt;
 
 
@@ -21,28 +20,26 @@ impl fmt::Display for TaskStatus {
 }
 
 pub struct TaskStatusTracker {
-    // redis_client: Redis,
-    // redis_key: &str,
+    client: Client,
     task_id: String,
     component_name: String,
-    task_description: String,
-    // values: Map,
+    task_description: String
 }
 
 impl TaskStatusTracker {
-    pub fn new(task_id: String, component_name: String, task_description: String) -> Self {
+    pub fn new(client: Client, task_id: String, component_name: String, task_description: String) -> Self {
         Self {
-            task_id: task_id,
-            component_name: component_name,
-            task_description: task_description,
+            client,
+            task_id,
+            component_name,
+            task_description,
         }
     }
 
-    pub fn start_task(&self, mut client: Client) {
-        // Write data
+    pub fn start_task(&mut self) {
         let status = TaskStatus::InProgress;
-        let status_message = "Rust is tight";
-        let progress: f64 = 0.420;
+        let status_message = "Task started";
+        let progress: f64 = 0.1;
         let start_time: DateTime<Utc> = Utc::now();
 
         let sql = "
@@ -55,8 +52,39 @@ impl TaskStatusTracker {
                 progress,
                 start_time
             ) VALUES ($1, $2, $3, $4, $5, $6, $7);
-                ";
-        client.execute(sql, &[&self.task_id, &self.component_name, &self.task_description, &&status.to_string(), &status_message, &progress, &start_time]).expect("Error writing data to db");
+        ";
+        self.client.execute(sql, &[&self.task_id, &self.component_name, &self.task_description, &status.to_string(), &status_message, &progress, &start_time]).expect("Error writing data to db");
 
+    }
+
+    pub fn complete_task(&mut self) {
+        let status = TaskStatus::Complete;
+        let progress = 1.0;
+        let end_time: DateTime<Utc> = Utc::now();
+
+        let sql = "
+            UPDATE etl_task_status
+            SET
+                status = $1,
+                progress = $2,
+                end_time = $3
+            WHERE task_id = $4;
+        ";
+        self.client.execute(sql, &[&status.to_string(), &progress, &end_time, &self.task_id]).expect("Error updating task status");
+    }
+
+    pub fn fail_task(&mut self, error_message: String) {
+        let status = TaskStatus::Failed;
+        let end_time: DateTime<Utc> = Utc::now();
+
+        let sql = "
+            UPDATE etl_task_status
+            SET
+                status = $1,
+                end_time = $2,
+                status_message = $3
+            WHERE task_id = $4
+        ";
+        self.client.execute(sql, &[&status.to_string(), &end_time, &error_message, &self.task_id]).expect("Error updating task status");
     }
 }

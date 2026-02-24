@@ -55,11 +55,13 @@ fn main() {
     }
 
     // Write data
-    let task_status_tracker = TaskStatusTracker::new(
-        String::from("test-task-id"),
+    let mut tracker = TaskStatusTracker::new(
+        client,
+        String::from("test-task-id-3"),
         String::from("Backtest Worker"),
         String::from("Blazingly fast backtests"),
     );
-    task_status_tracker.start_task(client)
+    tracker.start_task();
+    tracker.complete_task();
 
 }
