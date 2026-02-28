@@ -6,7 +6,7 @@ from app.main import app
 logger = logging.getLogger(__name__)
 
 
-@app.task(queue="historical")
+@app.task(queue="long-running")
 def run_backtest(ticker: str, start_date: str, end_date: str):
     process = subprocess.Popen(
         ["/usr/local/bin/backtester", ticker, start_date, end_date],

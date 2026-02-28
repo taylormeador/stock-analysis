@@ -50,7 +50,7 @@ services:
       - ./app:/app/app
       - ./data:/data
       # - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
-    command: celery -A app.main worker --loglevel=info -Q historical -E -n %h@${NODE_ID} --concurrency=4 --prefetch-multiplier=1
+    command: celery -A app.main worker --loglevel=info -Q long-running -E -n %h@${NODE_ID} --concurrency=4 --prefetch-multiplier=1
     restart: unless-stopped
     profiles: [worker-long]
 

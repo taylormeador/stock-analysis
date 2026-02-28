@@ -38,7 +38,7 @@ def scrape_reddit_wsb_daily_thread(
         raise
 
 
-@app.task(bind=True, queue="historical")
+@app.task(bind=True, queue="long-running")
 @track_task_metrics
 def scrape_reddit_historical_data(self):
     tracker = TaskStatusTracker(
