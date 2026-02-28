@@ -12,7 +12,17 @@ mod option_contract;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     dotenv().ok();
-    log::info!("Test");
+
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 4 {
+        return Err("Usage: backtester <ticker> <start_date> <end_date>".into());
+    }
+
+    let ticker = &args[1];
+    let window_start_date = NaiveDate::parse_from_str(&args[2], "%Y-%m-%d")
+        .map_err(|_| "Invalid start date format, expected YYYY-MM-DD")?;
+    let window_end_date = NaiveDate::parse_from_str(&args[3], "%Y-%m-%d")
+        .map_err(|_| "Invalid end date format, expected YYYY-MM-DD")?;
 
     let database_url = env::var("STOCK_ANALYSIS_DB").expect("STOCK_ANALYSIS_DB must be set");
 
@@ -28,11 +38,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         String::from("Backtest Worker"),
         String::from("Blazingly fast backtests"),
     );
-
-
-    let ticker= "SPY";
-    let window_start_date = NaiveDate::from_ymd_opt(2021, 1, 1).ok_or("Invalid start date")?;
-    let window_end_date = NaiveDate::from_ymd_opt(2021, 1, 5).ok_or("Invalid end date")?;
     
     // Read options data
     let client = Client::connect(&database_url, NoTls)
@@ -41,7 +46,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connected to database");
 
     diagonal_spread::run_backtest(client, tracker, &ticker, window_start_date, window_end_date);
-
 
     Ok(())
 

@@ -1,0 +1,28 @@
+# Build Rust binary
+FROM rust:latest AS rust-builder
+WORKDIR /backtester
+COPY ../backtester/ .
+RUN cargo build --release
+
+# Python worker image with Rust binary
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY worker/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY worker/setup.py .
+COPY worker/app/ ./app/
+RUN pip install -e .
+
+# Copy compiled Rust binary from builder stage
+COPY --from=rust-builder /backtester/target/release/backtester /usr/local/bin/backtester
+
+CMD ["celery", "-A", "app.main", "worker", "--loglevel=info"]

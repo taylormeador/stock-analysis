@@ -1,9 +1,9 @@
 services:
   celery-worker:
     build:
-      context: .
-      dockerfile: Dockerfile
-    image: stock-analysis-celery:latest
+      context: ..
+      dockerfile: worker/Dockerfile.worker
+    image: stock-analysis-celery-worker:latest
     container_name: stock-analysis-celery-worker
     hostname: stock-analysis-celery-worker
     expose:
@@ -30,9 +30,9 @@ services:
 
   celery-worker-long:
     build:
-      context: .
-      dockerfile: Dockerfile
-    image: stock-analysis-celery:latest
+      context: ..
+      dockerfile: worker/Dockerfile.worker
+    image: stock-analysis-celery-worker:latest
     container_name: stock-analysis-celery-worker-long
     hostname: stock-analysis-celery-worker-long
     expose:
@@ -49,16 +49,16 @@ services:
     volumes:
       - ./app:/app/app
       - ./data:/data
-      - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
+      # - /mnt/srv2-storage/reddit:/mnt/srv2-storage/reddit:ro
     command: celery -A app.main worker --loglevel=info -Q historical -E -n %h@${NODE_ID} --concurrency=4 --prefetch-multiplier=1
     restart: unless-stopped
     profiles: [worker-long]
 
   celery-worker-gpu:
     build:
-      context: .
-      dockerfile: Dockerfile
-    image: stock-analysis-celery:latest
+      context: ..
+      dockerfile: worker/Dockerfile.worker
+    image: stock-analysis-celery-worker:latest
     container_name: stock-analysis-celery-worker-gpu
     hostname: stock-analysis-celery-worker-gpu
     expose:
@@ -85,7 +85,10 @@ services:
 
 
   celery-beat:
-    image: stock-analysis-celery:latest
+    build:
+      context: ..
+      dockerfile: worker/Dockerfile.brain
+    image: stock-analysis-celery-brain:latest
     container_name: stock-analysis-celery-beat
     environment:
       - REDIS_URL=${REDIS_URL}
@@ -103,7 +106,7 @@ services:
     profiles: [brain]
 
   flower:
-    image: stock-analysis-celery:latest
+    image: stock-analysis-celery-brain:latest
     container_name: stock-analysis-flower
     hostname: stock-analysis-flower
     environment:

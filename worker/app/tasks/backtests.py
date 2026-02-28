@@ -1,25 +1,25 @@
+import subprocess
+import os
 import logging
-
-import app.logic.backtests.diagonal_spread as pmcc
-from app.celery_app import app
-from app.utils import TaskStatusTracker
+from app.main import app
 
 logger = logging.getLogger(__name__)
 
 
-@app.task(bind=True)
-def run_pmcc_backtest(self, ticker: str, start_date: str, end_date: str):
-    tracker = TaskStatusTracker(
-        task_id=self.request.id,
-        component_name="Backtest Worker",
-        task_description="Run PMCC/Diagonal Call Spread strategy on historical data",
+@app.task(queue="historical")
+def run_backtest(ticker: str, start_date: str, end_date: str):
+    process = subprocess.Popen(
+        ["/usr/local/bin/backtester", ticker, start_date, end_date],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env={**os.environ},
     )
-    tracker.start_task()
 
-    try:
-        pmcc.run_backtest(tracker, ticker, start_date, end_date)
-        tracker.complete_task()
+    for line in process.stdout:
+        logger.info(line.rstrip())
 
-    except Exception as e:
-        logger.exception("Exception while running backtest: ")
-        tracker.fail_task(str(e))
+    process.wait()
+
+    if process.returncode != 0:
+        raise Exception(f"Backtester failed with return code {process.returncode}")
