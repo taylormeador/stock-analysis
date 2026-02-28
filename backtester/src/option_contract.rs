@@ -25,7 +25,7 @@ pub fn get_option_contracts(mut client: Client, ticker: &str, start_date: NaiveD
                 strike::float8,
                 bid::float8,
                 ask::float8,
-                ask::float8 - bid::float8 as spread,
+                ROUND(ask - bid)::float8 as spread,
                 (ask::float8 - bid::float8) / 2 + bid::float8 as mid,
                 delta::float8 
             FROM td_eod_options

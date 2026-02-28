@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ticker= "SPY";
     let window_start_date = NaiveDate::from_ymd_opt(2021, 1, 1).ok_or("Invalid start date")?;
-    let window_end_date = NaiveDate::from_ymd_opt(2021, 1, 1).ok_or("Invalid end date")?;
+    let window_end_date = NaiveDate::from_ymd_opt(2021, 1, 5).ok_or("Invalid end date")?;
     
     // Read options data
     let client = Client::connect(&database_url, NoTls)
