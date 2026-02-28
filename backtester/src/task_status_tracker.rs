@@ -1,6 +1,6 @@
-use postgres::Client;
 use chrono::{DateTime, Utc};
 use std::fmt;
+use crate::DbPool;
 
 
 pub enum TaskStatus {
@@ -19,24 +19,24 @@ impl fmt::Display for TaskStatus {
     }
 }
 
-pub struct TaskStatusTracker {
-    client: Client,
-    task_id: String,
-    component_name: String,
-    task_description: String
+pub struct TaskStatusTracker<'a> {
+    pool: &'a DbPool,
+    task_id: &'a str,
+    component_name: &'a str,
+    task_description: &'a str,
 }
 
-impl TaskStatusTracker {
-    pub fn new(client: Client, task_id: String, component_name: String, task_description: String) -> Self {
+impl<'a> TaskStatusTracker<'a> {
+    pub fn new(pool: &'a DbPool, task_id: &'a str, component_name: &'a str, task_description: &'a str) -> Self {
         Self {
-            client,
+            pool,
             task_id,
             component_name,
             task_description,
         }
     }
 
-    pub fn start_task(&mut self) {
+    pub fn start_task(&self) {
         let status = TaskStatus::InProgress;
         let status_message = "Task started";
         let progress: f64 = 0.1;
@@ -53,11 +53,12 @@ impl TaskStatusTracker {
                 start_time
             ) VALUES ($1, $2, $3, $4, $5, $6, $7);
         ";
-        self.client.execute(sql, &[&self.task_id, &self.component_name, &self.task_description, &status.to_string(), &status_message, &progress, &start_time]).expect("Error writing data to db");
+        let mut client = self.pool.get().unwrap();
+        client.execute(sql, &[&self.task_id, &self.component_name, &self.task_description, &status.to_string(), &status_message, &progress, &start_time]).expect("Error writing data to db");
 
     }
 
-    pub fn complete_task(&mut self) {
+    pub fn complete_task(&self) {
         let status = TaskStatus::Complete;
         let progress = 1.0;
         let end_time: DateTime<Utc> = Utc::now();
@@ -70,10 +71,11 @@ impl TaskStatusTracker {
                 end_time = $3
             WHERE task_id = $4;
         ";
-        self.client.execute(sql, &[&status.to_string(), &progress, &end_time, &self.task_id]).expect("Error updating task status");
+        let mut client = self.pool.get().unwrap();
+        client.execute(sql, &[&status.to_string(), &progress, &end_time, &self.task_id]).expect("Error updating task status");
     }
 
-    pub fn fail_task(&mut self, error_message: String) {
+    pub fn fail_task(&mut self, error_message: &str) {
         let status = TaskStatus::Failed;
         let end_time: DateTime<Utc> = Utc::now();
 
@@ -85,6 +87,7 @@ impl TaskStatusTracker {
                 status_message = $3
             WHERE task_id = $4
         ";
-        self.client.execute(sql, &[&status.to_string(), &end_time, &error_message, &self.task_id]).expect("Error updating task status");
+        let mut client = self.pool.get().unwrap();
+        client.execute(sql, &[&status.to_string(), &end_time, &error_message, &self.task_id]).expect("Error updating task status");
     }
 }

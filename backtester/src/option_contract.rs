@@ -1,4 +1,4 @@
-use postgres::Client;
+use crate::DbPool;
 use chrono::NaiveDate;
 
 
@@ -15,7 +15,8 @@ pub struct OptionContract {
     pub delta: f64,
 }
 
-pub fn get_option_contracts(mut client: Client, ticker: &str, start_date: NaiveDate, end_date: NaiveDate) -> Vec<OptionContract> {
+pub fn get_option_contracts(pool: &DbPool, ticker: &str, start_date: NaiveDate, end_date: NaiveDate) -> Vec<OptionContract> {
+    let mut client = pool.get().unwrap();
     let rows = client.query(
         "
             SELECT
@@ -25,8 +26,8 @@ pub fn get_option_contracts(mut client: Client, ticker: &str, start_date: NaiveD
                 strike::float8,
                 bid::float8,
                 ask::float8,
-                ROUND(ask - bid)::float8 as spread,
-                (ask::float8 - bid::float8) / 2 + bid::float8 as mid,
+                ROUND(ask - bid, 2)::float8 as spread,
+                ROUND((ask - bid) / 2 + bid, 2)::float8 as mid,
                 delta::float8 
             FROM td_eod_options
             WHERE

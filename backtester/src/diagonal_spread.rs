@@ -1,11 +1,11 @@
 use chrono::{NaiveDate, Duration, TimeDelta};
-use postgres::Client;
 use crate::task_status_tracker::TaskStatusTracker;
 use crate::option_contract::{get_option_contracts, OptionContract};
 use itertools::iproduct;
 use std::fmt;
 use std::collections::BTreeSet;
 use ordered_float::OrderedFloat;
+use crate::DbPool;
 
 enum TransactionType {
     BTO,
@@ -287,7 +287,7 @@ impl DiagonalSpreadPosition {
 
 }
 
-pub fn run_backtest(client: Client, tracker: TaskStatusTracker, ticker: &str, window_start_date: NaiveDate, window_end_date: NaiveDate) {
+pub fn run_backtest(pool: &DbPool, tracker: TaskStatusTracker, ticker: &str, window_start_date: NaiveDate, window_end_date: NaiveDate) {
     let param_grid = DiagonalSpreadParamGrid {
         long_delta: vec![0.9, 0.8, 0.7, 0.6],
         long_dte: vec![180, 270, 365],
@@ -307,7 +307,7 @@ pub fn run_backtest(client: Client, tracker: TaskStatusTracker, ticker: &str, wi
     let naive_datetime = window_end_date.and_hms_opt(0, 0, 0).unwrap();
     let duration_to_add = Duration::days(max_dte);
     let option_end_date = naive_datetime + duration_to_add;
-    let option_contracts = get_option_contracts(client, &ticker, window_start_date, option_end_date.date());
+    let option_contracts = get_option_contracts(pool, &ticker, window_start_date, option_end_date.date());
 
     // Iterate through all strategy param combos and perform the backtest
     for strategy_params in param_grid.iter() {
