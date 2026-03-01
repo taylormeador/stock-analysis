@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = Pool::new(manager)?;
     println!("Connected to database");
 
+    // We assume that Python called start_task() and update the record it made
     let tracker = TaskStatusTracker::new(
         &pool,
         task_id,

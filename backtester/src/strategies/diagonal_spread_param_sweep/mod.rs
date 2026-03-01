@@ -5,6 +5,7 @@ use chrono::{Duration, NaiveDate, TimeDelta};
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::collections::BTreeSet;
+use std::sync::atomic::Ordering::Relaxed;
 use std::sync::mpsc;
 use std::thread;
 
@@ -97,9 +98,7 @@ impl DiagonalSpreadRunner {
                 self.roll_short_call(position, &mut ledger, &current_chain);
             }
         }
-
-        let position = initial_position.ok_or("No position was opened")?;
-        Ok(DiagonalSpreadRunResult::new(position, ledger))
+        Ok(DiagonalSpreadRunResult::new(ledger))
     }
 
     fn open_position(
@@ -258,7 +257,8 @@ pub fn run_backtest(
 
     let runners: Vec<DiagonalSpreadRunner> = runner_grid.iter().collect();
     let total_runs = runners.len();
-    let completed = std::sync::atomic::AtomicUsize::new(0);
+    let processed = std::sync::atomic::AtomicUsize::new(0);
+    let failed = std::sync::atomic::AtomicUsize::new(0);
 
     let (tx, rx) = mpsc::channel::<(DiagonalSpreadRunner, DiagonalSpreadRunResult)>();
 
@@ -338,21 +338,28 @@ pub fn run_backtest(
     });
 
     runners.into_par_iter().for_each_with(tx, |tx, mut runner| {
+        let idx = processed.fetch_add(1, Relaxed) + 1;
+        tracker.update_progress(idx as f64 / total_runs as f64);
+        tracker.update_status_message(&format!(
+            "Running diagonal spread parameter sweep #{}/{} for {}",
+            idx, total_runs, ticker
+        ));
         match runner.run(&option_contracts) {
             Ok(result) => {
-                let n = completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                tracker.update_progress(n as f64 / total_runs as f64);
-                tracker.update_status_message(&format!(
-                    "Running diagonal spread parameter sweep #{}/{} on {}",
-                    n, total_runs, ticker
-                ));
                 tx.send((runner, result)).unwrap();
             }
             Err(e) => {
-                log::error!("Run failed with params {:?}: {}", runner.params, e);
+                let n = failed.fetch_add(1, Relaxed) + 1;
+                log::error!("Run #{} failed with params {:?}: {}", n, runner.params, e);
+                // TODO persist which runs failed somewhere
             }
         }
     });
 
     writer.join().unwrap();
+    tracker.update_status_message(&format!(
+        "Finished processing {} backtest runs with {} failures",
+        total_runs,
+        failed.load(Relaxed),
+    ));
 }

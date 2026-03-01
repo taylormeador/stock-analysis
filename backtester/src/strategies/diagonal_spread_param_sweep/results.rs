@@ -3,7 +3,6 @@ use crate::strategies::diagonal_spread_param_sweep::DiagonalSpreadPosition;
 use crate::strategies::diagonal_spread_param_sweep::RunLedger;
 
 pub struct DiagonalSpreadRunResult {
-    pub position: position::DiagonalSpreadPosition,
     pub ledger: RunLedger,
     pub sharpe_ratio: f64,
     pub sortino_ratio: f64,
@@ -11,7 +10,7 @@ pub struct DiagonalSpreadRunResult {
 }
 
 impl DiagonalSpreadRunResult {
-    pub fn new(position: DiagonalSpreadPosition, ledger: RunLedger) -> Self {
+    pub fn new(ledger: RunLedger) -> Self {
         let risk_free_rate = 3.0; // TODO use 3 month T-Bill
 
         let daily_returns: Vec<f64> = ledger
@@ -63,7 +62,6 @@ impl DiagonalSpreadRunResult {
         };
 
         Self {
-            position,
             ledger,
             sharpe_ratio,
             sortino_ratio,

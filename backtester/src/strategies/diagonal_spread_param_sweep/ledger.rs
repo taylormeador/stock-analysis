@@ -20,12 +20,6 @@ impl fmt::Display for CloseReason {
     }
 }
 
-#[derive(PartialEq, Clone)]
-pub enum LegType {
-    Long,
-    Short,
-}
-
 #[derive(Clone, PartialEq)]
 pub enum TransactionType {
     BTO,

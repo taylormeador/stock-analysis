@@ -1,7 +1,6 @@
 use crate::DbPool;
 use chrono::NaiveDate;
 
-
 #[derive(Debug, Clone)]
 pub struct OptionContract {
     pub ticker: String,
@@ -15,10 +14,16 @@ pub struct OptionContract {
     pub delta: f64,
 }
 
-pub fn get_option_contracts(pool: &DbPool, ticker: &str, start_date: NaiveDate, end_date: NaiveDate) -> Vec<OptionContract> {
+pub fn get_option_contracts(
+    pool: &DbPool,
+    ticker: &str,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Vec<OptionContract> {
     let mut client = pool.get().unwrap();
-    let rows = client.query(
-        "
+    let rows = client
+        .query(
+            "
             SELECT
                 ticker,
                 quote_date,
@@ -36,21 +41,21 @@ pub fn get_option_contracts(pool: &DbPool, ticker: &str, start_date: NaiveDate, 
                 quote_date BETWEEN $2 AND $3
             ORDER BY quote_date ASC;
         ",
-        &[&ticker, &start_date, &end_date],
-    ).expect("Failed to fetch rows");
+            &[&ticker, &start_date, &end_date],
+        )
+        .expect("Failed to fetch rows");
 
-    rows.iter().map(|row| {
-            OptionContract {
-                ticker: row.get("ticker"),
-                quote_date: row.get("quote_date"),
-                expiration: row.get("expiration"),
-                strike: row.get("strike"),
-                bid: row.get("bid"),
-                ask: row.get("ask"),
-                spread: row.get("spread"),
-                mid: row.get("mid"),
-                delta: row.get("delta"),
-            }
-        }).collect::<Vec<OptionContract>>()
+    rows.iter()
+        .map(|row| OptionContract {
+            ticker: row.get("ticker"),
+            quote_date: row.get("quote_date"),
+            expiration: row.get("expiration"),
+            strike: row.get("strike"),
+            bid: row.get("bid"),
+            ask: row.get("ask"),
+            spread: row.get("spread"),
+            mid: row.get("mid"),
+            delta: row.get("delta"),
+        })
+        .collect::<Vec<OptionContract>>()
 }
-    
