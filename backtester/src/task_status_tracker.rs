@@ -131,9 +131,7 @@ impl<'a> TaskStatusTracker<'a> {
     }
 
     pub fn update_progress(&self, progress_pct: f64) {
-        // TODO this works different than the python version since this is threaded.
-        // Consider adding bool arg to control functionality
-        let sql = "UPDATE etl_task_status SET progress = progress + $1 WHERE task_id = $2";
+        let sql = "UPDATE etl_task_status SET progress = $1 WHERE task_id = $2";
         let mut client = self.pool.get().unwrap();
         client
             .execute(sql, &[&progress_pct, &self.task_id])

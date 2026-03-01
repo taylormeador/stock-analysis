@@ -5,6 +5,7 @@ CREATE TABLE backtest_runs (
     start_date          DATE NOT NULL,
     end_date            DATE NOT NULL ,
     parameters          JSONB NOT NULL,
+    initial_debit       NUMERIC(12, 2),
     pnl                 NUMERIC(12, 2),
     fees                NUMERIC(10, 2),
     commissions         NUMERIC(10, 2),

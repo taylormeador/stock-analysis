@@ -267,9 +267,9 @@ pub fn run_backtest(
     let writer = thread::spawn(move || {
         let sql = "
             INSERT INTO backtest_runs (
-                strategy_type, ticker, start_date, end_date, parameters,
+                strategy_type, ticker, start_date, end_date, parameters, initial_debit,
                 pnl, fees, commissions, sharpe_ratio, sortino_ratio, max_drawdown, close_reason
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+            ) VALUES ($1, $2, $3, $4, $5, $6::float8, $7::float8, $8::float8, $9::float8, $10::float8, $11::float8, $12::float8, $13);
         ";
 
         let mut client = pool_clone.get().unwrap();
@@ -291,6 +291,7 @@ pub fn run_backtest(
                                 &r.start_date,
                                 &res.ledger.end_date,
                                 &params_json,
+                                &res.ledger.initial_debit(),
                                 &res.ledger.cost_basis,
                                 &res.ledger.fees,
                                 &res.ledger.commissions,
@@ -301,6 +302,8 @@ pub fn run_backtest(
                             ],
                         )
                         .unwrap();
+
+                    // TODO also add transactions to the transaction table
                 }
                 db_tx.commit().unwrap();
                 log::info!("Committed batch of {} results", batch.len());
@@ -321,6 +324,7 @@ pub fn run_backtest(
                             &r.start_date,
                             &res.ledger.end_date,
                             &params_json,
+                            &res.ledger.initial_debit(),
                             &res.ledger.cost_basis,
                             &res.ledger.fees,
                             &res.ledger.commissions,
@@ -331,15 +335,18 @@ pub fn run_backtest(
                         ],
                     )
                     .unwrap();
+                // TODO also add transactions to the transaction table
             }
             db_tx.commit().unwrap();
             log::info!("Committed final batch of {} results", batch.len());
         }
     });
 
+    log::info!("Entering par_iter() loop");
     runners.into_par_iter().for_each_with(tx, |tx, mut runner| {
         let idx = processed.fetch_add(1, Relaxed) + 1;
-        tracker.update_progress(idx as f64 / total_runs as f64);
+        let progress_pct = 0.99f64.min(idx as f64 / total_runs as f64 + 0.1); // force progress between 10-99%
+        tracker.update_progress(progress_pct);
         tracker.update_status_message(&format!(
             "Running diagonal spread parameter sweep #{}/{} for {}",
             idx, total_runs, ticker

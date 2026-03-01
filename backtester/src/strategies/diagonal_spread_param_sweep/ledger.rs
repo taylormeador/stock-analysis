@@ -39,8 +39,8 @@ pub struct RunLedger {
     pub daily_values: Vec<f64>, // The value (mark) of the position each day
     pub transactions: Vec<BacktestTransaction>,
     pub short_price: f64, // The fill_price of the STO tx for the currently held short call
-    pub initial_debit: Option<f64>, // Debit of initial position opening (not including commissions/fees)
-    pub cost_basis: f64,            // Cumulative debits/credits (not including commissions/fees)
+    initial_debit: Option<f64>, // Debit of initial position opening (not including commissions/fees)
+    pub cost_basis: f64,        // Cumulative debits/credits (not including commissions/fees)
     pub fees: f64,
     pub commissions: f64,
     pub close_reason: Option<CloseReason>,
