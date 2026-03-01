@@ -3,9 +3,11 @@ CREATE TABLE backtest_runs (
     strategy_type       VARCHAR(50) NOT NULL,
     ticker              VARCHAR(10) NOT NULL,
     start_date          DATE NOT NULL,
-    end_date            DATE,
+    end_date            DATE NOT NULL ,
     parameters          JSONB NOT NULL,
-    total_pnl           NUMERIC(12, 2),
+    pnl                 NUMERIC(12, 2),
+    fees                NUMERIC(10, 2),
+    commissions         NUMERIC(10, 2),
     sharpe_ratio        NUMERIC(8, 4),
     sortino_ratio       NUMERIC(8, 4),
     max_drawdown        NUMERIC(8, 4),
@@ -15,8 +17,8 @@ CREATE TABLE backtest_runs (
 
 CREATE TABLE backtest_transactions (
     id              SERIAL PRIMARY KEY,
-    run_id          INTEGER NOT NULL REFERENCES backtest_runs(id),
-    date            DATE NOT NULL,
+    run_id           INTEGER NOT NULL REFERENCES backtest_runs(id),
+    date             DATE NOT NULL,
     transaction_type VARCHAR(3) NOT NULL,  -- BTO, STO, BTC, STC
     strike          NUMERIC(10, 2) NOT NULL,
     expiration      DATE NOT NULL,

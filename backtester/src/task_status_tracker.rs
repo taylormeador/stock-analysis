@@ -1,7 +1,6 @@
+use crate::DbPool;
 use chrono::{DateTime, Utc};
 use std::fmt;
-use crate::DbPool;
-
 
 pub enum TaskStatus {
     InProgress,
@@ -27,7 +26,12 @@ pub struct TaskStatusTracker<'a> {
 }
 
 impl<'a> TaskStatusTracker<'a> {
-    pub fn new(pool: &'a DbPool, task_id: &'a str, component_name: &'a str, task_description: &'a str) -> Self {
+    pub fn new(
+        pool: &'a DbPool,
+        task_id: &'a str,
+        component_name: &'a str,
+        task_description: &'a str,
+    ) -> Self {
         Self {
             pool,
             task_id,
@@ -54,8 +58,20 @@ impl<'a> TaskStatusTracker<'a> {
             ) VALUES ($1, $2, $3, $4, $5, $6, $7);
         ";
         let mut client = self.pool.get().unwrap();
-        client.execute(sql, &[&self.task_id, &self.component_name, &self.task_description, &status.to_string(), &status_message, &progress, &start_time]).expect("Error writing data to db");
-
+        client
+            .execute(
+                sql,
+                &[
+                    &self.task_id,
+                    &self.component_name,
+                    &self.task_description,
+                    &status.to_string(),
+                    &status_message,
+                    &progress,
+                    &start_time,
+                ],
+            )
+            .expect("Error writing data to db");
     }
 
     pub fn complete_task(&self) {
@@ -72,10 +88,15 @@ impl<'a> TaskStatusTracker<'a> {
             WHERE task_id = $4;
         ";
         let mut client = self.pool.get().unwrap();
-        client.execute(sql, &[&status.to_string(), &progress, &end_time, &self.task_id]).expect("Error updating task status");
+        client
+            .execute(
+                sql,
+                &[&status.to_string(), &progress, &end_time, &self.task_id],
+            )
+            .expect("Error updating task status");
     }
 
-    pub fn fail_task(&mut self, error_message: &str) {
+    pub fn fail_task(&self, error_message: &str) {
         let status = TaskStatus::Failed;
         let end_time: DateTime<Utc> = Utc::now();
 
@@ -88,6 +109,34 @@ impl<'a> TaskStatusTracker<'a> {
             WHERE task_id = $4
         ";
         let mut client = self.pool.get().unwrap();
-        client.execute(sql, &[&status.to_string(), &end_time, &error_message, &self.task_id]).expect("Error updating task status");
+        client
+            .execute(
+                sql,
+                &[
+                    &status.to_string(),
+                    &end_time,
+                    &error_message,
+                    &self.task_id,
+                ],
+            )
+            .expect("Error updating task status");
+    }
+
+    pub fn update_status_message(&self, message: &str) {
+        let sql = "UPDATE etl_task_status SET status_message = $1 WHERE task_id = $2";
+        let mut client = self.pool.get().unwrap();
+        client
+            .execute(sql, &[&message, &self.task_id])
+            .expect("Error updating task status");
+    }
+
+    pub fn update_progress(&self, progress_pct: f64) {
+        // TODO this works different than the python version since this is threaded.
+        // Consider adding bool arg to control functionality
+        let sql = "UPDATE etl_task_status SET progress_pct = progress_pct + $1 WHERE task_id = $2";
+        let mut client = self.pool.get().unwrap();
+        client
+            .execute(sql, &[&progress_pct, &self.task_id])
+            .expect("Error updating task status");
     }
 }
