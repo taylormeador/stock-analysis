@@ -10,8 +10,6 @@ pub struct DiagonalSpreadRunResult {
     pub max_drawdown: f64,
 }
 
-// TODO implement new() and calc_metrics()
-
 impl DiagonalSpreadRunResult {
     pub fn new(position: DiagonalSpreadPosition, ledger: RunLedger) -> Self {
         let risk_free_rate = 3.0; // TODO use 3 month T-Bill

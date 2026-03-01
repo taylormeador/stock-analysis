@@ -47,7 +47,6 @@ pub struct RunLedger {
     pub short_price: f64, // The fill_price of the STO tx for the currently held short call
     pub initial_debit: Option<f64>, // Debit of initial position opening (not including commissions/fees)
     pub cost_basis: f64,            // Cumulative debits/credits (not including commissions/fees)
-    pub proceeds: f64,              // The debit/credit of the closing tx
     pub fees: f64,
     pub commissions: f64,
     pub close_reason: Option<CloseReason>,
@@ -62,7 +61,6 @@ impl RunLedger {
             short_price: 0.0,
             initial_debit: None,
             cost_basis: 0.0,
-            proceeds: 0.0,
             fees: 0.0,
             commissions: 0.0,
             close_reason: None,
