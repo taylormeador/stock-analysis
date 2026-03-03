@@ -1,5 +1,3 @@
-use crate::strategies::diagonal_spread_param_sweep::position;
-use crate::strategies::diagonal_spread_param_sweep::DiagonalSpreadPosition;
 use crate::strategies::diagonal_spread_param_sweep::RunLedger;
 
 pub struct DiagonalSpreadRunResult {
