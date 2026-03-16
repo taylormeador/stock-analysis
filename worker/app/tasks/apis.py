@@ -4,12 +4,15 @@ import asyncio
 
 import app.logic.fred as fred
 import app.logic.stock_data as stocks
+import app.logic.futures_data as futures
 from app.celery_app import app
 from app.utils import TaskStatusTracker, SingleInstanceTask
 import app.logic.theta_data as td
 
 logger = logging.getLogger(__name__)
 
+
+# TODO this file organization doesn't make a lot of sense. Trying to find an ETL based on whether it's an API call or scraping is kinda silly.
 
 @app.task(base=SingleInstanceTask, bind=True)
 def fetch_stock_data(self, start_date: str | None = None, end_date: str | None = None):
@@ -107,6 +110,28 @@ def get_eod_options_data(self, start_date: str | None = None, end_date: str | No
         tracker.fail_task(str(e))
         raise
 
+@app.task(bind=True)
+def ingest_futures_prices(self, start_date: str | None = None, end_date: str | None = None):
+    """
+    Ingest futures prices for all active candidate instruments.
+    Defaults to the last two days if no date range is provided.
+    """
+    tracker = TaskStatusTracker(
+        task_id=self.request.id,
+        component_name="Futures Price Ingestion",
+        task_description="Daily OHLCV data for active futures instruments",
+    )
+    tracker.start_task()
+ 
+    try:
+        futures.ingest_futures_prices(tracker, start_date, end_date)
+        tracker.complete_task()
+        return True
+ 
+    except Exception as e:
+        logger.exception("error while ingesting futures prices: ")
+        tracker.fail_task(str(e))
+        raise
 
 if __name__ == "__main__":
     # Configure logging for standalone execution

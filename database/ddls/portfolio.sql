@@ -64,3 +64,58 @@ CREATE INDEX IF NOT EXISTS idx_forecasts_symbol_date
 
 CREATE INDEX IF NOT EXISTS idx_futures_prices_symbol_date
     ON futures_prices (symbol, date DESC);
+
+    CREATE TABLE candidate_instruments (
+    id              SERIAL PRIMARY KEY,
+    symbol          VARCHAR(20)  NOT NULL UNIQUE,
+    label           VARCHAR(20)  NOT NULL,
+    multiplier      NUMERIC(12, 4) NOT NULL,
+    asset_class     VARCHAR(20),
+    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+    notes           TEXT,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- Equity indices
+INSERT INTO candidate_instruments (symbol, label, multiplier, asset_class, notes) VALUES
+    ('MES=F', '/MES', 5,    'equity_index', 'Micro E-mini S&P 500'),
+    ('MNQ=F', '/MNQ', 2,    'equity_index', 'Micro E-mini Nasdaq 100'),
+    ('MYM=F', '/MYM', 0.5,  'equity_index', 'Micro E-mini Dow Jones'),
+    ('M2K=F', '/M2K', 5,    'equity_index', 'Micro E-mini Russell 2000'),
+
+-- Metals
+    ('MGC=F', '/MGC', 10,   'metals', 'Micro Gold - 10 troy oz'),
+    ('SIL=F', '/SIL', 1000, 'metals', 'Micro Silver - 1000 oz'),
+
+-- Energy
+    ('CL=F',  '/MCL', 100,  'energy', 'Using CL price as proxy for MCL - 100 barrel contract'),
+    ('NG=F',  '/NG',  10000,'energy', 'Natural Gas - 10000 MMBtu, no micro available'),
+
+-- Rates
+    ('ZN=F',  '/ZN',  1000, 'rates', '10-Year Treasury Note'),
+    ('ZT=F',  '/ZT',  2000, 'rates', '2-Year Treasury Note'),
+    ('ZF=F',  '/ZF',  1000, 'rates', '5-Year Treasury Note'),
+
+-- FX
+    ('6E=F',  '/6E',  125000, 'fx', 'Euro FX - 125000 EUR'),
+    ('6J=F',  '/6J',  12500000, 'fx', 'Japanese Yen - 12.5M JPY'),
+    ('6B=F',  '/6B',  62500, 'fx', 'British Pound - 62500 GBP'),
+
+-- Crypto
+    ('MBT=F', '/MBT', 100,  'crypto', 'Micro Bitcoin - 0.1 BTC'),
+
+-- Commodities
+    ('ZC=F',  '/ZC',  50,   'commodities', 'Corn - 5000 bushels, $0.01/bushel = $50'),
+    ('ZW=F',  '/ZW',  50,   'commodities', 'Wheat - 5000 bushels'),
+    ('ZS=F',  '/ZS',  50,   'commodities', 'Soybeans - 5000 bushels')
+
+ON CONFLICT (symbol) DO NOTHING;
+
+CREATE TABLE strategies (
+    id              SERIAL PRIMARY KEY,
+    strategy_type   VARCHAR(50)  NOT NULL,
+    parameters      JSONB        NOT NULL,
+    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+    notes           TEXT,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);

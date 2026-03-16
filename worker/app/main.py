@@ -8,6 +8,7 @@ from app.tasks import apis  # noqa: F401
 from app.tasks import embeddings  # noqa: F401
 from app.tasks import sentiment  # noqa: F401
 from app.tasks import backtests  # noqa: F401
+from app.tasks import portfolio  # noqa: F401
 
 from celery import signals
 from app.utils import start_metrics_server
@@ -81,6 +82,10 @@ app.conf.beat_schedule = {
     },
     "get-td-eod-options-data": {
         "task": "app.tasks.apis.get_eod_options_data",
+        "schedule": crontab(hour="8", minute="0"),
+    },
+    "get-futures-data": {
+        "task": "app.tasks.apis.ingest_futures_prices",
         "schedule": crontab(hour="8", minute="0"),
     },
 }
