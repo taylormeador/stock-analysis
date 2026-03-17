@@ -26,6 +26,11 @@ backtest_page = st.Page(
     title="Backtest",
     icon=":material/stacked_line_chart:",
 )
+analysis_page = st.Page(
+    page="page_modules/portfolio_forecasts.py",
+    title="Analysis",
+    icon=":material/stacked_line_chart:",
+)
 status_page = st.Page(
     page="page_modules/etl_status.py",
     title="ETL Status",
@@ -37,5 +42,5 @@ hacker_page = st.Page(
     icon=":material/terminal:",
 )
 
-pg = st.navigation([home_page, whats_hot, status_page, hacker_page])
+pg = st.navigation([home_page, whats_hot, analysis_page, status_page, hacker_page])
 pg.run()

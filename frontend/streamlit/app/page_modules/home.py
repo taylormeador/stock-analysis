@@ -11,6 +11,7 @@ response = get_json("/home")
 data = response.get('data', {})
 if not data:
     st.error(":material/error: No data found")
+    st.stop()
 
 snapshot = data.get("snapshot")
 ticker_mentions = data.get("ticker_mentions")

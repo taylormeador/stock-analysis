@@ -5,12 +5,12 @@ from sqlalchemy.orm import declarative_base
 from contextlib import asynccontextmanager
 
 # TODO change this to ASYNC_
-DATABASE_URL = os.getenv("STOCK_ANALYSIS_DB", "")
+ASYNC_STOCK_ANALYSIS_DB = os.getenv("ASYNC_STOCK_ANALYSIS_DB", "")
 
 Base = declarative_base()
 
 # Create the async engine
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(ASYNC_STOCK_ANALYSIS_DB, echo=False)
 
 # Create a session maker
 AsyncSessionLocal = async_sessionmaker(

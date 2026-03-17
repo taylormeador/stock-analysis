@@ -1,11 +1,12 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 import app.logic.etl_status as etl_status
 import app.logic.prometheus as prometheus
 import app.logic.whats_hot as whats_hot
+import app.logic.portfolio_forecasts as portfolio_forecasts
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,18 @@ async def get_etl_status():
         "task_failure_rate": results[4],
     }
 
+    return {"data": data}
+
+
+@router.get("/portfolio/forecasts")
+async def get_portfolio_forecasts_endpoint(
+    lookback_days: int = Query(default=180, ge=1, le=365),
+):
+    """
+    Returns price history, forecast history, and latest portfolio calculations
+    for all actively traded instruments.
+    """
+    data = await portfolio_forecasts.get_portfolio_forecasts(lookback_days)
     return {"data": data}
 
 
