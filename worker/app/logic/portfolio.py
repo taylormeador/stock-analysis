@@ -40,7 +40,7 @@ def fetch_prices(symbol: str, as_of: date) -> pd.Series:
         SELECT date, close
         FROM futures_prices
         WHERE symbol = :symbol
-          AND date >= :as_of::date - :lookback * INTERVAL '1 day'
+          AND date >= CAST(:as_of AS date) - :lookback * INTERVAL '1 day'
           AND date <= :as_of
         ORDER BY date ASC
     """)
