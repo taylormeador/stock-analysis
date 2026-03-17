@@ -5,7 +5,7 @@ import pandas as pd
 from sqlalchemy import text
 
 import app.database.db as db
-from app.logic.portfolio.utils import fetch_active_instruments, fetch_prices
+from app.logic.portfolio.utils import fetch_trading_instruments, fetch_prices
 from app.utils import TaskStatusTracker
 
 logger = logging.getLogger(__name__)
@@ -93,10 +93,10 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
     annualized_cash_vol_target = trading_capital * VOLATILITY_TARGET_PCT
     daily_cash_vol_target = annualized_cash_vol_target / 16
 
-    instruments = fetch_active_instruments()
+    instruments = fetch_trading_instruments()
     if not instruments:
-        logger.warning("No active instruments found")
-        tracker.update_status_message("No active instruments found")
+        logger.warning("No instruments found")
+        tracker.update_status_message("No instruments found")
         return
 
     num_instruments = len(instruments)

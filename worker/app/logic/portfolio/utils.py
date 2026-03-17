@@ -26,6 +26,22 @@ def fetch_active_instruments() -> list[dict]:
             for row in result
         ]
 
+def fetch_trading_instruments() -> list[dict]:
+    sql = text("""
+        SELECT symbol, label, multiplier
+        FROM candidate_instruments
+        WHERE is_trading = TRUE
+    """)
+    with db.get_connection() as conn:
+        result = conn.execute(sql)
+        return [
+            {
+                "symbol":     row.symbol,
+                "label":      row.label,
+                "multiplier": float(row.multiplier),
+            }
+            for row in result
+        ]
 
 def fetch_active_strategies() -> list[dict]:
     sql = text("""
