@@ -5,53 +5,13 @@ import pandas as pd
 from sqlalchemy import text
 
 import app.database.db as db
+from app.logic.portfolio.utils import fetch_active_instruments, fetch_active_strategies, fetch_prices
 from app.utils import TaskStatusTracker
 
 logger = logging.getLogger(__name__)
 
 LOOKBACK_DAYS = 250
 FORECAST_CAP = 20.0
-
-
-def fetch_active_instruments() -> list[dict]:
-    sql = text("""
-        SELECT symbol, label, multiplier
-        FROM candidate_instruments
-        WHERE is_active = TRUE
-    """)
-    with db.get_connection() as conn:
-        result = conn.execute(sql)
-        return [{"symbol": row.symbol, "label": row.label, "multiplier": row.multiplier} for row in result]
-
-
-def fetch_active_strategies() -> list[dict]:
-    sql = text("""
-        SELECT id, strategy_type, parameters
-        FROM strategies
-        WHERE is_active = TRUE
-    """)
-    with db.get_connection() as conn:
-        result = conn.execute(sql)
-        return [{"id": row.id, "strategy_type": row.strategy_type, "parameters": row.parameters} for row in result]
-
-
-def fetch_prices(symbol: str, as_of: date) -> pd.Series:
-    sql = text("""
-        SELECT date, close
-        FROM futures_prices
-        WHERE symbol = :symbol
-          AND date >= CAST(:as_of AS date) - :lookback * INTERVAL '1 day'
-          AND date <= :as_of
-        ORDER BY date ASC
-    """)
-    with db.get_connection() as conn:
-        df = pd.read_sql(
-            sql,
-            conn,
-            params={"symbol": symbol, "lookback": LOOKBACK_DAYS, "as_of": as_of},
-        )
-    df["date"] = pd.to_datetime(df["date"])
-    return df.set_index("date")["close"].astype(float)
 
 
 def calc_ewmac_raw(prices: pd.Series, fast: int, slow: int) -> pd.Series:
@@ -74,10 +34,6 @@ def scale_and_cap(raw: pd.Series, scalar: float) -> pd.Series:
 
 
 def run_strategy(strategy: dict, prices: pd.Series, as_of: date) -> dict | None:
-    """
-    Dispatch to the correct forecast calculation based on strategy_type.
-    Returns a dict with raw_value and scaled_value, or None if calculation fails.
-    """
     strategy_type = strategy["strategy_type"]
     params = strategy["parameters"]
 
@@ -148,7 +104,7 @@ def run_ewmac_forecasts(tracker: TaskStatusTracker, as_of: date = None):
         tracker.update_status_message(f"Processing {label} ({i + 1}/{num_instruments})")
 
         try:
-            prices = fetch_prices(symbol, as_of)
+            prices = fetch_prices(symbol, as_of, LOOKBACK_DAYS)
         except Exception as e:
             logger.error(f"Failed to fetch prices for {symbol}: {e}")
             continue
