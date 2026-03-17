@@ -57,6 +57,7 @@ class TaskStatusTracker:
 
     def update_progress(self, percent_complete: float, persist: bool = True):
         """This is a float 0-1.0 representing % complete."""
+        percent_complete = min(percent_complete, 1.0)
         self.values["progress"] = str(percent_complete)
 
         self.redis_client.set(self.redis_key, json.dumps(self.values), ex=60)
