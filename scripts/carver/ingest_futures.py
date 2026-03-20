@@ -20,6 +20,7 @@ FUTURES = {
     "ZW=F":  "/ZW  - Wheat",
     "SI=F":  "/SI  - Silver",
     "NG=F":  "/NG  - Natural Gas",
+    "BTC=F": "/BTC - Bitcoin (proxy for /MBT)",
 }
 
 end_date   = datetime.today()

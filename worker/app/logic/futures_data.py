@@ -20,7 +20,8 @@ def fetch_active_instruments() -> list[dict]:
     with db.get_connection() as conn:
         result = conn.execute(sql)
         return [{"symbol": row.symbol, "label": row.label} for row in result]
-    
+
+
 def fetch_trading_instruments() -> list[dict]:
     sql = text("""
         SELECT symbol, label, multiplier
@@ -31,8 +32,8 @@ def fetch_trading_instruments() -> list[dict]:
         result = conn.execute(sql)
         return [
             {
-                "symbol":     row.symbol,
-                "label":      row.label,
+                "symbol": row.symbol,
+                "label": row.label,
                 "multiplier": float(row.multiplier),
             }
             for row in result
@@ -85,7 +86,9 @@ def ingest_futures_prices(
     end_date: str | None = None,
 ):
     if start_date is None:
-        start_date = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%d")
+        start_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
+            "%Y-%m-%d"
+        )
     if end_date is None:
         end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -116,18 +119,21 @@ def ingest_futures_prices(
                 failed.append(symbol)
                 continue
 
-            rows = [
-                {
+            rows = []
+            for row in df.itertuples():
+                if pd.isna(row.close):
+                    continue
+
+                row = {
                     "symbol": row.symbol,
-                    "date":   row.date,
-                    "open":   float(row.open)   if pd.notna(row.open)   else None,
-                    "high":   float(row.high)   if pd.notna(row.high)   else None,
-                    "low":    float(row.low)    if pd.notna(row.low)    else None,
-                    "close":  float(row.close),
-                    "volume": int(row.volume)   if pd.notna(row.volume) else None,
+                    "date": row.date,
+                    "open": float(row.open) if pd.notna(row.open) else None,
+                    "high": float(row.high) if pd.notna(row.high) else None,
+                    "low": float(row.low) if pd.notna(row.low) else None,
+                    "close": float(row.close) if pd.notna(row.low) else None,
+                    "volume": int(row.volume) if pd.notna(row.volume) else None,
                 }
-                for row in df.itertuples()
-            ]
+                rows.append(row)
 
             upsert_prices(rows)
             total_rows += len(rows)
@@ -139,9 +145,16 @@ def ingest_futures_prices(
 
         tracker.update_progress((i + 1) / num_instruments)
 
-    message = f"Ingested {total_rows} rows for {num_instruments - len(failed)} instruments"
+    message = (
+        f"Ingested {total_rows} rows for {num_instruments - len(failed)} instruments"
+    )
     if failed:
         message += f" — failed: {', '.join(failed)}"
 
     logger.info(message)
     tracker.update_status_message(message)
+
+
+if __name__ == "__main__":
+    tracker = TaskStatusTracker("test", "test", "test")
+    result = ingest_futures_prices(tracker)
