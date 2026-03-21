@@ -1,18 +1,22 @@
 import logging
+import uuid
 from datetime import date
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from sqlalchemy import text
 
 import app.database.db as db
-from app.logic.portfolio.utils import fetch_trading_instruments, fetch_current_price
+from app.logic.portfolio.utils import (
+    fetch_active_instruments,
+    fetch_instruments,
+    fetch_current_price,
+)
 from app.utils import TaskStatusTracker
 from app.logic.portfolio import rules
 
 logger = logging.getLogger(__name__)
 
-LOOKBACK_DAYS = 120
 VOLATILITY_TARGET_PCT = 0.20
 IDM = 1.7  # TODO derive from correlation table per Carver's lookup
 
@@ -33,15 +37,20 @@ def fetch_trading_capital() -> float:
     return float(result)
 
 
-def fetch_forecasts(symbol: str, as_of: date) -> pd.Series:
+def fetch_forecasts(symbol: str, as_of: date, variations: list[str]) -> pd.Series:
     sql = text("""
         SELECT rule_name, scaled_value
         FROM forecasts
         WHERE symbol = :symbol
           AND date = :as_of
+          AND rule_name = ANY(:variations)
     """)
     with db.get_connection() as conn:
-        df = pd.read_sql(sql, conn, params={"symbol": symbol, "as_of": as_of})
+        df = pd.read_sql(
+            sql,
+            conn,
+            params={"symbol": symbol, "as_of": as_of, "variations": variations},
+        )
     if df.empty:
         return pd.Series(dtype=float)
     return df.set_index("rule_name")["scaled_value"]
@@ -71,7 +80,8 @@ def upsert_calculations(rows: list[dict]) -> None:
             annualized_cash_vol_target, daily_cash_vol_target, vol_scalar,
             combined_forecast,
             subsystem_position, instrument_weight, idm,
-            portfolio_position, desired_position
+            portfolio_position, desired_position,
+            run_id, variations_used, weights_used, fdm
         ) VALUES (
             :symbol, :date,
             :trading_capital, :volatility_target_pct,
@@ -80,9 +90,10 @@ def upsert_calculations(rows: list[dict]) -> None:
             :annualized_cash_vol_target, :daily_cash_vol_target, :vol_scalar,
             :combined_forecast,
             :subsystem_position, :instrument_weight, :idm,
-            :portfolio_position, :desired_position
+            :portfolio_position, :desired_position,
+            :run_id, :variations_used, :weights_used, :fdm
         )
-        ON CONFLICT (symbol, date) DO UPDATE SET
+        ON CONFLICT (symbol, date, run_id) DO UPDATE SET
             trading_capital             = EXCLUDED.trading_capital,
             volatility_target_pct       = EXCLUDED.volatility_target_pct,
             current_price               = EXCLUDED.current_price,
@@ -97,31 +108,64 @@ def upsert_calculations(rows: list[dict]) -> None:
             instrument_weight           = EXCLUDED.instrument_weight,
             idm                         = EXCLUDED.idm,
             portfolio_position          = EXCLUDED.portfolio_position,
-            desired_position            = EXCLUDED.desired_position
+            desired_position            = EXCLUDED.desired_position,
+            run_id                      = EXCLUDED.run_id,
+            variations_used             = EXCLUDED.variations_used,
+            weights_used                = EXCLUDED.weights_used,
+            fdm                         = EXCLUDED.fdm
     """)
     with db.get_connection() as conn:
         conn.execute(sql, rows)
         conn.commit()
 
 
-def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
-    if as_of is None:
-        as_of = date.today()
+def run_portfolio_calculations(
+    tracker: TaskStatusTracker,
+    as_of: date,
+    variations: list[str],
+    weights: list[float],
+    symbols: list[str] | None = None,
+    capital: float | None = None,
+) -> None:
+    """
+    Run portfolio calculations for a given date.
 
+    Args:
+        tracker:    Task status tracker.
+        as_of:      Date to calculate for.
+        variations: List of variation names whose forecasts to combine,
+                    e.g. ['ewmac_8_32', 'ewmac_16_64', 'ewmac_32_128'].
+                    Caller owns this — not read from DB.
+        weights:    Weight per variation. Must sum to 1.0, same length as variations.
+        symbols:    Optional list of symbols to restrict to.
+                    If None, runs all active instruments.
+        capital:    Trading capital in dollars. If None, reads from portfolio table.
+    """
     logger.info(f"Running portfolio calculations for {as_of}")
 
-    trading_capital = fetch_trading_capital()
-    annualized_cash_vol_target = trading_capital * VOLATILITY_TARGET_PCT
+    if capital is None:
+        capital = fetch_trading_capital()
+
+    weights_array = np.array(weights)
+    if abs(weights_array.sum() - 1.0) > 1e-6:
+        raise ValueError(f"weights must sum to 1.0, got {weights_array.sum()}")
+
+    annualized_cash_vol_target = capital * VOLATILITY_TARGET_PCT
     daily_cash_vol_target = annualized_cash_vol_target / 16
 
-    instruments = fetch_trading_instruments()
+    if symbols is not None:
+        instruments = fetch_instruments(symbols)
+    else:
+        instruments = fetch_active_instruments()
+
     if not instruments:
         logger.warning("No instruments found")
         tracker.update_status_message("No instruments found")
         return
 
+    run_id = str(uuid.uuid4())
     num_instruments = len(instruments)
-    instrument_weight = 1 / num_instruments
+    instrument_weight = 1.0 / num_instruments
     rows = []
 
     for i, instrument in enumerate(instruments):
@@ -133,29 +177,38 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
         tracker.update_status_message(f"Processing {label} ({i + 1}/{num_instruments})")
 
         try:
-            forecasts = fetch_forecasts(symbol, as_of)
+            forecasts = fetch_forecasts(symbol, as_of, variations)
             if forecasts.empty:
                 logger.warning(f"No forecasts for {symbol} on {as_of}, skipping")
                 continue
 
             current_price = fetch_current_price(symbol, as_of)
             if current_price is None:
-                logger.warning(f"No price data for {symbol}, skipping")
+                logger.warning(f"No price data for {symbol} on {as_of}, skipping")
                 continue
 
             ewma_vol = fetch_blended_vol(symbol, as_of)
+            if ewma_vol is None:
+                logger.warning(f"No vol data for {symbol} on {as_of}, skipping")
+                continue
+
             block_value = current_price * 0.01 * multiplier
             ivv = block_value * ewma_vol * 100
 
-            rule_names = forecasts.index.tolist()
-            # TODO use correlation table to assign weights. Use equal weighted for now
-            weights = np.full(len(rule_names), 1 / len(rule_names))
+            # Align weights to whatever forecasts actually came back
+            available = [v for v in variations if v in forecasts.index]
+            if not available:
+                logger.warning(f"No matching forecasts for {symbol}, skipping")
+                continue
 
-            raw_combined_forecast = float(np.dot(weights, forecasts[rule_names].values))
-            fdm = rules.calc_fdm(rule_names, weights)
-            combined_forecast = min(raw_combined_forecast * fdm, 20.0)
+            available_weights = np.array(
+                [weights[variations.index(v)] for v in available]
+            )
+            available_weights = available_weights / available_weights.sum()
 
-            breakpoint()
+            raw_combined = float(np.dot(available_weights, forecasts[available].values))
+            fdm = rules.calc_fdm(available, available_weights)
+            combined_forecast = min(raw_combined * fdm, 20.0)
 
             vol_scalar = daily_cash_vol_target / ivv
             subsystem_position = combined_forecast * vol_scalar / 10
@@ -166,14 +219,14 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
             logger.info(f"  EWMA vol:          {ewma_vol:.4f}")
             logger.info(f"  IVV:               {ivv:.2f}")
             logger.info(f"  Combined forecast: {combined_forecast:.2f}")
-            logger.info(f"  Subsystem pos:     {subsystem_position:.2f}")
+            logger.info(f"  FDM:               {fdm:.4f}")
             logger.info(f"  Target position:   {desired_position} contracts")
 
             rows.append(
                 {
                     "symbol": symbol,
                     "date": as_of,
-                    "trading_capital": trading_capital,
+                    "trading_capital": capital,
                     "volatility_target_pct": VOLATILITY_TARGET_PCT,
                     "current_price": current_price,
                     "ewma_vol": ewma_vol,
@@ -188,6 +241,10 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
                     "idm": IDM,
                     "portfolio_position": portfolio_position,
                     "desired_position": desired_position,
+                    "run_id": run_id,
+                    "variations_used": available,
+                    "weights_used": available_weights.tolist(),
+                    "fdm": fdm,
                 }
             )
 
@@ -199,16 +256,10 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
 
     if rows:
         upsert_calculations(rows)
-        logger.info(f"Wrote {len(rows)} portfolio calculation rows for {as_of}")
+        logger.info(
+            f"Wrote {len(rows)} portfolio calculation rows for {as_of} (run_id={run_id})"
+        )
         tracker.update_status_message(f"Wrote {len(rows)} rows for {as_of}")
     else:
         logger.warning("No portfolio calculation rows generated")
         tracker.update_status_message("No rows generated")
-
-
-if __name__ == "__main__":
-    tracker = TaskStatusTracker("test", "test", "test")
-    from datetime import datetime
-
-    as_of = datetime.strptime("2026-03-19", "%Y-%m-%d").date()
-    run_portfolio_calculations(tracker, as_of)

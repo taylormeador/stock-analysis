@@ -72,7 +72,6 @@ CREATE INDEX IF NOT EXISTS idx_futures_prices_symbol_date
     multiplier      NUMERIC(12, 4) NOT NULL,
     asset_class     VARCHAR(20),
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,  -- whether we want to generate forecasts
-    is_trading      BOOLEAN      NOT NULL DEFAULT FALSE, -- wheteher we want to include in portfolio calculations
     notes           TEXT,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );

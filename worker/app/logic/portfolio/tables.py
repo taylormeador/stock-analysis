@@ -121,9 +121,9 @@ rule_correlations = pd.DataFrame(
 ewmac_correlations = pd.DataFrame(
     columns=[
         "variation",
-        "ewmac_2_4",
-        "ewmac_4_8",
-        "ewmac_8_16",
+        "ewmac_2_8",
+        "ewmac_4_16",
+        "ewmac_8_32",
         "ewmac_16_64",
         "ewmac_32_128",
         "ewmac_64_256",
@@ -142,9 +142,9 @@ ewmac_correlations = pd.DataFrame(
 carry_correlations = pd.DataFrame(
     columns=[
         "variation",
-        "ewmac_2_4",
-        "ewmac_4_8",
-        "ewmac_8_16",
+        "ewmac_2_8",
+        "ewmac_4_16",
+        "ewmac_8_32",
         "ewmac_16_64",
         "ewmac_32_128",
         "ewmac_64_256",

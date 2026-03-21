@@ -10,16 +10,21 @@ from app.db import get_connection
 logger = logging.getLogger(__name__)
 
 CALC_NUMERIC_COLS = [
-    "current_price", "ewma_vol", "combined_forecast", "desired_position",
-    "subsystem_position", "portfolio_position",
-    "instrument_value_volatility", "vol_scalar",
+    "current_price",
+    "ewma_vol",
+    "combined_forecast",
+    "desired_position",
+    "subsystem_position",
+    "portfolio_position",
+    "instrument_value_volatility",
+    "vol_scalar",
 ]
 
 
 async def get_portfolio_forecasts(lookback_days: int = 180) -> dict:
     since = date.today() - timedelta(days=lookback_days)
 
-    instruments = await _fetch_trading_instruments()
+    instruments = await _fetch_active_instruments()
     if not instruments:
         return {"instruments": [], "calculations": []}
 
@@ -33,25 +38,25 @@ async def get_portfolio_forecasts(lookback_days: int = 180) -> dict:
 
     result_instruments = [
         {
-            "symbol":    instrument["symbol"],
-            "label":     instrument["label"],
-            "prices":    prices_by_symbol.get(instrument["symbol"], []),
+            "symbol": instrument["symbol"],
+            "label": instrument["label"],
+            "prices": prices_by_symbol.get(instrument["symbol"], []),
             "forecasts": forecasts_by_symbol.get(instrument["symbol"], []),
         }
         for instrument in instruments
     ]
 
     return {
-        "instruments":  result_instruments,
+        "instruments": result_instruments,
         "calculations": calculations,
     }
 
 
-async def _fetch_trading_instruments() -> list[dict[str, str]]:
+async def _fetch_active_instruments() -> list[dict[str, str]]:
     sql = text("""
         SELECT symbol, label
         FROM candidate_instruments
-        WHERE is_trading = TRUE
+        WHERE is_active = TRUE
         ORDER BY label
     """)
     async with get_connection() as conn:
@@ -65,7 +70,6 @@ async def _fetch_prices(symbols: list[str], since: date) -> dict[str, list[dict]
         FROM futures_prices
         WHERE symbol = ANY(:symbols)
           AND date >= :since
-          AND close IS NOT NULL
         ORDER BY symbol, date ASC
     """)
     async with get_connection() as conn:
