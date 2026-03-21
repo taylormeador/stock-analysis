@@ -137,7 +137,9 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
             ewma_vol = calc_ewma_vol(prices)
             block_value = current_price * 0.01 * multiplier
             ivv = block_value * ewma_vol * 100
-            combined_forecast = float(forecasts.mean())
+            combined_forecast = float(
+                forecasts.mean()
+            )  # TODO add FDM lookup and multiply
             vol_scalar = daily_cash_vol_target / ivv
             subsystem_position = combined_forecast * vol_scalar / 10
             portfolio_position = subsystem_position * instrument_weight * IDM
