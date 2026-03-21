@@ -120,3 +120,14 @@ CREATE TABLE strategies (
     notes           TEXT,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE instrument_vol (
+    id              SERIAL PRIMARY KEY,
+    symbol          VARCHAR(20)    NOT NULL,
+    date            DATE           NOT NULL,
+    short_term_vol  NUMERIC(12, 8) NOT NULL,
+    long_term_vol   NUMERIC(12, 8) NOT NULL,
+    blended_vol     NUMERIC(12, 8) NOT NULL,
+    created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    UNIQUE (symbol, date)
+);

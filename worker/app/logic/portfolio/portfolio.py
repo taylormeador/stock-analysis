@@ -2,11 +2,13 @@ import logging
 from datetime import date
 
 import pandas as pd
+import numpy as np
 from sqlalchemy import text
 
 import app.database.db as db
-from app.logic.portfolio.utils import fetch_trading_instruments, fetch_prices
+from app.logic.portfolio.utils import fetch_trading_instruments, fetch_current_price
 from app.utils import TaskStatusTracker
+from app.logic.portfolio import rules
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +47,18 @@ def fetch_forecasts(symbol: str, as_of: date) -> pd.Series:
     return df.set_index("rule_name")["scaled_value"]
 
 
-def calc_ewma_vol(prices: pd.Series) -> float:
-    returns = prices.pct_change()
-    variance = returns.pow(2).ewm(span=36, adjust=False).mean()
-    return float(variance.pow(0.5).iloc[-1])
+def fetch_blended_vol(symbol: str, as_of: date) -> float | None:
+    sql = text("""
+        SELECT blended_vol
+        FROM instrument_vol
+        WHERE symbol = :symbol
+          AND date <= :as_of
+        ORDER BY date DESC
+        LIMIT 1
+    """)
+    with db.get_connection() as conn:
+        result = conn.execute(sql, {"symbol": symbol, "as_of": as_of}).scalar()
+    return float(result) if result is not None else None
 
 
 def upsert_calculations(rows: list[dict]) -> None:
@@ -123,23 +133,30 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
         tracker.update_status_message(f"Processing {label} ({i + 1}/{num_instruments})")
 
         try:
-            prices = fetch_prices(symbol, as_of, LOOKBACK_DAYS)
-            if prices.empty:
-                logger.warning(f"No price data for {symbol}, skipping")
-                continue
-
             forecasts = fetch_forecasts(symbol, as_of)
             if forecasts.empty:
                 logger.warning(f"No forecasts for {symbol} on {as_of}, skipping")
                 continue
 
-            current_price = float(prices.iloc[-1])
-            ewma_vol = calc_ewma_vol(prices)
+            current_price = fetch_current_price(symbol, as_of)
+            if current_price is None:
+                logger.warning(f"No price data for {symbol}, skipping")
+                continue
+
+            ewma_vol = fetch_blended_vol(symbol, as_of)
             block_value = current_price * 0.01 * multiplier
             ivv = block_value * ewma_vol * 100
-            combined_forecast = float(
-                forecasts.mean()
-            )  # TODO add FDM lookup and multiply
+
+            rule_names = forecasts.index.tolist()
+            # TODO use correlation table to assign weights. Use equal weighted for now
+            weights = np.full(len(rule_names), 1 / len(rule_names))
+
+            raw_combined_forecast = float(np.dot(weights, forecasts[rule_names].values))
+            fdm = rules.calc_fdm(rule_names, weights)
+            combined_forecast = min(raw_combined_forecast * fdm, 20.0)
+
+            breakpoint()
+
             vol_scalar = daily_cash_vol_target / ivv
             subsystem_position = combined_forecast * vol_scalar / 10
             portfolio_position = subsystem_position * instrument_weight * IDM
@@ -187,3 +204,11 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
     else:
         logger.warning("No portfolio calculation rows generated")
         tracker.update_status_message("No rows generated")
+
+
+if __name__ == "__main__":
+    tracker = TaskStatusTracker("test", "test", "test")
+    from datetime import datetime
+
+    as_of = datetime.strptime("2026-03-19", "%Y-%m-%d").date()
+    run_portfolio_calculations(tracker, as_of)

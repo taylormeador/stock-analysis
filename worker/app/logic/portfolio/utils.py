@@ -19,12 +19,13 @@ def fetch_active_instruments() -> list[dict]:
         result = conn.execute(sql)
         return [
             {
-                "symbol":     row.symbol,
-                "label":      row.label,
+                "symbol": row.symbol,
+                "label": row.label,
                 "multiplier": float(row.multiplier),
             }
             for row in result
         ]
+
 
 def fetch_trading_instruments() -> list[dict]:
     sql = text("""
@@ -36,12 +37,13 @@ def fetch_trading_instruments() -> list[dict]:
         result = conn.execute(sql)
         return [
             {
-                "symbol":     row.symbol,
-                "label":      row.label,
+                "symbol": row.symbol,
+                "label": row.label,
                 "multiplier": float(row.multiplier),
             }
             for row in result
         ]
+
 
 def fetch_active_strategies() -> list[dict]:
     sql = text("""
@@ -53,9 +55,9 @@ def fetch_active_strategies() -> list[dict]:
         result = conn.execute(sql)
         return [
             {
-                "id":            row.id,
+                "id": row.id,
                 "strategy_type": row.strategy_type,
-                "parameters":    row.parameters,
+                "parameters": row.parameters,
             }
             for row in result
         ]
@@ -78,3 +80,18 @@ def fetch_prices(symbol: str, as_of: date, lookback_days: int) -> pd.Series:
         )
     df["date"] = pd.to_datetime(df["date"])
     return df.set_index("date")["close"].astype(float)
+
+
+def fetch_current_price(symbol: str, as_of: date) -> float | None:
+    sql = text("""
+        SELECT close
+        FROM futures_prices
+        WHERE symbol = :symbol
+          AND date <= :as_of
+          AND close IS NOT NULL
+        ORDER BY date DESC
+        LIMIT 1
+    """)
+    with db.get_connection() as conn:
+        result = conn.execute(sql, {"symbol": symbol, "as_of": as_of}).scalar()
+    return float(result) if result is not None else None
