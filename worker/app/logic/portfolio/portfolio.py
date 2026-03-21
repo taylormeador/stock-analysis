@@ -12,12 +12,23 @@ logger = logging.getLogger(__name__)
 
 LOOKBACK_DAYS = 120
 VOLATILITY_TARGET_PCT = 0.20
-IDM = 1.2  # TODO derive from correlation table per Carver's lookup
+IDM = 1.7  # TODO derive from correlation table per Carver's lookup
 
 
 def fetch_trading_capital() -> float:
-    # TODO pull from an account table when available
-    return 70000.0
+    sql = text("""
+        SELECT current_balance
+        FROM portfolio
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """)
+    with db.get_connection() as conn:
+        result = conn.execute(sql).scalar()
+
+    if result is None:
+        raise RuntimeError("No portfolio balance found in portfolio table")
+
+    return float(result)
 
 
 def fetch_forecasts(symbol: str, as_of: date) -> pd.Series:
@@ -139,25 +150,27 @@ def run_portfolio_calculations(tracker: TaskStatusTracker, as_of: date = None):
             logger.info(f"  Subsystem pos:     {subsystem_position:.2f}")
             logger.info(f"  Target position:   {desired_position} contracts")
 
-            rows.append({
-                "symbol":                     symbol,
-                "date":                       as_of,
-                "trading_capital":            trading_capital,
-                "volatility_target_pct":      VOLATILITY_TARGET_PCT,
-                "current_price":              current_price,
-                "ewma_vol":                   ewma_vol,
-                "block_value":                block_value,
-                "ivv":                        ivv,
-                "annualized_cash_vol_target": annualized_cash_vol_target,
-                "daily_cash_vol_target":      daily_cash_vol_target,
-                "vol_scalar":                 vol_scalar,
-                "combined_forecast":          combined_forecast,
-                "subsystem_position":         subsystem_position,
-                "instrument_weight":          instrument_weight,
-                "idm":                        IDM,
-                "portfolio_position":         portfolio_position,
-                "desired_position":           desired_position,
-            })
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "date": as_of,
+                    "trading_capital": trading_capital,
+                    "volatility_target_pct": VOLATILITY_TARGET_PCT,
+                    "current_price": current_price,
+                    "ewma_vol": ewma_vol,
+                    "block_value": block_value,
+                    "ivv": ivv,
+                    "annualized_cash_vol_target": annualized_cash_vol_target,
+                    "daily_cash_vol_target": daily_cash_vol_target,
+                    "vol_scalar": vol_scalar,
+                    "combined_forecast": combined_forecast,
+                    "subsystem_position": subsystem_position,
+                    "instrument_weight": instrument_weight,
+                    "idm": IDM,
+                    "portfolio_position": portfolio_position,
+                    "desired_position": desired_position,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to process {symbol}: {e}")

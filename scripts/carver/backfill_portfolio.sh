@@ -24,7 +24,7 @@ while [[ "$current" < "$END_DATE" || "$current" == "$END_DATE" ]]; do
         sleep 0.5
 
         # Fire portfolio calculations
-        curl -s -X POST "$FLOWER_URL/api/task/async-apply/app.tasks.calculations.run_portfolio_calculations" \
+        curl -s -X POST "$FLOWER_URL/api/task/async-apply/app.tasks.portfolio.run_portfolio_calculations" \
             -H "Content-Type: application/json" \
             -d "{\"kwargs\": {\"as_of\": \"$current\"}}" > /dev/null
 
