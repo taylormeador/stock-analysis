@@ -5,8 +5,13 @@ import pandas as pd
 from sqlalchemy import text
 
 import app.database.db as db
-from app.logic.portfolio.utils import fetch_active_instruments, fetch_prices
+from app.logic.portfolio.utils import (
+    fetch_active_instruments,
+    fetch_prices,
+    fetch_instruments,
+)
 from app.utils import TaskStatusTracker
+
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +101,6 @@ def run_ewmac_forecasts(
     logger.info(f"Generating forecasts as of {as_of} for variations {variations}")
 
     if symbols is not None:
-        from app.logic.portfolio.utils import fetch_instruments
-
         instruments = fetch_instruments(symbols)
     else:
         instruments = fetch_active_instruments()

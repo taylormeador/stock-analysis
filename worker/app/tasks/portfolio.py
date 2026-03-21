@@ -53,7 +53,6 @@ def generate_ewmac_forecasts(
 def run_portfolio_calculations(
     self,
     variations: list[str],
-    weights: list[float],
     as_of: str | None = None,
     symbols: list[str] | None = None,
     capital: float | None = None,
@@ -63,7 +62,6 @@ def run_portfolio_calculations(
 
     Args:
         variations: Rule variation names to combine, e.g. ['ewmac_8_32', 'ewmac_16_64'].
-        weights:    Weight per variation. Must sum to 1.0, same length as variations.
         as_of:      Date string YYYY-MM-DD. Defaults to today.
         symbols:    Restrict to a subset of symbols. Defaults to all active instruments.
         capital:    Trading capital in dollars. If None, reads from portfolio table.
@@ -82,7 +80,6 @@ def run_portfolio_calculations(
             tracker=tracker,
             as_of=parsed_date,
             variations=variations,
-            weights=weights,
             symbols=symbols,
             capital=capital,
         )

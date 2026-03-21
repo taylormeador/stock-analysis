@@ -8,6 +8,7 @@ from app.logic.portfolio.tables import (
     ewmac_correlations,
     carry_correlations,
     rule_correlations,
+    forecast_diversification_multipliers,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,15 +55,15 @@ def lookup_same_rule_correlation(
 VARIATION_REGISTRY: dict[str, RuleVariation] = {
     "ewmac_8_32": RuleVariation(
         rule=Rule.EWMAC,
-        description="EWMAC fast 8 slow 32",
+        description="EWMAC fast 8 slow 32 - Captures shorter term trends",
     ),
     "ewmac_16_64": RuleVariation(
         rule=Rule.EWMAC,
-        description="EWMAC fast 16 slow 64",
+        description="EWMAC fast 16 slow 64 - Captures medium term trends",
     ),
     "ewmac_32_128": RuleVariation(
         rule=Rule.EWMAC,
-        description="EWMAC fast 32 slow 128",
+        description="EWMAC fast 32 slow 128 - Captures longer term trends",
     ),
 }
 
@@ -75,6 +76,32 @@ def get_variation(variation_name: str) -> RuleVariation:
             f"Known variations: {list(VARIATION_REGISTRY.keys())}"
         )
     return VARIATION_REGISTRY[variation_name]
+
+
+def calc_variation_weights(rule_names: list[str]) -> np.ndarray:
+    """
+    Derive forecast weights from Carver's correlation tables.
+
+    Builds the correlation matrix from table 57, inverts it, and sums
+    each row to get raw weights. Variations that are highly correlated
+    with others get downweighted. Weights are clipped to zero and
+    normalized to sum to 1.0.
+    """
+    n = len(rule_names)
+    if n == 1:
+        return np.array([1.0])
+
+    corr_matrix = np.ones((n, n))
+    for i in range(n):
+        for j in range(i + 1, n):
+            corr = lookup_correlation(rule_names[i], rule_names[j])
+            corr_matrix[i, j] = corr
+            corr_matrix[j, i] = corr
+
+    inv_corr = np.linalg.inv(corr_matrix)
+    raw_weights = inv_corr.sum(axis=1)
+    raw_weights = np.clip(raw_weights, 0, None)
+    return raw_weights / raw_weights.sum()
 
 
 def lookup_correlation(variation_a: str, variation_b: str) -> float:
@@ -96,28 +123,35 @@ def lookup_correlation(variation_a: str, variation_b: str) -> float:
     )
 
 
-def calc_fdm(rule_names: list[str], weights: np.ndarray) -> float:
+def calc_fdm(rule_names: list[str]) -> float:
     """
-    Calculate the Forecast Diversification Multiplier for a list of rules.
-    Capped at 2.5 per Carver's recommendation.
+    Look up the Forecast Diversification Multiplier for a list of rule variations.
+    Uses Carver's table 18 (forecast_diversification_multipliers) directly.
 
-    Args:
-        rule_names: list of rule name strings
-        weights: array of weights, must sum to 1.0 and match length of rule_names
+    Computes average pairwise correlation from table 57, then looks up the
+    FDM from table 18 based on number of rules and that average correlation.
+    Capped at 2.5 per Carver's recommendation.
     """
-    num_rules = len(rule_names)
-    if num_rules == 1:
+    n = len(rule_names)
+    if n == 1:
         return 1.0
 
-    assert len(weights) == num_rules, "weights must match number of rules"
-    assert abs(weights.sum() - 1.0) < 1e-6, "weights must sum to 1.0"
+    # Compute average pairwise correlation from table 57
+    pairwise = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            pairwise.append(lookup_correlation(rule_names[i], rule_names[j]))
+    avg_corr = np.mean(pairwise)
 
-    corr_matrix = np.ones((num_rules, num_rules))
-    for i in range(num_rules):
-        for j in range(i + 1, num_rules):
-            corr = lookup_correlation(rule_names[i], rule_names[j])
-            corr_matrix[i, j] = corr
-            corr_matrix[j, i] = corr
+    # Lookup FDM in table 18
+    n_values = forecast_diversification_multipliers["num_assets"].values
+    corr_cols = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
 
-    fdm = 1.0 / np.sqrt(weights @ corr_matrix @ weights)
-    return min(fdm, 2.5)
+    closest_n = int(n_values[n_values <= n][-1])
+    closest_corr = float(corr_cols[corr_cols <= avg_corr][-1])
+
+    row = forecast_diversification_multipliers[
+        forecast_diversification_multipliers["num_assets"] == closest_n
+    ].iloc[0]
+
+    return min(float(row[closest_corr]), 2.5)

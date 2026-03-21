@@ -122,8 +122,7 @@ def upsert_calculations(rows: list[dict]) -> None:
 def run_portfolio_calculations(
     tracker: TaskStatusTracker,
     as_of: date,
-    variations: list[str],
-    weights: list[float],
+    variations: list[str] | None = None,
     symbols: list[str] | None = None,
     capital: float | None = None,
 ) -> None:
@@ -135,23 +134,16 @@ def run_portfolio_calculations(
         as_of:      Date to calculate for.
         variations: List of variation names whose forecasts to combine,
                     e.g. ['ewmac_8_32', 'ewmac_16_64', 'ewmac_32_128'].
-                    Caller owns this — not read from DB.
-        weights:    Weight per variation. Must sum to 1.0, same length as variations.
+                    Defaults to all variations in registry.
         symbols:    Optional list of symbols to restrict to.
                     If None, runs all active instruments.
         capital:    Trading capital in dollars. If None, reads from portfolio table.
     """
     logger.info(f"Running portfolio calculations for {as_of}")
 
-    if capital is None:
-        capital = fetch_trading_capital()
-
-    weights_array = np.array(weights)
-    if abs(weights_array.sum() - 1.0) > 1e-6:
-        raise ValueError(f"weights must sum to 1.0, got {weights_array.sum()}")
-
-    annualized_cash_vol_target = capital * VOLATILITY_TARGET_PCT
-    daily_cash_vol_target = annualized_cash_vol_target / 16
+    # Handle default args
+    if variations is None:
+        variations = list(rules.VARIATION_REGISTRY.keys())
 
     if symbols is not None:
         instruments = fetch_instruments(symbols)
@@ -162,6 +154,12 @@ def run_portfolio_calculations(
         logger.warning("No instruments found")
         tracker.update_status_message("No instruments found")
         return
+
+    if capital is None:
+        capital = fetch_trading_capital()
+
+    annualized_cash_vol_target = capital * VOLATILITY_TARGET_PCT
+    daily_cash_vol_target = annualized_cash_vol_target / 16
 
     run_id = str(uuid.uuid4())
     num_instruments = len(instruments)
@@ -192,24 +190,24 @@ def run_portfolio_calculations(
                 logger.warning(f"No vol data for {symbol} on {as_of}, skipping")
                 continue
 
+            # block_value is the dollar value of a 1% move
+            # Instrument value volatility is the how many dollars one contract moves in a typical day
             block_value = current_price * 0.01 * multiplier
             ivv = block_value * ewma_vol * 100
 
-            # Align weights to whatever forecasts actually came back
-            available = [v for v in variations if v in forecasts.index]
-            if not available:
+            # Only look at variations we actually have forecasts for
+            valid_variations = [v for v in variations if v in forecasts.index]
+            if not valid_variations:
                 logger.warning(f"No matching forecasts for {symbol}, skipping")
                 continue
 
-            available_weights = np.array(
-                [weights[variations.index(v)] for v in available]
-            )
-            available_weights = available_weights / available_weights.sum()
-
-            raw_combined = float(np.dot(available_weights, forecasts[available].values))
-            fdm = rules.calc_fdm(available, available_weights)
+            # Combine forecasts by averaging and then using correlation based multiplier
+            weights = rules.calc_variation_weights(valid_variations)
+            raw_combined = float(np.dot(weights, forecasts[valid_variations].values))
+            fdm = rules.calc_fdm(valid_variations)
             combined_forecast = min(raw_combined * fdm, 20.0)
 
+            # Scale position based on vol
             vol_scalar = daily_cash_vol_target / ivv
             subsystem_position = combined_forecast * vol_scalar / 10
             portfolio_position = subsystem_position * instrument_weight * IDM
@@ -242,8 +240,8 @@ def run_portfolio_calculations(
                     "portfolio_position": portfolio_position,
                     "desired_position": desired_position,
                     "run_id": run_id,
-                    "variations_used": available,
-                    "weights_used": available_weights.tolist(),
+                    "variations_used": valid_variations,
+                    "weights_used": weights.tolist(),
                     "fdm": fdm,
                 }
             )
