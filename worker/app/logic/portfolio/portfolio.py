@@ -17,7 +17,6 @@ from app.logic.portfolio import rules
 
 logger = logging.getLogger(__name__)
 
-VOLATILITY_TARGET_PCT = 0.20
 IDM = 1.7  # TODO derive from correlation table per Carver's lookup
 
 
@@ -125,19 +124,21 @@ def run_portfolio_calculations(
     variations: list[str] | None = None,
     symbols: list[str] | None = None,
     capital: float | None = None,
+    vol_target_pct: float = 0.20,
 ) -> None:
     """
     Run portfolio calculations for a given date.
 
     Args:
-        tracker:    Task status tracker.
-        as_of:      Date to calculate for.
-        variations: List of variation names whose forecasts to combine,
-                    e.g. ['ewmac_8_32', 'ewmac_16_64', 'ewmac_32_128'].
-                    Defaults to all variations in registry.
-        symbols:    Optional list of symbols to restrict to.
-                    If None, runs all active instruments.
-        capital:    Trading capital in dollars. If None, reads from portfolio table.
+        tracker:        Task status tracker.
+        as_of:          Date to calculate for.
+        variations:     List of variation names whose forecasts to combine,
+                        e.g. ['ewmac_8_32', 'ewmac_16_64', 'ewmac_32_128'].
+                        Defaults to all variations in registry.
+        symbols:        Optional list of symbols to restrict to.
+                        If None, runs all active instruments.
+        capital:        Trading capital in dollars. If None, reads from portfolio table.
+        vol_target_pct: Desired annualized standard deviation of daily portfolio returns.
     """
     logger.info(f"Running portfolio calculations for {as_of}")
 
@@ -158,7 +159,7 @@ def run_portfolio_calculations(
     if capital is None:
         capital = fetch_trading_capital()
 
-    annualized_cash_vol_target = capital * VOLATILITY_TARGET_PCT
+    annualized_cash_vol_target = capital * vol_target_pct
     daily_cash_vol_target = annualized_cash_vol_target / 16
 
     run_id = str(uuid.uuid4())
@@ -225,7 +226,7 @@ def run_portfolio_calculations(
                     "symbol": symbol,
                     "date": as_of,
                     "trading_capital": capital,
-                    "volatility_target_pct": VOLATILITY_TARGET_PCT,
+                    "volatility_target_pct": vol_target_pct,
                     "current_price": current_price,
                     "ewma_vol": ewma_vol,
                     "block_value": block_value,
