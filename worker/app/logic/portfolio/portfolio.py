@@ -17,8 +17,6 @@ from app.logic.portfolio import rules
 
 logger = logging.getLogger(__name__)
 
-IDM = 1.7  # TODO derive from correlation table per Carver's lookup
-
 
 def fetch_trading_capital() -> float:
     sql = text("""
@@ -159,9 +157,15 @@ def run_portfolio_calculations(
     if capital is None:
         capital = fetch_trading_capital()
 
+    # Target vol
     annualized_cash_vol_target = capital * vol_target_pct
     daily_cash_vol_target = annualized_cash_vol_target / 16
 
+    # Get the IDM based on asset classes
+    asset_classes = [i["asset_class"] for i in instruments]
+    idm = rules.calc_idm(asset_classes)
+
+    # Set up portfolio run
     run_id = str(uuid.uuid4())
     num_instruments = len(instruments)
     instrument_weight = 1.0 / num_instruments
@@ -211,7 +215,7 @@ def run_portfolio_calculations(
             # Scale position based on vol
             vol_scalar = daily_cash_vol_target / ivv
             subsystem_position = combined_forecast * vol_scalar / 10
-            portfolio_position = subsystem_position * instrument_weight * IDM
+            portfolio_position = subsystem_position * instrument_weight * idm
             desired_position = round(portfolio_position)
 
             logger.info(f"  Price:             {current_price:.2f}")
@@ -237,7 +241,7 @@ def run_portfolio_calculations(
                     "combined_forecast": combined_forecast,
                     "subsystem_position": subsystem_position,
                     "instrument_weight": instrument_weight,
-                    "idm": IDM,
+                    "idm": idm,
                     "portfolio_position": portfolio_position,
                     "desired_position": desired_position,
                     "run_id": run_id,

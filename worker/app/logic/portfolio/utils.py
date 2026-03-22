@@ -22,6 +22,7 @@ def fetch_active_instruments() -> list[dict]:
                 "symbol": row.symbol,
                 "label": row.label,
                 "multiplier": float(row.multiplier),
+                "asset_class": row.asset_class,
             }
             for row in result
         ]
@@ -35,15 +36,16 @@ def fetch_instrument(symbol: str) -> dict | None:
         WHERE symbol = :symbol
     """)
     with db.get_connection() as conn:
-        result = conn.execute(sql, {"symbol": symbol}).first()
+        row = conn.execute(sql, {"symbol": symbol}).first()
 
-    if result is None:
+    if row is None:
         return None
 
     return {
-        "symbol": result.symbol,
-        "label": result.label,
-        "multiplier": float(result.multiplier),
+        "symbol": row.symbol,
+        "label": row.label,
+        "multiplier": float(row.multiplier),
+        "asset_class": row.asset_class,
     }
 
 
@@ -61,6 +63,7 @@ def fetch_instruments(symbols: list[str]) -> list[dict]:
                 "symbol": row.symbol,
                 "label": row.label,
                 "multiplier": float(row.multiplier),
+                "asset_class": row.asset_class,
             }
             for row in result
         ]

@@ -5,7 +5,7 @@ import numpy as np
 
 # Table 18: diversification multiplier
 # Carver recommends capping this at 2.5
-forecast_diversification_multipliers = pd.DataFrame(
+diversification_multipliers = pd.DataFrame(
     # number valued columns are the average correlation between assets
     columns=["num_assets", 0.0, 0.25, 0.5, 0.75, 1.0],
     data=[

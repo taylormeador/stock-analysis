@@ -8,7 +8,9 @@ from app.logic.portfolio.tables import (
     ewmac_correlations,
     carry_correlations,
     rule_correlations,
-    forecast_diversification_multipliers,
+    diversification_multipliers,
+    super_asset_correlations,
+    sub_asset_class_region_correlations,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,7 +96,7 @@ def calc_variation_weights(rule_names: list[str]) -> np.ndarray:
     corr_matrix = np.ones((n, n))
     for i in range(n):
         for j in range(i + 1, n):
-            corr = lookup_correlation(rule_names[i], rule_names[j])
+            corr = lookup_variation_correlation(rule_names[i], rule_names[j])
             corr_matrix[i, j] = corr
             corr_matrix[j, i] = corr
 
@@ -104,11 +106,11 @@ def calc_variation_weights(rule_names: list[str]) -> np.ndarray:
     return raw_weights / raw_weights.sum()
 
 
-def lookup_correlation(variation_a: str, variation_b: str) -> float:
+def lookup_variation_correlation(variation_a: str, variation_b: str) -> float:
     """
-    Return the correlation between two rules.
-    Same family uses the family-specific correlation table.
-    Different families use Carver's table 56 cross-style correlation of 0.25.
+    Return the correlation between two variations.
+    Same rules uses the rule-specific correlation table.
+    Different rules use Carver's table 56 cross-style correlation of 0.25.
     """
     var_a = get_variation(variation_a)
     var_b = get_variation(variation_b)
@@ -140,18 +142,86 @@ def calc_fdm(rule_names: list[str]) -> float:
     pairwise = []
     for i in range(n):
         for j in range(i + 1, n):
-            pairwise.append(lookup_correlation(rule_names[i], rule_names[j]))
+            pairwise.append(lookup_variation_correlation(rule_names[i], rule_names[j]))
     avg_corr = np.mean(pairwise)
 
     # Lookup FDM in table 18
-    n_values = forecast_diversification_multipliers["num_assets"].values
+    n_values = diversification_multipliers["num_assets"].values
     corr_cols = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
 
     closest_n = int(n_values[n_values <= n][-1])
     closest_corr = float(corr_cols[corr_cols <= avg_corr][-1])
 
-    row = forecast_diversification_multipliers[
-        forecast_diversification_multipliers["num_assets"] == closest_n
+    row = diversification_multipliers[
+        diversification_multipliers["num_assets"] == closest_n
+    ].iloc[0]
+
+    return min(float(row[closest_corr]), 2.5)
+
+
+def lookup_instrument_correlation(asset_class_a: str, asset_class_b: str) -> float:
+    """
+    Return the correlation between two instrument trading subsystems using
+    Carver's asset class correlation tables (tables 50-55) multiplied by 0.7,
+    per Carver's recommendation for systematic traders.
+    """
+    if asset_class_a == asset_class_b:
+        if asset_class_a in sub_asset_class_region_correlations["asset"].values:
+            raw = float(
+                sub_asset_class_region_correlations.set_index("asset").loc[
+                    asset_class_a, "correlation"
+                ]
+            )
+        else:
+            raw = 0.5
+        return raw * 0.7
+
+    indexed = super_asset_correlations.set_index("asset")
+    for row_key, col_key in [
+        (asset_class_a, asset_class_b),
+        (asset_class_b, asset_class_a),
+    ]:
+        try:
+            val = indexed.loc[row_key, col_key]
+            if val is not None and not (isinstance(val, float) and np.isnan(val)):
+                return float(val) * 0.7
+        except KeyError:
+            continue
+
+    logger.warning(
+        f"Correlation not found for {asset_class_a} vs {asset_class_b}, using 0.25"
+    )
+    return 0.25
+
+
+def calc_idm(asset_classes: list[str]) -> float:
+    """
+    Calculate the Instrument Diversification Multiplier using Carver's table 18.
+
+    Uses equal instrument weights and average pairwise correlation derived from
+    the asset class correlation tables. Same floor lookup as calc_fdm.
+    Capped at 2.5 per Carver's recommendation.
+    """
+    n = len(asset_classes)
+    if n == 1:
+        return 1.0
+
+    pairwise = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            pairwise.append(
+                lookup_instrument_correlation(asset_classes[i], asset_classes[j])
+            )
+    avg_corr = float(np.mean(pairwise))
+
+    n_values = diversification_multipliers["num_assets"].values
+    corr_cols = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+
+    closest_n = int(n_values[n_values <= n][-1])
+    closest_corr = float(corr_cols[corr_cols <= avg_corr][-1])
+
+    row = diversification_multipliers[
+        diversification_multipliers["num_assets"] == closest_n
     ].iloc[0]
 
     return min(float(row[closest_corr]), 2.5)
