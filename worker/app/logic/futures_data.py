@@ -19,7 +19,7 @@ SHORT_TERM_VOL_WEIGHT = 0.7
 def fetch_active_instruments() -> list[dict]:
     sql = text("""
         SELECT symbol, label
-        FROM candidate_instruments
+        FROM instruments
         WHERE is_active = TRUE
     """)
     with db.get_connection() as conn:
@@ -30,7 +30,7 @@ def fetch_active_instruments() -> list[dict]:
 def fetch_trading_instruments() -> list[dict]:
     sql = text("""
         SELECT symbol, label, multiplier
-        FROM candidate_instruments
+        FROM instruments
         WHERE is_trading = TRUE
     """)
     with db.get_connection() as conn:
@@ -189,7 +189,7 @@ def ingest_futures_prices(
     num_instruments = len(instruments)
 
     if not instruments:
-        logger.warning("No active instruments found in candidate_instruments")
+        logger.warning("No active instruments found in instruments")
         tracker.update_status_message("No active instruments found")
         return
 

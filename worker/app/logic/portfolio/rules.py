@@ -10,7 +10,11 @@ from app.logic.portfolio.tables import (
     rule_correlations,
     diversification_multipliers,
     super_asset_correlations,
+    asset_correlations,
+    sub_asset_correlations,
     sub_asset_class_region_correlations,
+    asset_class_region_correlations,
+    bond_correlations,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,50 +163,112 @@ def calc_fdm(rule_names: list[str]) -> float:
     return min(float(row[closest_corr]), 2.5)
 
 
-def lookup_instrument_correlation(asset_class_a: str, asset_class_b: str) -> float:
+def lookup_instrument_correlation(a: dict, b: dict) -> float:
     """
     Return the correlation between two instrument trading subsystems using
-    Carver's asset class correlation tables (tables 50-55) multiplied by 0.7,
-    per Carver's recommendation for systematic traders.
-    """
-    if asset_class_a == asset_class_b:
-        if asset_class_a in sub_asset_class_region_correlations["asset"].values:
-            raw = float(
-                sub_asset_class_region_correlations.set_index("asset").loc[
-                    asset_class_a, "correlation"
-                ]
-            )
-        else:
-            raw = 0.5
-        return raw * 0.7
+    Carver's hierarchy of correlation tables (tables 50-55), multiplied by
+    0.7 per Carver's recommendation for systematic traders.
 
+    Decision tree from most specific to least specific:
+    - Both rates: use table 55 (bond duration correlations)
+    - Same super_asset_class, sub_asset_class, region: use table 54
+    - Same super_asset_class, sub_asset_class: use table 52 (commodities) or 53 (financials)
+    - Same super_asset_class: use table 51
+    - Different super_asset_class: use table 50
+    """
+    SYSTEMATIC_TRADER_ADJUSTMENT = 0.7
+
+    # Both rates — use table 55 (bond duration correlations)
+    if a["super_asset_class"] == "rates" and b["super_asset_class"] == "rates":
+        indexed = bond_correlations.set_index("asset")
+        sub_a = a["sub_asset_class"]
+        sub_b = b["sub_asset_class"]
+        if sub_a == sub_b:
+            return 1.0 * SYSTEMATIC_TRADER_ADJUSTMENT
+        for row_key, col_key in [(sub_a, sub_b), (sub_b, sub_a)]:
+            try:
+                val = indexed.loc[row_key, col_key]
+                if val is not None and not (isinstance(val, float) and np.isnan(val)):
+                    return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
+            except KeyError:
+                continue
+
+    # Same super_asset_class
+    if a["super_asset_class"] == b["super_asset_class"]:
+        # Same sub_asset_class
+        if a["sub_asset_class"] == b["sub_asset_class"]:
+            # Same region — use table 54
+            if a["region"] is not None and a["region"] == b["region"]:
+                indexed = sub_asset_class_region_correlations.set_index("asset")
+                key = a["asset_class"]
+                if key in indexed.index:
+                    return (
+                        float(indexed.loc[key, "correlation"])
+                        * SYSTEMATIC_TRADER_ADJUSTMENT
+                    )
+
+            # Different region — use table 53
+            indexed = asset_class_region_correlations.set_index("asset")
+            key = a["asset_class"]
+            if key in indexed.index:
+                return (
+                    float(indexed.loc[key, "correlation"])
+                    * SYSTEMATIC_TRADER_ADJUSTMENT
+                )
+
+        # Different sub_asset_class within same super class
+        # Commodities — use table 52
+        if a["super_asset_class"] == "commodities":
+            indexed = sub_asset_correlations.set_index("asset")
+            sub_a = a["sub_asset_class"]
+            sub_b = b["sub_asset_class"]
+            for row_key, col_key in [(sub_a, sub_b), (sub_b, sub_a)]:
+                try:
+                    val = indexed.loc[row_key, col_key]
+                    if val is not None and not (
+                        isinstance(val, float) and np.isnan(val)
+                    ):
+                        return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
+                except KeyError:
+                    continue
+
+        # Financials (rates, equities, fx) — use table 51
+        indexed = asset_correlations.set_index("asset")
+        ac_a = a["asset_class"]
+        ac_b = b["asset_class"]
+        for row_key, col_key in [(ac_a, ac_b), (ac_b, ac_a)]:
+            try:
+                val = indexed.loc[row_key, col_key]
+                if val is not None and not (isinstance(val, float) and np.isnan(val)):
+                    return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
+            except KeyError:
+                continue
+
+    # Different super_asset_class — use table 50
     indexed = super_asset_correlations.set_index("asset")
-    for row_key, col_key in [
-        (asset_class_a, asset_class_b),
-        (asset_class_b, asset_class_a),
-    ]:
+    sac_a = a["super_asset_class"]
+    sac_b = b["super_asset_class"]
+    for row_key, col_key in [(sac_a, sac_b), (sac_b, sac_a)]:
         try:
             val = indexed.loc[row_key, col_key]
             if val is not None and not (isinstance(val, float) and np.isnan(val)):
-                return float(val) * 0.7
+                return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
         except KeyError:
             continue
 
-    logger.warning(
-        f"Correlation not found for {asset_class_a} vs {asset_class_b}, using 0.25"
-    )
+    logger.warning(f"Correlation not found for {sac_a} vs {sac_b}, using 0.25")
     return 0.25
 
 
-def calc_idm(asset_classes: list[str]) -> float:
+def calc_idm(instruments: list[dict]) -> float:
     """
     Calculate the Instrument Diversification Multiplier using Carver's table 18.
 
-    Uses equal instrument weights and average pairwise correlation derived from
-    the asset class correlation tables. Same floor lookup as calc_fdm.
-    Capped at 2.5 per Carver's recommendation.
+    Takes the full instrument metadata dicts so correlations can be looked up
+    from the appropriate table in the hierarchy. Uses equal weights across
+    instruments and the same floor lookup as calc_fdm. Capped at 2.5.
     """
-    n = len(asset_classes)
+    n = len(instruments)
     if n == 1:
         return 1.0
 
@@ -210,7 +276,7 @@ def calc_idm(asset_classes: list[str]) -> float:
     for i in range(n):
         for j in range(i + 1, n):
             pairwise.append(
-                lookup_instrument_correlation(asset_classes[i], asset_classes[j])
+                lookup_instrument_correlation(instruments[i], instruments[j])
             )
     avg_corr = float(np.mean(pairwise))
 

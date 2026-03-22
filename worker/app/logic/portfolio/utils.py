@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 def fetch_active_instruments() -> list[dict]:
     sql = text("""
-        SELECT symbol, label, multiplier
-        FROM candidate_instruments
+        SELECT symbol, label, multiplier, super_asset_class, asset_class, sub_asset_class, region
+        FROM instruments
         WHERE is_active = TRUE
     """)
     with db.get_connection() as conn:
@@ -22,38 +22,42 @@ def fetch_active_instruments() -> list[dict]:
                 "symbol": row.symbol,
                 "label": row.label,
                 "multiplier": float(row.multiplier),
+                "super_asset_class": row.super_asset_class,
                 "asset_class": row.asset_class,
+                "sub_asset_class": row.sub_asset_class,
+                "region": row.region,
             }
             for row in result
         ]
 
 
 def fetch_instrument(symbol: str) -> dict | None:
-    """Fetch a single instrument by symbol."""
     sql = text("""
-        SELECT symbol, label, multiplier
-        FROM candidate_instruments
+        SELECT symbol, label, multiplier, super_asset_class, asset_class, sub_asset_class, region
+        FROM instruments
         WHERE symbol = :symbol
     """)
     with db.get_connection() as conn:
-        row = conn.execute(sql, {"symbol": symbol}).first()
+        result = conn.execute(sql, {"symbol": symbol}).first()
 
-    if row is None:
+    if result is None:
         return None
 
     return {
-        "symbol": row.symbol,
-        "label": row.label,
-        "multiplier": float(row.multiplier),
-        "asset_class": row.asset_class,
+        "symbol": result.symbol,
+        "label": result.label,
+        "multiplier": float(result.multiplier),
+        "super_asset_class": result.super_asset_class,
+        "asset_class": result.asset_class,
+        "sub_asset_class": result.sub_asset_class,
+        "region": result.region,
     }
 
 
 def fetch_instruments(symbols: list[str]) -> list[dict]:
-    """Fetch a specific set of instruments by symbol list."""
     sql = text("""
-        SELECT symbol, label, multiplier
-        FROM candidate_instruments
+        SELECT symbol, label, multiplier, super_asset_class, asset_class, sub_asset_class, region
+        FROM instruments
         WHERE symbol = ANY(:symbols)
     """)
     with db.get_connection() as conn:
@@ -63,7 +67,10 @@ def fetch_instruments(symbols: list[str]) -> list[dict]:
                 "symbol": row.symbol,
                 "label": row.label,
                 "multiplier": float(row.multiplier),
+                "super_asset_class": row.super_asset_class,
                 "asset_class": row.asset_class,
+                "sub_asset_class": row.sub_asset_class,
+                "region": row.region,
             }
             for row in result
         ]

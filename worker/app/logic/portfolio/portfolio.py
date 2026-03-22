@@ -162,8 +162,8 @@ def run_portfolio_calculations(
     daily_cash_vol_target = annualized_cash_vol_target / 16
 
     # Get the IDM based on asset classes
-    asset_classes = [i["asset_class"] for i in instruments]
-    idm = rules.calc_idm(asset_classes)
+    idm = rules.calc_idm(instruments)
+    logger.info(f"IDM: {idm:.4f}")
 
     # Set up portfolio run
     run_id = str(uuid.uuid4())

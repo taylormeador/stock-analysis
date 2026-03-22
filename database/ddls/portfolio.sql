@@ -65,7 +65,7 @@ CREATE INDEX IF NOT EXISTS idx_forecasts_symbol_date
 CREATE INDEX IF NOT EXISTS idx_futures_prices_symbol_date
     ON futures_prices (symbol, date DESC);
 
-    CREATE TABLE candidate_instruments (
+    CREATE TABLE instruments (
     id              SERIAL PRIMARY KEY,
     symbol          VARCHAR(20)  NOT NULL UNIQUE,
     label           VARCHAR(20)  NOT NULL,
@@ -77,7 +77,7 @@ CREATE INDEX IF NOT EXISTS idx_futures_prices_symbol_date
 );
 
 -- Equity indices
-INSERT INTO candidate_instruments (symbol, label, multiplier, asset_class, notes) VALUES
+INSERT INTO instruments (symbol, label, multiplier, asset_class, notes) VALUES
     ('MES=F', '/MES', 5,    'equity_index', 'Micro E-mini S&P 500'),
     ('MNQ=F', '/MNQ', 2,    'equity_index', 'Micro E-mini Nasdaq 100'),
     ('MYM=F', '/MYM', 0.5,  'equity_index', 'Micro E-mini Dow Jones'),
