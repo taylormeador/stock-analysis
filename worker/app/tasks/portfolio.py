@@ -52,7 +52,7 @@ def generate_ewmac_forecasts(
 @app.task(bind=True)
 def run_portfolio_calculations(
     self,
-    variations: list[str],
+    variations: list[str] | None = None,
     as_of: str | None = None,
     symbols: list[str] | None = None,
     capital: float | None = None,
