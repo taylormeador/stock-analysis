@@ -78,7 +78,8 @@ def upsert_calculations(rows: list[dict]) -> None:
             combined_forecast,
             subsystem_position, instrument_weight, idm,
             portfolio_position, desired_position,
-            run_id, variations_used, weights_used, fdm
+            run_id, variations_used, weights_used, fdm,
+            batch_id
         ) VALUES (
             :symbol, :date,
             :trading_capital, :volatility_target_pct,
@@ -88,7 +89,8 @@ def upsert_calculations(rows: list[dict]) -> None:
             :combined_forecast,
             :subsystem_position, :instrument_weight, :idm,
             :portfolio_position, :desired_position,
-            :run_id, :variations_used, :weights_used, :fdm
+            :run_id, :variations_used, :weights_used, :fdm,
+            :batch_id
         )
         ON CONFLICT (symbol, date, run_id) DO UPDATE SET
             trading_capital             = EXCLUDED.trading_capital,
@@ -109,7 +111,8 @@ def upsert_calculations(rows: list[dict]) -> None:
             run_id                      = EXCLUDED.run_id,
             variations_used             = EXCLUDED.variations_used,
             weights_used                = EXCLUDED.weights_used,
-            fdm                         = EXCLUDED.fdm
+            fdm                         = EXCLUDED.fdm,
+            batch_id                    = EXCLUDED.batch_id
     """)
     with db.get_connection() as conn:
         conn.execute(sql, rows)
@@ -123,6 +126,7 @@ def run_portfolio_calculations(
     symbols: list[str] | None = None,
     capital: float | None = None,
     vol_target_pct: float = 0.20,
+    batch_id: str = "default",
 ) -> None:
     """
     Run portfolio calculations for a given date.
@@ -137,6 +141,9 @@ def run_portfolio_calculations(
                         If None, runs all active instruments.
         capital:        Trading capital in dollars. If None, reads from portfolio table.
         vol_target_pct: Desired annualized standard deviation of daily portfolio returns.
+        batch_id:       Human-readable label grouping related runs together.
+                        e.g. 'full_universe_2026', 'equity_only', 'backtest_carver_v1'.
+                        Defaults to 'default'.
     """
     logger.info(f"Running portfolio calculations for {as_of}")
 
@@ -248,6 +255,7 @@ def run_portfolio_calculations(
                     "variations_used": valid_variations,
                     "weights_used": weights.tolist(),
                     "fdm": fdm,
+                    "batch_id": batch_id,
                 }
             )
 

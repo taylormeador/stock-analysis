@@ -84,12 +84,16 @@ async def get_etl_status():
 @router.get("/portfolio/forecasts")
 async def get_portfolio_forecasts_endpoint(
     lookback_days: int = Query(default=180, ge=1, le=365),
+    batch_id: str | None = Query(default=None),
 ):
     """
-    Returns price history, forecast history, and latest portfolio calculations
-    for all actively traded instruments.
+    Returns price history, forecast history, and portfolio calculations
+    for all active instruments.
+
+    batch_id: filter calculations to a specific batch. If omitted, uses
+              the most recently created batch.
     """
-    data = await portfolio_forecasts.get_portfolio_forecasts(lookback_days)
+    data = await portfolio_forecasts.get_portfolio_forecasts(lookback_days, batch_id)
     return {"data": data}
 
 

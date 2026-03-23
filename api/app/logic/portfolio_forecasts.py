@@ -21,19 +21,22 @@ CALC_NUMERIC_COLS = [
 ]
 
 
-async def get_portfolio_forecasts(lookback_days: int = 180) -> dict:
+async def get_portfolio_forecasts(
+    lookback_days: int = 180, batch_id: str | None = None
+) -> dict:
     since = date.today() - timedelta(days=lookback_days)
 
     instruments = await _fetch_active_instruments()
     if not instruments:
-        return {"instruments": [], "calculations": []}
+        return {"instruments": [], "calculations": [], "batches": []}
 
     symbols = [i["symbol"] for i in instruments]
 
-    prices_by_symbol, forecasts_by_symbol, calculations = await asyncio.gather(
+    batches, prices_by_symbol, forecasts_by_symbol, calculations = await asyncio.gather(
+        _fetch_batches(),
         _fetch_prices(symbols, since),
         _fetch_forecasts(symbols, since),
-        _fetch_calculations(symbols, since),
+        _fetch_calculations(symbols, since, batch_id),
     )
 
     result_instruments = [
@@ -49,7 +52,19 @@ async def get_portfolio_forecasts(lookback_days: int = 180) -> dict:
     return {
         "instruments": result_instruments,
         "calculations": calculations,
+        "batches": batches,
     }
+
+
+async def _fetch_batches() -> list[str]:
+    sql = text("""
+        SELECT DISTINCT batch_id
+        FROM portfolio_calculations
+        ORDER BY batch_id
+    """)
+    async with get_connection() as conn:
+        result = await conn.execute(sql)
+        return [row.batch_id for row in result]
 
 
 async def _fetch_active_instruments() -> list[dict[str, str]]:
@@ -81,8 +96,7 @@ async def _fetch_prices(symbols: list[str], since: date) -> dict[str, list[dict]
 
     df = pd.DataFrame(rows, columns=["symbol", "date", "close"])
     df["date"] = df["date"].astype(str)
-    df["close"] = pd.to_numeric(df["close"])
-    df["close"] = df["close"].fillna(0.0)
+    df["close"] = pd.to_numeric(df["close"]).fillna(0.0)
 
     return {
         symbol: group[["date", "close"]].to_dict("records")
@@ -107,8 +121,7 @@ async def _fetch_forecasts(symbols: list[str], since: date) -> dict[str, list[di
 
     df = pd.DataFrame(rows, columns=["symbol", "date", "rule_name", "scaled_value"])
     df["date"] = df["date"].astype(str)
-    df["scaled_value"] = pd.to_numeric(df["scaled_value"])
-    df["scaled_value"] = df["scaled_value"].fillna(0.0)
+    df["scaled_value"] = pd.to_numeric(df["scaled_value"]).fillna(0.0)
 
     return {
         symbol: group[["date", "rule_name", "scaled_value"]].to_dict("records")
@@ -116,27 +129,55 @@ async def _fetch_forecasts(symbols: list[str], since: date) -> dict[str, list[di
     }
 
 
-async def _fetch_calculations(symbols: list[str], since: date) -> list[dict]:
-    sql = text("""
+async def _fetch_calculations(
+    symbols: list[str], since: date, batch_id: str | None
+) -> list[dict]:
+    """
+    Return the most recent run per (symbol, date) for the given batch.
+    If batch_id is None, uses the most recently created batch.
+    """
+    if batch_id is None:
+        batch_clause = """
+            AND batch_id = (
+                SELECT batch_id
+                FROM portfolio_calculations
+                WHERE symbol = ANY(:symbols)
+                  AND date >= :since
+                ORDER BY date DESC, run_id DESC
+                LIMIT 1
+            )
+        """
+    else:
+        batch_clause = "AND batch_id = :batch_id"
+
+    sql = text(f"""
         SELECT DISTINCT ON (symbol, date)
             symbol, date,
             current_price, ewma_vol,
             combined_forecast, desired_position,
             subsystem_position, portfolio_position,
-            instrument_value_volatility, vol_scalar
+            instrument_value_volatility, vol_scalar,
+            batch_id
         FROM portfolio_calculations
         WHERE symbol = ANY(:symbols)
-        AND date >= :since
+          AND date >= :since
+          {batch_clause}
         ORDER BY symbol, date, run_id DESC
     """)
+
+    params: dict = {"symbols": symbols, "since": since}
+    if batch_id is not None:
+        params["batch_id"] = batch_id
+
     async with get_connection() as conn:
-        result = await conn.execute(sql, {"symbols": symbols, "since": since})
+        result = await conn.execute(sql, params)
         rows = result.fetchall()
 
     if not rows:
         return []
 
-    df = pd.DataFrame(rows, columns=["symbol", "date"] + CALC_NUMERIC_COLS)
+    cols = ["symbol", "date"] + CALC_NUMERIC_COLS + ["batch_id"]
+    df = pd.DataFrame(rows, columns=cols)
     df["date"] = df["date"].astype(str)
     for col in CALC_NUMERIC_COLS:
         df[col] = pd.to_numeric(df[col]).fillna(0.0)
