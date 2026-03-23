@@ -118,7 +118,7 @@ async def _fetch_forecasts(symbols: list[str], since: date) -> dict[str, list[di
 
 async def _fetch_calculations(symbols: list[str], since: date) -> list[dict]:
     sql = text("""
-        SELECT
+        SELECT DISTINCT ON (symbol, date)
             symbol, date,
             current_price, ewma_vol,
             combined_forecast, desired_position,
@@ -126,8 +126,8 @@ async def _fetch_calculations(symbols: list[str], since: date) -> list[dict]:
             instrument_value_volatility, vol_scalar
         FROM portfolio_calculations
         WHERE symbol = ANY(:symbols)
-          AND date >= :since
-        ORDER BY symbol, date ASC
+        AND date >= :since
+        ORDER BY symbol, date, run_id DESC
     """)
     async with get_connection() as conn:
         result = await conn.execute(sql, {"symbols": symbols, "since": since})
