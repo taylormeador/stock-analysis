@@ -40,9 +40,9 @@ def lookup_same_rule_correlation(
     variation_b: str,
 ) -> float:
     if rule == Rule.EWMAC:
-        indexed = ewmac_correlations.set_index("variation")
+        indexed = ewmac_correlations
     elif rule == Rule.CARRY:
-        indexed = carry_correlations.set_index("variation")
+        indexed = carry_correlations
     else:
         logger.warning(f"No correlation table for {rule}, using 0.5")
         return 0.5
@@ -128,11 +128,7 @@ def lookup_variation_correlation(variation_a: str, variation_b: str) -> float:
     if var_a.rule == var_b.rule:
         return lookup_same_rule_correlation(var_a.rule, variation_a, variation_b)
 
-    return float(
-        rule_correlations.set_index(rule_correlations.columns[0]).loc[
-            "different_styles", "correlation"
-        ]
-    )
+    return float(rule_correlations.loc["different_styles", "correlation"])
 
 
 def calc_fdm(rule_names: list[str]) -> float:
@@ -156,20 +152,28 @@ def calc_fdm(rule_names: list[str]) -> float:
     avg_corr = np.mean(pairwise)
 
     # Lookup FDM in table 18
-    n_values = diversification_multipliers["num_assets"].values
-    corr_cols = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+    n_values = diversification_multipliers.index.values
+    corr_cols = np.array(diversification_multipliers.columns.values, dtype=float)
 
     closest_n = int(n_values[n_values <= n][-1])
     closest_corr = float(corr_cols[corr_cols <= avg_corr][-1])
 
-    row = diversification_multipliers[
-        diversification_multipliers["num_assets"] == closest_n
-    ].iloc[0]
-
-    return min(float(row[closest_corr]), 2.5)
+    return min(float(diversification_multipliers.loc[closest_n, closest_corr]), 2.5)
 
 
 def lookup_instrument_correlation(a: dict, b: dict) -> float:
+    """
+    Return the correlation between two instrument trading subsystems using
+    Carver's hierarchy of correlation tables (tables 50-55), multiplied by
+    0.7 per Carver's recommendation for systematic traders.
+
+    Decision tree from most specific to least specific:
+    - Both rates: use table 55 (bond duration correlations)
+    - Same super_asset_class, sub_asset_class, region: use table 54
+    - Same super_asset_class, sub_asset_class: use table 52 (commodities) or 53 (financials)
+    - Same super_asset_class: use table 51
+    - Different super_asset_class: use table 50
+    """
     SYSTEMATIC_TRADER_ADJUSTMENT = 0.7
 
     sac_a = a["super_asset_class"]
@@ -183,12 +187,11 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
 
     # Both rates — use table 55 (bond duration correlations)
     if sac_a == "rates" and sac_b == "rates":
-        indexed = bond_correlations.set_index("asset")
         if sub_a == sub_b:
             return 1.0 * SYSTEMATIC_TRADER_ADJUSTMENT
         for row_key, col_key in [(sub_a, sub_b), (sub_b, sub_a)]:
             try:
-                val = indexed.loc[row_key, col_key]
+                val = bond_correlations.loc[row_key, col_key]
                 if val is not None and not (isinstance(val, float) and np.isnan(val)):
                     return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
             except KeyError:
@@ -202,28 +205,27 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
         if sub_a == sub_b:
             # Same region — use table 54
             if reg_a is not None and reg_a == reg_b:
-                indexed = sub_asset_class_region_correlations.set_index("asset")
-                if ac_a in indexed.index:
+                if ac_a in sub_asset_class_region_correlations.index:
                     return (
-                        float(indexed.loc[ac_a, "correlation"])
+                        float(
+                            sub_asset_class_region_correlations.loc[ac_a, "correlation"]
+                        )
                         * SYSTEMATIC_TRADER_ADJUSTMENT
                     )
 
             # Different region — use table 53
-            indexed = asset_class_region_correlations.set_index("asset")
-            if ac_a in indexed.index:
+            if ac_a in asset_class_region_correlations.index:
                 return (
-                    float(indexed.loc[ac_a, "correlation"])
+                    float(asset_class_region_correlations.loc[ac_a, "correlation"])
                     * SYSTEMATIC_TRADER_ADJUSTMENT
                 )
 
         # Different sub_asset_class within same super class
         # Commodities — use table 52
         if sac_a == "commodities":
-            indexed = sub_asset_correlations.set_index("asset")
             for row_key, col_key in [(sub_a, sub_b), (sub_b, sub_a)]:
                 try:
-                    val = indexed.loc[row_key, col_key]
+                    val = sub_asset_correlations.loc[row_key, col_key]
                     if val is not None and not (
                         isinstance(val, float) and np.isnan(val)
                     ):
@@ -232,20 +234,18 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
                     continue
 
         # Financials (rates, equities, fx) — use table 51
-        indexed = asset_correlations.set_index("asset")
         for row_key, col_key in [(ac_a, ac_b), (ac_b, ac_a)]:
             try:
-                val = indexed.loc[row_key, col_key]
+                val = asset_correlations.loc[row_key, col_key]
                 if val is not None and not (isinstance(val, float) and np.isnan(val)):
                     return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
             except KeyError:
                 continue
 
     # Different super_asset_class — use table 50
-    indexed = super_asset_correlations.set_index("asset")
     for row_key, col_key in [(sac_a, sac_b), (sac_b, sac_a)]:
         try:
-            val = indexed.loc[row_key, col_key]
+            val = super_asset_correlations.loc[row_key, col_key]
             if val is not None and not (isinstance(val, float) and np.isnan(val)):
                 return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
         except KeyError:
@@ -275,14 +275,10 @@ def calc_idm(instruments: list[dict]) -> float:
             )
     avg_corr = float(np.mean(pairwise))
 
-    n_values = diversification_multipliers["num_assets"].values
-    corr_cols = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+    n_values = diversification_multipliers.index.values
+    corr_cols = np.array(diversification_multipliers.columns.values, dtype=float)
 
     closest_n = int(n_values[n_values <= n][-1])
     closest_corr = float(corr_cols[corr_cols <= avg_corr][-1])
 
-    row = diversification_multipliers[
-        diversification_multipliers["num_assets"] == closest_n
-    ].iloc[0]
-
-    return min(float(row[closest_corr]), 2.5)
+    return min(float(diversification_multipliers.loc[closest_n, closest_corr]), 2.5)
