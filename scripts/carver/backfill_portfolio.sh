@@ -16,7 +16,7 @@ while [[ "$current" < "$END_DATE" || "$current" == "$END_DATE" ]]; do
         echo "Processing $current..."
 
         # Fire forecast generation
-        curl -s -X POST "$FLOWER_URL/api/task/async-apply/app.tasks.portfolio.generate_ewmac_forecasts" \
+        curl -s -X POST "$FLOWER_URL/api/task/async-apply/app.tasks.portfolio.generate_forecasts_task" \
             -H "Content-Type: application/json" \
             -d "{\"kwargs\": {\"as_of\": \"$current\"}}" > /dev/null
 

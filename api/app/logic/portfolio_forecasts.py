@@ -55,7 +55,7 @@ async def get_portfolio_forecasts(lookback_days: int = 180) -> dict:
 async def _fetch_active_instruments() -> list[dict[str, str]]:
     sql = text("""
         SELECT symbol, label
-        FROM = instruments
+        FROM instruments
         WHERE is_active = TRUE
         ORDER BY label
     """)
