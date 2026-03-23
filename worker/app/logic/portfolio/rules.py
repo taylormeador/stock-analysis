@@ -1,20 +1,22 @@
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from typing import Callable
 
 import numpy as np
 
+from app.logic.portfolio.ewmac import run_ewmac_variation
 from app.logic.portfolio.tables import (
-    ewmac_correlations,
-    carry_correlations,
-    rule_correlations,
-    diversification_multipliers,
-    super_asset_correlations,
-    asset_correlations,
-    sub_asset_correlations,
-    sub_asset_class_region_correlations,
     asset_class_region_correlations,
+    asset_correlations,
     bond_correlations,
+    carry_correlations,
+    diversification_multipliers,
+    ewmac_correlations,
+    rule_correlations,
+    sub_asset_class_region_correlations,
+    sub_asset_correlations,
+    super_asset_correlations,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,7 @@ class Rule(Enum):
 class RuleVariation:
     rule: Rule
     description: str
+    forecaster: Callable
 
 
 def lookup_same_rule_correlation(
@@ -62,14 +65,17 @@ VARIATION_REGISTRY: dict[str, RuleVariation] = {
     "ewmac_8_32": RuleVariation(
         rule=Rule.EWMAC,
         description="EWMAC fast 8 slow 32 - Captures shorter term trends",
+        forecaster=run_ewmac_variation,
     ),
     "ewmac_16_64": RuleVariation(
         rule=Rule.EWMAC,
         description="EWMAC fast 16 slow 64 - Captures medium term trends",
+        forecaster=run_ewmac_variation,
     ),
     "ewmac_32_128": RuleVariation(
         rule=Rule.EWMAC,
         description="EWMAC fast 32 slow 128 - Captures longer term trends",
+        forecaster=run_ewmac_variation,
     ),
 }
 
@@ -164,25 +170,20 @@ def calc_fdm(rule_names: list[str]) -> float:
 
 
 def lookup_instrument_correlation(a: dict, b: dict) -> float:
-    """
-    Return the correlation between two instrument trading subsystems using
-    Carver's hierarchy of correlation tables (tables 50-55), multiplied by
-    0.7 per Carver's recommendation for systematic traders.
-
-    Decision tree from most specific to least specific:
-    - Both rates: use table 55 (bond duration correlations)
-    - Same super_asset_class, sub_asset_class, region: use table 54
-    - Same super_asset_class, sub_asset_class: use table 52 (commodities) or 53 (financials)
-    - Same super_asset_class: use table 51
-    - Different super_asset_class: use table 50
-    """
     SYSTEMATIC_TRADER_ADJUSTMENT = 0.7
 
+    sac_a = a["super_asset_class"]
+    sac_b = b["super_asset_class"]
+    ac_a = a["asset_class"]
+    ac_b = b["asset_class"]
+    sub_a = a["sub_asset_class"]
+    sub_b = b["sub_asset_class"]
+    reg_a = a["region"]
+    reg_b = b["region"]
+
     # Both rates — use table 55 (bond duration correlations)
-    if a["super_asset_class"] == "rates" and b["super_asset_class"] == "rates":
+    if sac_a == "rates" and sac_b == "rates":
         indexed = bond_correlations.set_index("asset")
-        sub_a = a["sub_asset_class"]
-        sub_b = b["sub_asset_class"]
         if sub_a == sub_b:
             return 1.0 * SYSTEMATIC_TRADER_ADJUSTMENT
         for row_key, col_key in [(sub_a, sub_b), (sub_b, sub_a)]:
@@ -192,36 +193,34 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
                     return float(val) * SYSTEMATIC_TRADER_ADJUSTMENT
             except KeyError:
                 continue
+        logger.warning(f"Bond correlation not found for {sub_a} vs {sub_b}, using 0.5")
+        return 0.5 * SYSTEMATIC_TRADER_ADJUSTMENT
 
     # Same super_asset_class
-    if a["super_asset_class"] == b["super_asset_class"]:
+    if sac_a == sac_b:
         # Same sub_asset_class
-        if a["sub_asset_class"] == b["sub_asset_class"]:
+        if sub_a == sub_b:
             # Same region — use table 54
-            if a["region"] is not None and a["region"] == b["region"]:
+            if reg_a is not None and reg_a == reg_b:
                 indexed = sub_asset_class_region_correlations.set_index("asset")
-                key = a["asset_class"]
-                if key in indexed.index:
+                if ac_a in indexed.index:
                     return (
-                        float(indexed.loc[key, "correlation"])
+                        float(indexed.loc[ac_a, "correlation"])
                         * SYSTEMATIC_TRADER_ADJUSTMENT
                     )
 
             # Different region — use table 53
             indexed = asset_class_region_correlations.set_index("asset")
-            key = a["asset_class"]
-            if key in indexed.index:
+            if ac_a in indexed.index:
                 return (
-                    float(indexed.loc[key, "correlation"])
+                    float(indexed.loc[ac_a, "correlation"])
                     * SYSTEMATIC_TRADER_ADJUSTMENT
                 )
 
         # Different sub_asset_class within same super class
         # Commodities — use table 52
-        if a["super_asset_class"] == "commodities":
+        if sac_a == "commodities":
             indexed = sub_asset_correlations.set_index("asset")
-            sub_a = a["sub_asset_class"]
-            sub_b = b["sub_asset_class"]
             for row_key, col_key in [(sub_a, sub_b), (sub_b, sub_a)]:
                 try:
                     val = indexed.loc[row_key, col_key]
@@ -234,8 +233,6 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
 
         # Financials (rates, equities, fx) — use table 51
         indexed = asset_correlations.set_index("asset")
-        ac_a = a["asset_class"]
-        ac_b = b["asset_class"]
         for row_key, col_key in [(ac_a, ac_b), (ac_b, ac_a)]:
             try:
                 val = indexed.loc[row_key, col_key]
@@ -246,8 +243,6 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
 
     # Different super_asset_class — use table 50
     indexed = super_asset_correlations.set_index("asset")
-    sac_a = a["super_asset_class"]
-    sac_b = b["super_asset_class"]
     for row_key, col_key in [(sac_a, sac_b), (sac_b, sac_a)]:
         try:
             val = indexed.loc[row_key, col_key]

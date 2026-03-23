@@ -3,16 +3,16 @@ from datetime import date, datetime
 
 from app.celery_app import app
 from app.utils import TaskStatusTracker
-import app.logic.portfolio.ewmac as ewmac
 import app.logic.portfolio.portfolio as portfolio
+import app.logic.portfolio.forecasts as forecasts
 
 logger = logging.getLogger(__name__)
 
 
 @app.task(bind=True)
-def generate_ewmac_forecasts(
+def generate_forecasts(
     self,
-    variations: list[str],
+    variations: list[str] | None = None,
     as_of: str | None = None,
     symbols: list[str] | None = None,
 ):
@@ -26,15 +26,15 @@ def generate_ewmac_forecasts(
     """
     tracker = TaskStatusTracker(
         task_id=self.request.id,
-        component_name="EWMAC Forecast Generation",
-        task_description="Generates trend following forecasts for futures instruments",
+        component_name="Forecast Generation",
+        task_description="Generates forecasts for trading strategy variations",
     )
     tracker.start_task()
 
     parsed_date = datetime.strptime(as_of, "%Y-%m-%d").date() if as_of else date.today()
 
     try:
-        ewmac.run_ewmac_forecasts(
+        forecasts.generate_forecasts(
             tracker=tracker,
             as_of=parsed_date,
             variations=variations,
