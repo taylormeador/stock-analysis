@@ -7,7 +7,7 @@ import app.database.db as db
 from app.logic.portfolio.utils import fetch_active_instruments, fetch_instruments
 from app.logic.portfolio.ewmac import LOOKBACK_DAYS
 from app.logic.portfolio.utils import fetch_prices
-from app.logic.portfolio import rules
+from app.logic.portfolio.rules import VariationRegistry
 from app.utils import TaskStatusTracker
 
 logger = logging.getLogger(__name__)
@@ -33,16 +33,28 @@ def generate_forecasts(
     symbols: list[str] | None = None,
 ) -> None:
     """
-    Generate forecasts for all variations on a given date.
+    Generate forecasts for all active variations on a given date.
 
     Args:
         tracker:    Task status tracker.
         as_of:      Date to generate forecasts for.
-        variations: Variation names to run. Defaults to all registered variations.
+        variations: Variation names to run. Defaults to all active in DB.
         symbols:    Restrict to a subset of symbols. Defaults to all active instruments.
     """
-    if variations is None:
-        variations = list(rules.VARIATION_REGISTRY.keys())
+    # Load registry once at task start — raises if any active variation
+    # has no registered callable
+    with db.get_connection() as conn:
+        registry = VariationRegistry.load(conn)
+
+    # Resolve which variations to run
+    if variations is not None:
+        # Validate all requested variations exist in registry
+        variation_names = []
+        for name in variations:
+            registry.get(name)  # raises ValueError if not found
+            variation_names.append(name)
+    else:
+        variation_names = registry.names()
 
     if symbols is not None:
         instruments = fetch_instruments(symbols)
@@ -54,9 +66,9 @@ def generate_forecasts(
         tracker.update_status_message("No instruments found")
         return
 
-    if not variations:
-        logger.warning("No variations provided")
-        tracker.update_status_message("No variations provided")
+    if not variation_names:
+        logger.warning("No variations to run")
+        tracker.update_status_message("No variations to run")
         return
 
     rows = []
@@ -79,9 +91,9 @@ def generate_forecasts(
             logger.warning(f"Insufficient price history for {symbol}, skipping")
             continue
 
-        for variation_name in variations:
+        for variation_name in variation_names:
             try:
-                variation = rules.get_variation(variation_name)
+                variation = registry.get(variation_name)
                 result = variation.forecaster(variation_name, prices, as_of)
                 if result is None:
                     logger.warning(

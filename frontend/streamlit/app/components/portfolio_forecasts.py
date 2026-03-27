@@ -1,13 +1,5 @@
 """
-Portfolio forecast visualization component.
-
-Shows a two-panel chart:
-  - Top: price with EMA overlays
-  - Bottom: individual forecast lines + combined forecast
-
-Also provides:
-  - position_over_time_chart: desired position per instrument over time
-  - latest_positions_table: most recent recommendations
+Portfolio forecast visualization components.
 """
 
 import pandas as pd
@@ -20,12 +12,7 @@ from styles import colors
 def build_chart(
     prices_df: pd.DataFrame, forecasts_df: pd.DataFrame, label: str
 ) -> go.Figure:
-    """
-    Build a two-panel linked chart for a single instrument.
-
-    prices_df: columns [date, close]
-    forecasts_df: columns [date, rule_name, scaled_value]
-    """
+    """Two-panel chart: price + EMAs (top), forecast lines (bottom)."""
     rule_names = forecasts_df["rule_name"].unique().tolist()
 
     fig = make_subplots(
@@ -37,7 +24,6 @@ def build_chart(
         subplot_titles=(f"{label} — Price & EMAs", "Forecast Strength"),
     )
 
-    # ── Panel 1: Price ──────────────────────────────────────────────────
     fig.add_trace(
         go.Scatter(
             x=prices_df["date"],
@@ -50,27 +36,14 @@ def build_chart(
         col=1,
     )
 
-    ema_palette = [
-        "#00FF41",
-        "#58A6FF",
-        "#FF9900",
-        "#FF6B9D",
-        "#C5B0D5",
-        "#17BECF",
-    ]
-    ema_spans = []
-
+    ema_palette = ["#00FF41", "#58A6FF", "#FF9900", "#FF6B9D", "#C5B0D5", "#17BECF"]
+    seen_spans = []
     for rule in rule_names:
         parts = rule.split("_")
         if len(parts) == 3:
-            ema_spans.append((int(parts[1]), int(parts[2]), rule))
-
-    seen_spans = []
-    for fast, slow, rule in ema_spans:
-        if fast not in seen_spans:
-            seen_spans.append(fast)
-        if slow not in seen_spans:
-            seen_spans.append(slow)
+            for span in (int(parts[1]), int(parts[2])):
+                if span not in seen_spans:
+                    seen_spans.append(span)
 
     for idx, span in enumerate(seen_spans):
         ema = prices_df["close"].ewm(span=span, adjust=False).mean()
@@ -89,9 +62,7 @@ def build_chart(
             col=1,
         )
 
-    # ── Panel 2: Forecasts ───────────────────────────────────────────────
     forecast_palette = ["#FF9900", "#C5B0D5", "#17BECF", "#FF6B9D"]
-
     for idx, rule in enumerate(rule_names):
         rule_df = forecasts_df[forecasts_df["rule_name"] == rule].sort_values("date")
         fig.add_trace(
@@ -158,18 +129,12 @@ def build_chart(
     fig.update_xaxes(gridcolor="rgba(0, 255, 65, 0.08)", showgrid=True)
     fig.update_yaxes(gridcolor="rgba(0, 255, 65, 0.08)", showgrid=True)
     fig.update_yaxes(title_text="Forecast", range=[-22, 22], row=2, col=1)
-
     return fig
 
 
 def position_over_time_chart(calculations_df: pd.DataFrame) -> go.Figure:
-    """
-    Line chart showing desired_position over time, one line per instrument.
-
-    calculations_df: columns include [symbol, date, desired_position]
-    """
+    """Line chart: desired position over time, one line per instrument."""
     fig = go.Figure()
-
     line_palette = [
         "#00FF41",
         "#58A6FF",
@@ -184,10 +149,7 @@ def position_over_time_chart(calculations_df: pd.DataFrame) -> go.Figure:
         "#98df8a",
         "#ff9896",
     ]
-
-    symbols = sorted(calculations_df["symbol"].unique())
-
-    for idx, symbol in enumerate(symbols):
+    for idx, symbol in enumerate(sorted(calculations_df["symbol"].unique())):
         sym_df = calculations_df[calculations_df["symbol"] == symbol].sort_values(
             "date"
         )
@@ -207,14 +169,7 @@ def position_over_time_chart(calculations_df: pd.DataFrame) -> go.Figure:
             )
         )
 
-    # Zero line
-    fig.add_hline(
-        y=0,
-        line_dash="solid",
-        line_color=colors.bright_green,
-        opacity=0.3,
-    )
-
+    fig.add_hline(y=0, line_dash="solid", line_color=colors.bright_green, opacity=0.3)
     fig.update_layout(
         height=500,
         plot_bgcolor=colors.dark_bg,
@@ -233,19 +188,18 @@ def position_over_time_chart(calculations_df: pd.DataFrame) -> go.Figure:
     )
     fig.update_xaxes(gridcolor="rgba(0, 255, 65, 0.08)", showgrid=True)
     fig.update_yaxes(gridcolor="rgba(0, 255, 65, 0.08)", showgrid=True)
-
     return fig
 
 
 def latest_positions_table(calculations_df: pd.DataFrame) -> None:
-    """Render the most recent day's portfolio recommendations as a styled table."""
+    """Most recent day's recommendations as a styled table."""
     latest_date = calculations_df["date"].max()
-    latest = calculations_df[calculations_df["date"] == latest_date].copy()
-
-    latest = latest.sort_values("combined_forecast", ascending=False).reset_index(
-        drop=True
+    latest = (
+        calculations_df[calculations_df["date"] == latest_date]
+        .copy()
+        .sort_values("combined_forecast", ascending=False)
+        .reset_index(drop=True)
     )
-
     display = latest[
         [
             "symbol",
@@ -267,13 +221,13 @@ def latest_positions_table(calculations_df: pd.DataFrame) -> None:
             "date": "As Of",
         }
     )
-
     display["Contracts"] = display["Contracts"].astype(int)
     display["Forecast"] = display["Forecast"].round(2)
     display["Price"] = display["Price"].round(2)
     display["Daily Vol"] = display["Daily Vol"].round(4)
     display["Vol Scalar"] = display["Vol Scalar"].round(2)
     display["As Of"] = display["As Of"].astype(str)
-
-    st.caption(f"As of **{latest_date.date()}**")
+    st.caption(
+        f"As of **{latest_date if isinstance(latest_date, str) else latest_date.date()}**"
+    )
     st.dataframe(display, use_container_width=True, hide_index=True)

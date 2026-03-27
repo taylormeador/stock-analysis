@@ -111,14 +111,17 @@ INSERT INTO instruments (symbol, label, multiplier, asset_class, notes) VALUES
 
 ON CONFLICT (symbol) DO NOTHING;
 
-CREATE TABLE strategies (
-    id              SERIAL PRIMARY KEY,
-    strategy_type   VARCHAR(50)  NOT NULL,
-    parameters      JSONB        NOT NULL,
-    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-    notes           TEXT,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+CREATE TABLE rule_variations (
+    name        VARCHAR(50)  PRIMARY KEY,
+    rule        VARCHAR(20)  NOT NULL,  -- 'ewmac', 'carry', etc.
+    description TEXT         NOT NULL,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE
 );
+
+INSERT INTO rule_variations (name, rule, description) VALUES
+    ('ewmac_8_32',   'ewmac', 'EWMAC fast=8  slow=32  — short-term trends'),
+    ('ewmac_16_64',  'ewmac', 'EWMAC fast=16 slow=64  — medium-term trends'),
+    ('ewmac_32_128', 'ewmac', 'EWMAC fast=32 slow=128 — long-term trends');
 
 CREATE TABLE instrument_vol (
     id              SERIAL PRIMARY KEY,

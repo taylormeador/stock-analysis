@@ -1,10 +1,3 @@
-"""
-S3 data fetching utilities for Streamlit dashboard.
-
-Handles fetching JSON data from S3 with intelligent caching based on
-the last_updated timestamp in metadata.
-"""
-
 import logging
 import os
 from typing import Dict
@@ -13,7 +6,6 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import streamlit as st
-
 import requests
 
 API_URL = os.environ["API_URL"]
@@ -38,6 +30,18 @@ def get_json(endpoint: str) -> Dict:
             logger.exception("error getting data from API")
 
     return {"data": []}
+
+
+def post_json(endpoint: str, payload: dict) -> Dict:
+    url = API_URL + endpoint
+    try:
+        response = requests.post(url=url, json=payload)
+        if response.ok:
+            return response.json()
+        logger.info(f"POST error {response.status_code}: {response.text}")
+    except:
+        logger.exception("error posting to API")
+    return {"data": None}
 
 
 @st.fragment(run_every="30s")

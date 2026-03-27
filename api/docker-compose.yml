@@ -11,6 +11,7 @@ services:
       - ASYNC_STOCK_ANALYSIS_DB=${ASYNC_STOCK_ANALYSIS_DB}
       - REDIS_URL=${REDIS_URL}
       - PROMETHEUS_URL=${PROMETHEUS_URL}
+      - FLOWER_URL=${FLOWER_URL}
       - PYTHONPATH=/app
     volumes:
       - ./app:/app/app

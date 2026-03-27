@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 @app.task(bind=True)
 def generate_forecasts(
     self,
-    variations: list[str] | None = None,
     as_of: str | None = None,
+    variations: list[str] | None = None,
     symbols: list[str] | None = None,
 ):
     """
     Generate EWMAC forecasts for a given date.
 
     Args:
-        variations: Rule variation names to run, e.g. ['ewmac_8_32', 'ewmac_16_64'].
         as_of:      Date string YYYY-MM-DD. Defaults to today.
+        variations: Rule variation names to run. Defaults to all active in DB.
         symbols:    Restrict to a subset of symbols. Defaults to all active instruments.
     """
     tracker = TaskStatusTracker(
@@ -44,7 +44,7 @@ def generate_forecasts(
         return True
 
     except Exception as e:
-        logger.exception("error while generating EWMAC forecasts: ")
+        logger.exception("error while generating forecasts: ")
         tracker.fail_task(str(e))
         raise
 
@@ -52,36 +52,46 @@ def generate_forecasts(
 @app.task(bind=True)
 def run_portfolio_calculations(
     self,
+    start_date: str,
+    end_date: str,
+    run_id: str,
+    capital: float,
     variations: list[str] | None = None,
-    as_of: str | None = None,
     symbols: list[str] | None = None,
-    capital: float | None = None,
+    vol_target_pct: float = 0.20,
 ):
     """
-    Run portfolio calculations for a given date.
+    Run portfolio calculations for a date range.
 
     Args:
-        variations: Rule variation names to combine, e.g. ['ewmac_8_32', 'ewmac_16_64'].
-        as_of:      Date string YYYY-MM-DD. Defaults to today.
-        symbols:    Restrict to a subset of symbols. Defaults to all active instruments.
-        capital:    Trading capital in dollars. If None, reads from portfolio table.
+        start_date:     ISO date string YYYY-MM-DD.
+        end_date:       ISO date string YYYY-MM-DD.
+        run_id:         Human-readable label for this batch, e.g. 'full_universe_2026'.
+        capital:        Trading capital in dollars. Always required.
+        variations:     Rule variation names to combine. Defaults to all active in DB.
+        symbols:        Restrict to a subset of symbols. Defaults to all active instruments.
+        vol_target_pct: Annualized vol target as a fraction.
     """
     tracker = TaskStatusTracker(
         task_id=self.request.id,
         component_name="Portfolio Calculations",
-        task_description="Computes target positions for all active instruments",
+        task_description=f"Portfolio calcs [{run_id}]",
     )
     tracker.start_task()
 
-    parsed_date = datetime.strptime(as_of, "%Y-%m-%d").date() if as_of else date.today()
+    parsed_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+    parsed_end = datetime.strptime(end_date, "%Y-%m-%d").date()
 
     try:
         portfolio.run_portfolio_calculations(
             tracker=tracker,
-            as_of=parsed_date,
+            start_date=parsed_start,
+            end_date=parsed_end,
+            run_id=run_id,
+            capital=capital,
             variations=variations,
             symbols=symbols,
-            capital=capital,
+            vol_target_pct=vol_target_pct,
         )
         tracker.complete_task()
         return True

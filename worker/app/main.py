@@ -86,7 +86,22 @@ app.conf.beat_schedule = {
     },
     "get-futures-data": {
         "task": "app.tasks.apis.ingest_futures_prices",
-        "schedule": crontab(hour="8", minute="0"),
+        "schedule": crontab(hour="*", minute="0"),
+    },
+    # Daily portfolio pipeline — forecasts first, then calculations
+    "generate-daily-forecasts": {
+        "task": "app.tasks.portfolio.generate_forecasts",
+        "kwargs": {"as_of": today_str},
+        "schedule": crontab(hour="8", minute="30"),
+    },
+    "run-daily-portfolio-calculations": {
+        "task": "app.tasks.portfolio.run_portfolio_calculations",
+        "kwargs": {
+            "start_date": today_str,
+            "end_date": today_str,
+            "run_id": "daily",
+        },
+        "schedule": crontab(hour="8", minute="45"),
     },
 }
 

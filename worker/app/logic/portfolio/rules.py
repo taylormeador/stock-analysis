@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Callable
 
 import numpy as np
+from sqlalchemy import text
 
 from app.logic.portfolio.ewmac import run_ewmac_variation
 from app.logic.portfolio.tables import (
@@ -29,9 +30,94 @@ class Rule(Enum):
 
 @dataclass
 class RuleVariation:
+    name: str
     rule: Rule
     description: str
     forecaster: Callable
+
+
+class VariationRegistry:
+    """
+    Loads active rule variations from the database and resolves their
+    forecaster callables. Raises ValueError on init if any active variation
+    references a rule with no registered callable.
+
+    Usage (once per task invocation):
+        with db.get_connection() as conn:
+            registry = VariationRegistry.load(conn)
+    """
+
+    def __init__(self, variations: list[RuleVariation]):
+        self._variations: dict[str, RuleVariation] = {v.name: v for v in variations}
+
+    @classmethod
+    def load(cls, conn) -> "VariationRegistry":
+        """
+        Query active variations from the DB, resolve callables, and return
+        a populated VariationRegistry. Raises ValueError if any active
+        variation's rule has no registered callable.
+        """
+        sql = text("""
+            SELECT name, rule, description
+            FROM rule_variations
+            WHERE is_active = TRUE
+            ORDER BY name
+        """)
+        rows = conn.execute(sql).fetchall()
+
+        if not rows:
+            raise RuntimeError("No active variations found in rule_variations table")
+
+        forecasters: dict[str, Callable] = {
+            "ewmac": run_ewmac_variation,
+            # "carry": run_carry_variation,  # uncomment when carry is implemented
+        }
+        variations = []
+        for row in rows:
+            forecaster_ = forecasters.get(row.rule)
+            if forecaster_ is None:
+                raise ValueError(
+                    f"Variation '{row.name}' references rule '{row.rule}' "
+                    f"which has no registered callable. "
+                    f"Registered rules: {list(forecasters.keys())}"
+                )
+            try:
+                rule_enum = Rule(row.rule)
+            except ValueError:
+                raise ValueError(
+                    f"Variation '{row.name}' has unknown rule '{row.rule}'. "
+                    f"Known rules: {[r.value for r in Rule]}"
+                )
+            variations.append(
+                RuleVariation(
+                    name=row.name,
+                    rule=rule_enum,
+                    description=row.description,
+                    forecaster=forecaster_,
+                )
+            )
+
+        logger.info(
+            f"Loaded {len(variations)} active variations from DB: "
+            f"{[v.name for v in variations]}"
+        )
+        return cls(variations)
+
+    def all(self) -> list[RuleVariation]:
+        return list(self._variations.values())
+
+    def names(self) -> list[str]:
+        return list(self._variations.keys())
+
+    def get(self, name: str) -> RuleVariation:
+        if name not in self._variations:
+            raise ValueError(
+                f"Unknown variation '{name}'. Active variations: {self.names()}"
+            )
+        return self._variations[name]
+
+
+# ── Correlation helpers ───────────────────────────────────────────────────────
 
 
 def lookup_same_rule_correlation(
@@ -61,43 +147,30 @@ def lookup_same_rule_correlation(
     return 0.5
 
 
-VARIATION_REGISTRY: dict[str, RuleVariation] = {
-    "ewmac_8_32": RuleVariation(
-        rule=Rule.EWMAC,
-        description="EWMAC fast 8 slow 32 - Captures shorter term trends",
-        forecaster=run_ewmac_variation,
-    ),
-    "ewmac_16_64": RuleVariation(
-        rule=Rule.EWMAC,
-        description="EWMAC fast 16 slow 64 - Captures medium term trends",
-        forecaster=run_ewmac_variation,
-    ),
-    "ewmac_32_128": RuleVariation(
-        rule=Rule.EWMAC,
-        description="EWMAC fast 32 slow 128 - Captures longer term trends",
-        forecaster=run_ewmac_variation,
-    ),
-}
+def lookup_variation_correlation(
+    variation_a: str,
+    variation_b: str,
+    registry: "VariationRegistry",
+) -> float:
+    """
+    Return the correlation between two variations.
+    Same rule uses the rule-specific correlation table.
+    Different rules use Carver's table 56 cross-style correlation of 0.25.
+    """
+    var_a = registry.get(variation_a)
+    var_b = registry.get(variation_b)
+
+    if var_a.rule == var_b.rule:
+        return lookup_same_rule_correlation(var_a.rule, variation_a, variation_b)
+
+    return float(rule_correlations.loc["different_styles", "correlation"])
 
 
-def get_variation(variation_name: str) -> RuleVariation:
-    if variation_name not in VARIATION_REGISTRY:
-        raise ValueError(
-            f"Unknown rule '{variation_name}'. "
-            f"Register it in VARIATION_REGISTRY before use. "
-            f"Known variations: {list(VARIATION_REGISTRY.keys())}"
-        )
-    return VARIATION_REGISTRY[variation_name]
-
-
-def calc_variation_weights(rule_names: list[str]) -> np.ndarray:
+def calc_variation_weights(
+    rule_names: list[str], registry: "VariationRegistry"
+) -> np.ndarray:
     """
     Derive forecast weights from Carver's correlation tables.
-
-    Builds the correlation matrix from table 57, inverts it, and sums
-    each row to get raw weights. Variations that are highly correlated
-    with others get downweighted. Weights are clipped to zero and
-    normalized to sum to 1.0.
     """
     n = len(rule_names)
     if n == 1:
@@ -106,7 +179,7 @@ def calc_variation_weights(rule_names: list[str]) -> np.ndarray:
     corr_matrix = np.ones((n, n))
     for i in range(n):
         for j in range(i + 1, n):
-            corr = lookup_variation_correlation(rule_names[i], rule_names[j])
+            corr = lookup_variation_correlation(rule_names[i], rule_names[j], registry)
             corr_matrix[i, j] = corr
             corr_matrix[j, i] = corr
 
@@ -116,42 +189,23 @@ def calc_variation_weights(rule_names: list[str]) -> np.ndarray:
     return raw_weights / raw_weights.sum()
 
 
-def lookup_variation_correlation(variation_a: str, variation_b: str) -> float:
-    """
-    Return the correlation between two variations.
-    Same rules uses the rule-specific correlation table.
-    Different rules use Carver's table 56 cross-style correlation of 0.25.
-    """
-    var_a = get_variation(variation_a)
-    var_b = get_variation(variation_b)
-
-    if var_a.rule == var_b.rule:
-        return lookup_same_rule_correlation(var_a.rule, variation_a, variation_b)
-
-    return float(rule_correlations.loc["different_styles", "correlation"])
-
-
-def calc_fdm(rule_names: list[str]) -> float:
+def calc_fdm(rule_names: list[str], registry: "VariationRegistry") -> float:
     """
     Look up the Forecast Diversification Multiplier for a list of rule variations.
-    Uses Carver's table 18 (forecast_diversification_multipliers) directly.
-
-    Computes average pairwise correlation from table 57, then looks up the
-    FDM from table 18 based on number of rules and that average correlation.
     Capped at 2.5 per Carver's recommendation.
     """
     n = len(rule_names)
     if n == 1:
         return 1.0
 
-    # Compute average pairwise correlation from table 57
     pairwise = []
     for i in range(n):
         for j in range(i + 1, n):
-            pairwise.append(lookup_variation_correlation(rule_names[i], rule_names[j]))
+            pairwise.append(
+                lookup_variation_correlation(rule_names[i], rule_names[j], registry)
+            )
     avg_corr = np.mean(pairwise)
 
-    # Lookup FDM in table 18
     n_values = diversification_multipliers.index.values
     corr_cols = np.array(diversification_multipliers.columns.values, dtype=float)
 
@@ -166,13 +220,6 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
     Return the correlation between two instrument trading subsystems using
     Carver's hierarchy of correlation tables (tables 50-55), multiplied by
     0.7 per Carver's recommendation for systematic traders.
-
-    Decision tree from most specific to least specific:
-    - Both rates: use table 55 (bond duration correlations)
-    - Same super_asset_class, sub_asset_class, region: use table 54
-    - Same super_asset_class, sub_asset_class: use table 52 (commodities) or 53 (financials)
-    - Same super_asset_class: use table 51
-    - Different super_asset_class: use table 50
     """
     SYSTEMATIC_TRADER_ADJUSTMENT = 0.7
 
@@ -201,9 +248,7 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
 
     # Same super_asset_class
     if sac_a == sac_b:
-        # Same sub_asset_class
         if sub_a == sub_b:
-            # Same region — use table 54
             if reg_a is not None and reg_a == reg_b:
                 if ac_a in sub_asset_class_region_correlations.index:
                     return (
@@ -212,16 +257,12 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
                         )
                         * SYSTEMATIC_TRADER_ADJUSTMENT
                     )
-
-            # Different region — use table 53
             if ac_a in asset_class_region_correlations.index:
                 return (
                     float(asset_class_region_correlations.loc[ac_a, "correlation"])
                     * SYSTEMATIC_TRADER_ADJUSTMENT
                 )
 
-        # Different sub_asset_class within same super class
-        # Commodities — use table 52
         if sac_a == "commodities":
             for row_key, col_key in [(sub_a, sub_b), (sub_b, sub_a)]:
                 try:
@@ -233,7 +274,6 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
                 except KeyError:
                     continue
 
-        # Financials (rates, equities, fx) — use table 51
         for row_key, col_key in [(ac_a, ac_b), (ac_b, ac_a)]:
             try:
                 val = asset_correlations.loc[row_key, col_key]
@@ -258,10 +298,7 @@ def lookup_instrument_correlation(a: dict, b: dict) -> float:
 def calc_idm(instruments: list[dict]) -> float:
     """
     Calculate the Instrument Diversification Multiplier using Carver's table 18.
-
-    Takes the full instrument metadata dicts so correlations can be looked up
-    from the appropriate table in the hierarchy. Uses equal weights across
-    instruments and the same floor lookup as calc_fdm. Capped at 2.5.
+    Capped at 2.5.
     """
     n = len(instruments)
     if n == 1:
