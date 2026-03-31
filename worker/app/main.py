@@ -94,12 +94,15 @@ app.conf.beat_schedule = {
         "kwargs": {"as_of": today_str},
         "schedule": crontab(hour="8", minute="30"),
     },
+    # This is a simulated portfolio that I want to track
     "run-daily-portfolio-calculations": {
         "task": "app.tasks.portfolio.run_portfolio_calculations",
         "kwargs": {
             "start_date": today_str,
             "end_date": today_str,
             "run_id": "daily",
+            "capital": 75000,
+            "symbols": ["/MES", "/MBT", "/ZC", "/MGC"],
         },
         "schedule": crontab(hour="8", minute="45"),
     },
