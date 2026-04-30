@@ -150,6 +150,7 @@ services:
     command: java -jar ThetaTerminalv3.jar
     ports:
       - "25503:25503"
+      - "25520:25520"
     restart: unless-stopped
     profiles: [brain]
 
