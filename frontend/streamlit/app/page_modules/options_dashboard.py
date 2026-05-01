@@ -251,25 +251,28 @@ with tab_live:
         strikes = surface_data["strikes"]
         expiries_dte = surface_data["expiries_dte"]
         iv_grid = np.array(surface_data["iv_grid"]) * 100
-        fig = go.Figure(go.Heatmap(
+        fig = go.Figure(go.Surface(
             x=strikes,
-            y=[f"{d}D" for d in expiries_dte],
+            y=expiries_dte,
             z=iv_grid,
             colorscale="RdYlGn_r",
             colorbar=dict(title="IV %", tickfont=dict(color=colors.text_gray)),
-            hovertemplate="Strike: %{x}<br>Expiry: %{y}<br>IV: %{z:.1f}%<extra></extra>",
-            zmin=10, zmax=30,
+            hovertemplate="Strike: %{x}<br>DTE: %{y}<br>IV: %{z:.1f}%<extra></extra>",
+            cmin=10, cmax=30,
         ))
         fig.update_layout(
-            xaxis_title="Strike",
-            yaxis_title="Days to Expiry",
+            scene=dict(
+                xaxis=dict(title="Strike", **axis_style),
+                yaxis=dict(title="DTE", **axis_style),
+                zaxis=dict(title="IV (%)", **axis_style),
+                bgcolor="#0d1117",
+            ),
             paper_bgcolor="#0d1117",
-            plot_bgcolor="#161b22",
             font=dict(color=colors.text_gray),
-            height=420,
+            height=540,
             margin=dict(l=0, r=0, t=10, b=10),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="live_vol_surface")
 
     live_surface()
 
