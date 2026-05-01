@@ -41,6 +41,11 @@ hacker_page = st.Page(
     title="Terminal",
     icon=":material/terminal:",
 )
+options_dashboard = st.Page(
+    page="page_modules/options_dashboard.py",
+    title="Options Dashboard",
+    icon=":material/candlestick_chart:",
+)
 
-pg = st.navigation([home_page, whats_hot, analysis_page, status_page, hacker_page])
+pg = st.navigation([home_page, whats_hot, analysis_page, options_dashboard, status_page, hacker_page])
 pg.run()

@@ -8,7 +8,7 @@ apply_custom_css()
 
 # Get data
 response = get_json("/home")
-data = response.get('data', {})
+data = response.get("data", {})
 if not data:
     st.error(":material/error: No data found")
     st.stop()
@@ -149,7 +149,7 @@ with col2:
         etl_task_statuses = pd.DataFrame(etl_task_statuses)
 
         # Show compact status for each component
-        for _, row in df.head(9).iterrows():
+        for _, row in etl_task_statuses.head(9).iterrows():
             col_a, col_b, col_c = st.columns([2, 1, 1])
 
             with col_a:
@@ -311,13 +311,14 @@ with st.sidebar:
 
     st.markdown("### :material/dns: System Health")
 
-    if etl_task_statuses:
-
+    if not etl_task_statuses.empty:
         # Calculate health metrics
-        total_tasks = len(df)
-        completed = len(df[df["status"] == "Complete"])
-        in_progress = len(df[df["status"] == "In Progress"])
-        failed = len(df[df["status"] == "Failed"])
+        total_tasks = len(etl_task_statuses)
+        completed = len(etl_task_statuses[etl_task_statuses["status"] == "Complete"])
+        in_progress = len(
+            etl_task_statuses[etl_task_statuses["status"] == "In Progress"]
+        )
+        failed = len(etl_task_statuses[etl_task_statuses["status"] == "Failed"])
 
         if failed > 0:
             st.error(f":material/error: {failed} failed tasks")
@@ -333,7 +334,7 @@ with st.sidebar:
                 f"**Workers:** {stats['active_workers']}/{stats['total_workers']} healthy"
             )
             st.caption(f"**Queue depth:** {stats['queue_depth']}")
-        st.caption(f"**Success rate:** {(completed/total_tasks)*100:.1f}%")
+        st.caption(f"**Success rate:** {(completed / total_tasks) * 100:.1f}%")
 
     st.divider()
 

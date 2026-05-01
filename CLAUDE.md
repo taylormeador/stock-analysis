@@ -108,7 +108,21 @@ The `streamer/` service is a Rust low-latency market data pipeline. Its primary 
 
 **Key monitoring metric:** `ss -tn` `Recv-Q` on the WebSocket connection — zero means the receive loop is keeping up. Ring buffer fill % is the next bottleneck to watch.
 
-**Frontend stub** at `frontend/streamlit/app/page_modules/options_dashboard.py` — mock vol surface + latency panel + anomaly log, refreshing every 5s via `@st.fragment(run_every="5s")`. Swap mock generators for real pipeline reads as the Rust service matures.
+**Python benchmark pipeline** at `streamer/python_pipeline.py` — asyncio pipeline that is the baseline to beat with the Rust service:
+- Generator fires synthetic option ticks at a configurable rate (`TICK_RATE`, default 5000/sec)
+- Each tick → BSM Newton-Raphson inversion (pure Python, no scipy) → surface cell update → anomaly detection
+- Three anomaly checks: ATM IV z-score per expiry, calendar spread violation (total variance monotonicity), skew inversion
+- Records `perf_counter_ns()` timestamps at each stage boundary → publishes real p50/p99/p999 latencies to Redis
+- Writes `options:vol_surface`, `options:anomalies`, `options:pipeline_metrics` to Redis every second
+
+Run: `pip install redis && TICK_RATE=5000 REDIS_URL=redis://10.0.10.127:6379/0 python streamer/python_pipeline.py`
+
+**API endpoints** (read from Redis, served by FastAPI):
+- `GET /api/options/vol-surface`
+- `GET /api/options/anomalies`
+- `GET /api/options/pipeline-metrics`
+
+**Frontend** at `frontend/streamlit/app/page_modules/options_dashboard.py` — consumes the real API endpoints, refreshing every 5s via `@st.fragment`. Falls back to mock data when the pipeline is not running (shown with 🔴 indicator).
 
 ## Environment Variables
 

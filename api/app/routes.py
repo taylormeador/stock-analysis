@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
 import app.logic.etl_status as etl_status
+import app.logic.options as options
 import app.logic.prometheus as prometheus
 import app.logic.whats_hot as whats_hot
 import app.logic.portfolio_forecasts as portfolio_forecasts
@@ -165,6 +166,24 @@ async def trigger_portfolio_calculations(
     except Exception as e:
         logger.exception(f"Unexpected error submitting task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/options/vol-surface")
+async def get_vol_surface():
+    data = await asyncio.to_thread(options.get_vol_surface)
+    return {"data": data}
+
+
+@router.get("/options/anomalies")
+async def get_anomalies():
+    data = await asyncio.to_thread(options.get_anomalies)
+    return {"data": data}
+
+
+@router.get("/options/pipeline-metrics")
+async def get_pipeline_metrics():
+    data = await asyncio.to_thread(options.get_pipeline_metrics)
+    return {"data": data}
 
 
 @router.get("/backtest")
