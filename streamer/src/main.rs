@@ -21,18 +21,34 @@ async fn main() {
         \"msg_type\": \"STREAM\",
         \"sec_type\": \"OPTION\",
         \"req_type\": \"TRADE\",
-        \"add\": false,
-        \"id\": 1,
+        \"add\": true,
+        \"id\": 6,
         \"contract\": {
-            \"root\": \"SPXW\",
-            \"expiration\": 20270315,
-            \"strike\": 6800000,
+            \"root\": \"SPX\",
+            \"expiration\": 20260515,
+            \"strike\": 7250000,
             \"right\": \"C\"
         }
     }";
     write.send(Message::Text(payload.into())).await.expect("Failed to send payload");
 
-    while let Some(msg) = read.next().await {
-        println!("{:?}", msg);
+    // race between interrupt and message received
+    loop {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                // TODO cleanup and exit
+                println!("ctrl-c");
+                let stop_payload = "{
+                        \"msg_type\": \"STOP\"
+                    }";
+                write.send(Message::Text(stop_payload.into())).await.expect("Failed to send payload");
+                println!("stopped all streams");
+                break;
+            }
+            msg = read.next() => {
+                println!("{:?}", msg);
+            }
+        }
     }
+    
 }
