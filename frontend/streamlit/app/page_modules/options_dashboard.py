@@ -168,15 +168,32 @@ def _mock_anomalies() -> list:
 st.title(":material/candlestick_chart: Options Dashboard")
 st.divider()
 
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("SPX", f"{_SPX_LEVEL:,.1f}")
-with col2:
-    st.metric("Surface", f"{len(_STRIKES) * len(_EXPIRIES_DTE):,} contracts")
-with col3:
-    st.metric("Strikes", f"{len(_STRIKES)} ({_STRIKES[0]:.0f}–{_STRIKES[-1]:.0f})")
-with col4:
-    st.metric("Expiries", f"{len(_EXPIRIES_DTE)} ({_EXPIRIES_DTE[0]}–{_EXPIRIES_DTE[-1]} DTE)")
+@st.fragment(run_every="5s")
+def header_metrics():
+    surface_data = (get_json("/options/vol-surface").get("data") or {})
+    metrics_data = (get_json("/options/pipeline-metrics").get("data") or {})
+
+    strikes = surface_data.get("strikes") or []
+    expiries = surface_data.get("expiries_dte") or []
+    spx = metrics_data.get("spx_level")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("SPX", f"{spx:,.1f}" if spx else "—")
+    with col2:
+        st.metric("Surface", f"{len(strikes) * len(expiries):,} contracts" if strikes else "—")
+    with col3:
+        if strikes:
+            st.metric("Strikes", f"{len(strikes)} ({min(strikes):,.0f}–{max(strikes):,.0f})")
+        else:
+            st.metric("Strikes", "—")
+    with col4:
+        if expiries:
+            st.metric("Expiries", f"{len(expiries)} ({min(expiries)}–{max(expiries)} DTE)")
+        else:
+            st.metric("Expiries", "—")
+
+header_metrics()
 
 st.divider()
 

@@ -415,6 +415,7 @@ async def publisher(
             anomalies_payload = json.dumps(list(anomaly_log))
             metrics_payload = json.dumps(
                 {
+                    "spx_level": _spx_level,
                     "ticks_received": ticks_received,
                     "ticks_processed": ticks_processed,
                     "lag": ticks_received - ticks_processed,
