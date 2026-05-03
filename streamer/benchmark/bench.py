@@ -21,12 +21,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 import psycopg2
 import redis
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "")
 DB_URL = os.getenv("STOCK_ANALYSIS_DB", "")
 
 
@@ -40,7 +40,9 @@ def _wait_for_pipeline(rc: redis.Redis, timeout: int = 30) -> None:
             return
         print(".", end="", flush=True)
         time.sleep(1.0)
-    raise SystemExit(f"\n[bench] pipeline did not appear in Redis within {timeout}s — is it running?")
+    raise SystemExit(
+        f"\n[bench] pipeline did not appear in Redis within {timeout}s — is it running?"
+    )
 
 
 def _read(rc: redis.Redis) -> dict:
@@ -58,8 +60,13 @@ def _countdown(seconds: int, label: str) -> None:
         time.sleep(1.0)
 
 
-def _write_result(run_id: str, args: argparse.Namespace, metrics: dict,
-                  start_snap: dict, end_snap: dict) -> None:
+def _write_result(
+    run_id: str,
+    args: argparse.Namespace,
+    metrics: dict,
+    start_snap: dict,
+    end_snap: dict,
+) -> None:
     ticks_in_window = end_snap["ticks_processed"] - start_snap["ticks_processed"]
     throughput = ticks_in_window / args.duration
     metrics["observed_throughput_per_s"] = round(throughput, 1)
@@ -68,11 +75,17 @@ def _write_result(run_id: str, args: argparse.Namespace, metrics: dict,
     print(f"[bench] ── results ──────────────────────────────────────────────")
     print(f"[bench] run_id          : {run_id}")
     print(f"[bench] version_tag     : {args.version_tag}")
-    print(f"[bench] ticks processed : {ticks_in_window:,}  ({throughput:,.0f} ticks/sec)")
-    print(f"[bench] BSM      p50 / p99 / p999 : "
-          f"{metrics['bsm_p50_us']} / {metrics['bsm_p99_us']} / {metrics['bsm_p999_us']} μs")
-    print(f"[bench] pipeline p50 / p99 / p999 : "
-          f"{metrics['pipeline_p50_us']} / {metrics['pipeline_p99_us']} / {metrics['pipeline_p999_us']} μs")
+    print(
+        f"[bench] ticks processed : {ticks_in_window:,}  ({throughput:,.0f} ticks/sec)"
+    )
+    print(
+        f"[bench] BSM      p50 / p99 / p999 : "
+        f"{metrics['bsm_p50_us']} / {metrics['bsm_p99_us']} / {metrics['bsm_p999_us']} μs"
+    )
+    print(
+        f"[bench] pipeline p50 / p99 / p999 : "
+        f"{metrics['pipeline_p50_us']} / {metrics['pipeline_p99_us']} / {metrics['pipeline_p999_us']} μs"
+    )
 
     if not DB_URL:
         print("[bench] STOCK_ANALYSIS_DB not set — skipping DB write")
@@ -105,12 +118,20 @@ def _write_result(run_id: str, args: argparse.Namespace, metrics: dict,
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version-tag", required=True,
-                        help='e.g. "python-asyncio-v1", "rust-spsc-rayon-v1"')
-    parser.add_argument("--duration", type=int, default=60,
-                        help="Measurement window in seconds")
-    parser.add_argument("--warmup", type=int, default=10,
-                        help="Warmup seconds to wait before measurement starts")
+    parser.add_argument(
+        "--version-tag",
+        required=True,
+        help='e.g. "python-asyncio-v1", "rust-spsc-rayon-v1"',
+    )
+    parser.add_argument(
+        "--duration", type=int, default=60, help="Measurement window in seconds"
+    )
+    parser.add_argument(
+        "--warmup",
+        type=int,
+        default=10,
+        help="Warmup seconds to wait before measurement starts",
+    )
     args = parser.parse_args()
 
     run_id = str(uuid.uuid4())
@@ -130,10 +151,18 @@ def main() -> None:
     end_snap = _read(rc)
 
     # Latency percentiles are rolling windows; the end snapshot reflects steady state.
-    metrics = {k: end_snap[k] for k in (
-        "bsm_p50_us", "bsm_p99_us", "bsm_p999_us",
-        "pipeline_p50_us", "pipeline_p99_us", "pipeline_p999_us",
-    ) if k in end_snap}
+    metrics = {
+        k: end_snap[k]
+        for k in (
+            "bsm_p50_us",
+            "bsm_p99_us",
+            "bsm_p999_us",
+            "pipeline_p50_us",
+            "pipeline_p99_us",
+            "pipeline_p999_us",
+        )
+        if k in end_snap
+    }
 
     _write_result(run_id, args, metrics, start_snap, end_snap)
     print("[bench] done")

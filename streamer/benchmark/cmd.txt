@@ -1,0 +1,2 @@
+python3 streamer/benchmark/python_pipeline.py
+python3 streamer/benchmark/bench.py --version-tag "python-asyncio-v1" --warmup 10 --duration 60
