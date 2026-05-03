@@ -256,17 +256,20 @@ with tab_live:
         if not surface_data or not surface_data.get("strikes"):
             st.info("Pipeline not running. Start `python streamer/benchmark/python_pipeline.py` to see live data.")
             return
-        strikes = surface_data["strikes"]
+        raw_strikes = np.array(surface_data["strikes"], dtype=float)
         expiries_dte = surface_data["expiries_dte"]
-        iv_grid = np.array(surface_data["iv_grid"], dtype=float) * 100
-        # Cells with no data were published as 0.0 — treat as NaN and interpolate
-        iv_grid[iv_grid == 0] = np.nan
-        x = np.arange(iv_grid.shape[1])
-        for i in range(iv_grid.shape[0]):
-            row = iv_grid[i]
-            valid = ~np.isnan(row)
-            if valid.any() and not valid.all():
-                iv_grid[i] = np.interp(x, x[valid], row[valid])
+        raw_grid = np.array(surface_data["iv_grid"], dtype=float) * 100
+
+        # Project onto a regular 25-point strike grid so the surface mesh is even
+        s_min = round(raw_strikes.min() / 25) * 25
+        s_max = round(raw_strikes.max() / 25) * 25
+        strikes = np.arange(s_min, s_max + 25, 25)
+        iv_grid = np.zeros((len(expiries_dte), len(strikes)))
+        for i in range(len(expiries_dte)):
+            row = raw_grid[i]
+            valid = row != 0
+            if valid.sum() >= 2:
+                iv_grid[i] = np.interp(strikes, raw_strikes[valid], row[valid])
         fig = go.Figure(go.Surface(
             x=strikes,
             y=expiries_dte,
@@ -309,7 +312,9 @@ with tab_bench:
 
         display_cols = [
             "created_at", "version_tag", "duration_s", "ticks_processed", "ticks/sec",
-            "bsm_p50_us", "bsm_p99_us", "pipeline_p50_us", "pipeline_p99_us", "pipeline_p999_us",
+            "bsm_p50_us", "bsm_p99_us",
+            "anomaly_p50_us", "anomaly_p99_us",
+            "pipeline_p50_us", "pipeline_p99_us", "pipeline_p999_us",
         ]
         df = df[[c for c in display_cols if c in df.columns]]
         df.columns = [c.replace("_", " ").title() for c in df.columns]
