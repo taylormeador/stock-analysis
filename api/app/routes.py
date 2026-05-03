@@ -180,6 +180,12 @@ async def get_anomalies():
     return {"data": data}
 
 
+@router.get("/options/benchmark-runs")
+async def options_benchmark_runs():
+    data = await options.get_benchmark_runs()
+    return {"data": data}
+
+
 @router.get("/options/pipeline-metrics")
 async def get_pipeline_metrics():
     data = await asyncio.to_thread(options.get_pipeline_metrics)

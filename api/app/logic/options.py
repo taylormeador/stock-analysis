@@ -3,6 +3,8 @@ import logging
 import os
 
 import redis
+from app.db import AsyncSessionLocal
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -35,3 +37,31 @@ def get_pipeline_metrics() -> dict:
     except Exception:
         logger.exception("Error reading options:pipeline_metrics from Redis")
         return {}
+
+
+async def get_benchmark_runs() -> list:
+    sql = """
+        SELECT run_id, version_tag, warmup_s, duration_s, ticks_processed, metrics, created_at
+        FROM benchmark_runs
+        ORDER BY created_at DESC
+        LIMIT 100
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(text(sql))
+            rows = result.fetchall()
+            return [
+                {
+                    "run_id": str(r.run_id),
+                    "version_tag": r.version_tag,
+                    "warmup_s": r.warmup_s,
+                    "duration_s": r.duration_s,
+                    "ticks_processed": r.ticks_processed,
+                    "created_at": r.created_at.isoformat(),
+                    **r.metrics,
+                }
+                for r in rows
+            ]
+    except Exception:
+        logger.exception("Error reading benchmark_runs from DB")
+        return []

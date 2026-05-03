@@ -24,7 +24,6 @@ _TRADING_TIMES = [
 # ── Parametric IV model (used for the historical replay animation) ─────────────
 
 def _vol_shift_for_time(time_str: str) -> float:
-    """U-shaped intraday vol: +2.5% at open/close, near 0% at noon."""
     hour, minute = map(int, time_str.split(":"))
     t = hour + minute / 60.0
     return 0.025 * math.cos(math.pi * (t - 9.5) / 6.5)
@@ -131,7 +130,7 @@ def _animation_controls() -> tuple[list, list]:
 def _mock_metrics() -> dict:
     rng = np.random.default_rng()
     return {
-        "tick_rate_target": 0, "ticks_generated": 0, "ticks_processed": 0,
+        "ticks_received": 0, "ticks_processed": 0,
         "lag": 0, "iv_queue_depth": 0, "surface_queue_depth": 0,
         "bsm_p50_us": round(rng.uniform(6, 10), 1),
         "bsm_p99_us": round(rng.uniform(35, 55), 1),
@@ -178,34 +177,33 @@ with col4:
 
 st.divider()
 
-# Live status indicator — small fragment that refreshes without touching the charts
 @st.fragment(run_every="5s")
 def pipeline_status():
     raw = get_json("/options/vol-surface")
     surface_data = raw.get("data") or {}
-    if surface_data:
+    if surface_data and surface_data.get("strikes"):
         ts = surface_data.get("timestamp", "")
-        st.caption(f"🟢 Pipeline live · last surface update {ts[11:19]} UTC · "
-                   f"Live tab shows real BSM-computed surface")
+        st.caption(f"🟢 Pipeline live · last surface update {ts[11:19]} UTC")
     else:
-        st.caption("🔴 Pipeline offline · start `python streamer/python_pipeline.py` · "
-                   f"Replay uses parametric mock data")
+        st.caption("🔴 Pipeline offline · start `python streamer/benchmark/python_pipeline.py` · "
+                   "Replay tabs use parametric mock data")
 
 pipeline_status()
 
-# Vol surface tabs — no run_every here so the animation slider position is preserved
 axis_style = dict(gridcolor="#1f2937", zerolinecolor="#374151")
 frames_3d = _surface_frames()
 frames_heat = _heatmap_frames()
 sliders, updatemenus = _animation_controls()
 
-tab_3d, tab_heat, tab_live = st.tabs([
+tab_3d, tab_heat, tab_live, tab_bench = st.tabs([
     ":material/view_in_ar: 3D Replay",
     ":material/grid_on: Heatmap Replay",
     ":material/sensors: Live Surface",
+    ":material/bar_chart: Benchmark Results",
 ])
 
 with tab_3d:
+    st.caption("Parametric intraday IV replay — animates a mock surface through trading hours")
     fig = go.Figure(data=frames_3d[0].data, frames=frames_3d)
     fig.update_layout(
         scene=dict(
@@ -224,6 +222,7 @@ with tab_3d:
     st.plotly_chart(fig, use_container_width=True)
 
 with tab_heat:
+    st.caption("Parametric intraday IV replay — heatmap view")
     fig = go.Figure(data=frames_heat[0].data, frames=frames_heat)
     fig.update_layout(
         xaxis_title="Strike",
@@ -239,14 +238,14 @@ with tab_heat:
     st.plotly_chart(fig, use_container_width=True)
 
 with tab_live:
-    st.caption("Current vol surface from the Python pipeline — refreshes every 5s")
+    st.caption("BSM-computed vol surface from live ThetaData quotes — refreshes every 5s")
 
     @st.fragment(run_every="5s")
     def live_surface():
         raw = get_json("/options/vol-surface")
         surface_data = raw.get("data") or {}
-        if not surface_data:
-            st.info("Pipeline not running. Start `python streamer/python_pipeline.py` to see live data.")
+        if not surface_data or not surface_data.get("strikes"):
+            st.info("Pipeline not running. Start `python streamer/benchmark/python_pipeline.py` to see live data.")
             return
         strikes = surface_data["strikes"]
         expiries_dte = surface_data["expiries_dte"]
@@ -275,6 +274,55 @@ with tab_live:
         st.plotly_chart(fig, use_container_width=True, key="live_vol_surface")
 
     live_surface()
+
+with tab_bench:
+    st.caption("Results from `benchmark_runs` — each row is one `bench.py` run")
+
+    @st.fragment(run_every="30s")
+    def benchmark_results():
+        raw = get_json("/options/benchmark-runs")
+        runs = raw.get("data") or []
+        if not runs:
+            st.info("No benchmark runs yet. Run `python streamer/benchmark/bench.py --version-tag <tag>`.")
+            return
+
+        df = pd.DataFrame(runs)
+        df["created_at"] = pd.to_datetime(df["created_at"]).dt.strftime("%Y-%m-%d %H:%M")
+        df["ticks/sec"] = (df["ticks_processed"] / df["duration_s"]).round(0).astype(int)
+
+        display_cols = [
+            "created_at", "version_tag", "duration_s", "ticks_processed", "ticks/sec",
+            "bsm_p50_us", "bsm_p99_us", "pipeline_p50_us", "pipeline_p99_us", "pipeline_p999_us",
+        ]
+        df = df[[c for c in display_cols if c in df.columns]]
+        df.columns = [c.replace("_", " ").title() for c in df.columns]
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        # Throughput comparison chart
+        if "version_tag" in runs[0]:
+            chart_df = pd.DataFrame(runs)
+            chart_df["ticks/sec"] = (chart_df["ticks_processed"] / chart_df["duration_s"]).round(0)
+            chart_df["label"] = chart_df["version_tag"] + "\n" + chart_df["created_at"].str[:16]
+            fig = go.Figure(go.Bar(
+                x=chart_df["label"],
+                y=chart_df["ticks/sec"],
+                marker_color="#3b82f6",
+                text=chart_df["ticks/sec"].apply(lambda v: f"{v:,.0f}"),
+                textposition="outside",
+            ))
+            fig.update_layout(
+                title="Throughput by version",
+                xaxis_title="",
+                yaxis_title="ticks / sec",
+                paper_bgcolor="#0d1117",
+                plot_bgcolor="#161b22",
+                font=dict(color=colors.text_gray),
+                height=360,
+                margin=dict(l=0, r=0, t=40, b=10),
+            )
+            st.plotly_chart(fig, use_container_width=True, key="bench_throughput")
+
+    benchmark_results()
 
 st.divider()
 
