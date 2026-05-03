@@ -179,14 +179,20 @@ st.divider()
 
 @st.fragment(run_every="5s")
 def pipeline_status():
-    raw = get_json("/options/vol-surface")
-    surface_data = raw.get("data") or {}
-    if surface_data and surface_data.get("strikes"):
-        ts = surface_data.get("timestamp", "")
-        st.caption(f"🟢 Pipeline live · last surface update {ts[11:19]} UTC")
-    else:
-        st.caption("🔴 Pipeline offline · start `python streamer/benchmark/python_pipeline.py` · "
-                   "Replay tabs use parametric mock data")
+    raw = get_json("/options/pipeline-metrics")
+    m = raw.get("data") or {}
+    if m:
+        ts_str = m.get("timestamp", "")
+        try:
+            ts = datetime.fromisoformat(ts_str)
+            age = (datetime.now(timezone.utc) - ts).total_seconds()
+            if age <= 15:
+                st.caption(f"🟢 Pipeline live · metrics updated {ts_str[11:19]} UTC")
+                return
+        except (ValueError, TypeError):
+            pass
+    st.caption("🔴 Pipeline offline · start `python streamer/benchmark/python_pipeline.py` · "
+               "Replay tabs use parametric mock data")
 
 pipeline_status()
 
@@ -195,10 +201,10 @@ frames_3d = _surface_frames()
 frames_heat = _heatmap_frames()
 sliders, updatemenus = _animation_controls()
 
-tab_3d, tab_heat, tab_live, tab_bench = st.tabs([
+tab_live, tab_3d, tab_heat, tab_bench = st.tabs([
+    ":material/sensors: Live Surface",
     ":material/view_in_ar: 3D Replay",
     ":material/grid_on: Heatmap Replay",
-    ":material/sensors: Live Surface",
     ":material/bar_chart: Benchmark Results",
 ])
 
