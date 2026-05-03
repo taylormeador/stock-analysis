@@ -315,6 +315,13 @@ async def ws_ingester(
         except websockets.ConnectionClosed:
             print("[pipeline] disconnected, reconnecting ...")
             await asyncio.sleep(2.0)
+        except asyncio.CancelledError:
+            try:
+                await ws.send(json.dumps({"msg_type": "STOP"}))
+                print("[pipeline] sent STOP, closing connection")
+            except Exception:
+                pass
+            raise
 
 
 async def iv_calculator(iv_queue: asyncio.Queue, surface_queue: asyncio.Queue) -> None:
@@ -481,13 +488,19 @@ async def main() -> None:
     iv_queue: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_MAXSIZE)
     surface_queue: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_MAXSIZE)
 
-    await asyncio.gather(
+    tasks = asyncio.gather(
         ws_ingester(f"{args.ws}/v1/events", contracts, iv_queue),
         iv_calculator(iv_queue, surface_queue),
         surface_and_anomaly(surface_queue),
         publisher(rc, iv_queue, surface_queue),
         stats_printer(iv_queue, surface_queue),
     )
+    try:
+        await tasks
+    except asyncio.CancelledError:
+        tasks.cancel()
+        await asyncio.gather(tasks, return_exceptions=True)
+        print("[pipeline] shutdown complete")
 
 
 if __name__ == "__main__":
