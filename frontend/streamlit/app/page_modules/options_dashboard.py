@@ -135,6 +135,9 @@ def _mock_metrics() -> dict:
         "bsm_p50_us": round(rng.uniform(6, 10), 1),
         "bsm_p99_us": round(rng.uniform(35, 55), 1),
         "bsm_p999_us": round(rng.uniform(90, 160), 1),
+        "anomaly_p50_us": round(rng.uniform(50, 120), 1),
+        "anomaly_p99_us": round(rng.uniform(400, 800), 1),
+        "anomaly_p999_us": round(rng.uniform(1_000, 2_500), 1),
         "pipeline_p50_us": round(rng.uniform(160, 240), 1),
         "pipeline_p99_us": round(rng.uniform(700, 950), 1),
         "pipeline_p999_us": round(rng.uniform(1_500, 3_000), 1),
@@ -333,53 +336,68 @@ with tab_bench:
 st.divider()
 
 
+def _fmt_lat(us: float) -> str:
+    if us >= 1_000_000:
+        return f"{us / 1_000_000:.2f}s"
+    if us >= 1_000:
+        return f"{us / 1_000:.1f}ms"
+    return f"{us:.1f}μs"
+
+
 @st.fragment(run_every="5s")
 def bottom_panels():
-    lat_col, anomaly_col = st.columns([1, 2])
-
     raw_metrics = get_json("/options/pipeline-metrics")
     m = raw_metrics.get("data") or {}
     live = bool(m)
     if not live:
         m = _mock_metrics()
 
-    with lat_col:
-        st.subheader(":material/speed: Pipeline Latency")
-        st.caption("Python asyncio baseline" if live else "Mock — pipeline offline")
+    st.subheader(":material/speed: Pipeline Latency")
+    st.caption("Python asyncio baseline" if live else "Mock — pipeline offline")
 
-        if live:
-            st.caption("**Health**")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Lag", f"{m['lag']:,} ticks",
-                      delta=None if m["lag"] == 0 else f"{m['lag']:,} behind",
-                      delta_color="inverse")
-            c2.metric("IV queue", m["iv_queue_depth"])
-            c3.metric("Surface queue", m["surface_queue_depth"])
+    if live:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Lag", f"{m['lag']:,} ticks",
+                  delta=None if m["lag"] == 0 else f"{m['lag']:,} behind",
+                  delta_color="inverse")
+        c2.metric("IV queue", m["iv_queue_depth"])
+        c3.metric("Surface queue", m["surface_queue_depth"])
 
-        st.caption("**BSM inversion**")
-        c5, c6, c7 = st.columns(3)
-        c5.metric("p50", f"{m['bsm_p50_us']} μs")
-        c6.metric("p99", f"{m['bsm_p99_us']} μs")
-        c7.metric("p999", f"{m['bsm_p999_us']} μs")
+    lat_df = pd.DataFrame([
+        {
+            "Stage": "BSM inversion",
+            "p50": _fmt_lat(m["bsm_p50_us"]),
+            "p99": _fmt_lat(m["bsm_p99_us"]),
+            "p999": _fmt_lat(m["bsm_p999_us"]),
+        },
+        {
+            "Stage": "Anomaly detection",
+            "p50": _fmt_lat(m.get("anomaly_p50_us", 0)),
+            "p99": _fmt_lat(m.get("anomaly_p99_us", 0)),
+            "p999": _fmt_lat(m.get("anomaly_p999_us", 0)),
+        },
+        {
+            "Stage": "End-to-end",
+            "p50": _fmt_lat(m["pipeline_p50_us"]),
+            "p99": _fmt_lat(m["pipeline_p99_us"]),
+            "p999": _fmt_lat(m["pipeline_p999_us"]),
+        },
+    ])
+    st.dataframe(lat_df, use_container_width=True, hide_index=True)
 
-        st.caption("**End-to-end pipeline**")
-        c8, c9, c10 = st.columns(3)
-        c8.metric("p50", f"{m['pipeline_p50_us']} μs")
-        c9.metric("p99", f"{m['pipeline_p99_us']} μs")
-        c10.metric("p999", f"{m['pipeline_p999_us']} μs")
+    st.divider()
 
     raw_anomalies = get_json("/options/anomalies")
     anomaly_data = raw_anomalies.get("data") or []
     if not anomaly_data:
         anomaly_data = _mock_anomalies()
 
-    with anomaly_col:
-        st.subheader(":material/warning: Anomaly Log")
-        df = pd.DataFrame(anomaly_data)
-        display_cols = ["time", "type", "strike", "dte", "value", "threshold", "detail"]
-        df = df[[c for c in display_cols if c in df.columns]]
-        df.columns = [c.title() for c in df.columns]
-        st.dataframe(df, use_container_width=True, hide_index=True)
+    st.subheader(":material/warning: Anomaly Log")
+    df = pd.DataFrame(anomaly_data)
+    display_cols = ["time", "type", "strike", "dte", "value", "threshold", "detail"]
+    df = df[[c for c in display_cols if c in df.columns]]
+    df.columns = [c.title() for c in df.columns]
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 bottom_panels()

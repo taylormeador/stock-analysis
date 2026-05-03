@@ -120,6 +120,7 @@ _expiry_T: dict[int, float] = {}
 _atm_history: dict[int, deque] = {}
 
 bsm_latencies: deque = deque(maxlen=LATENCY_WINDOW)
+anomaly_latencies: deque = deque(maxlen=LATENCY_WINDOW)
 pipeline_latencies: deque = deque(maxlen=LATENCY_WINDOW)
 anomaly_log: deque = deque(maxlen=200)
 ticks_received: int = 0
@@ -344,10 +345,12 @@ async def surface_and_anomaly(surface_queue: asyncio.Queue) -> None:
         iv_tick: IVTick = await surface_queue.get()
         _surface.setdefault(iv_tick.expiration, {})[iv_tick.K] = iv_tick.iv
         _expiry_T[iv_tick.expiration] = iv_tick.T
+        t_anomaly_start = time.perf_counter_ns()
         anomalies = _check_anomalies(
             iv_tick.iv, iv_tick.K, iv_tick.T, iv_tick.expiration
         )
         t_done = time.perf_counter_ns()
+        anomaly_latencies.append(t_done - t_anomaly_start)
         pipeline_latencies.append(t_done - iv_tick.t_gen)
         now_str = datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3]
         for a in anomalies:
@@ -420,6 +423,9 @@ async def publisher(
                     "bsm_p50_us": round(_pct(bsm_latencies, 50), 1),
                     "bsm_p99_us": round(_pct(bsm_latencies, 99), 1),
                     "bsm_p999_us": round(_pct(bsm_latencies, 99.9), 1),
+                    "anomaly_p50_us": round(_pct(anomaly_latencies, 50), 1),
+                    "anomaly_p99_us": round(_pct(anomaly_latencies, 99), 1),
+                    "anomaly_p999_us": round(_pct(anomaly_latencies, 99.9), 1),
                     "pipeline_p50_us": round(_pct(pipeline_latencies, 50), 1),
                     "pipeline_p99_us": round(_pct(pipeline_latencies, 99), 1),
                     "pipeline_p999_us": round(_pct(pipeline_latencies, 99.9), 1),
