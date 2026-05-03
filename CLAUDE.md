@@ -108,14 +108,27 @@ The `streamer/` service is a Rust low-latency market data pipeline. Its primary 
 
 **Key monitoring metric:** `ss -tn` `Recv-Q` on the WebSocket connection — zero means the receive loop is keeping up. Ring buffer fill % is the next bottleneck to watch.
 
-**Python benchmark pipeline** at `streamer/python_pipeline.py` — asyncio pipeline that is the baseline to beat with the Rust service:
-- Generator fires synthetic option ticks at a configurable rate (`TICK_RATE`, default 5000/sec)
-- Each tick → BSM Newton-Raphson inversion (pure Python, no scipy) → surface cell update → anomaly detection
-- Three anomaly checks: ATM IV z-score per expiry, calendar spread violation (total variance monotonicity), skew inversion
-- Records `perf_counter_ns()` timestamps at each stage boundary → publishes real p50/p99/p999 latencies to Redis
-- Writes `options:vol_surface`, `options:anomalies`, `options:pipeline_metrics` to Redis every second
+**Benchmarking system** (`streamer/`) — passive harness for comparing pipeline versions:
 
-Run: `pip install redis && TICK_RATE=5000 REDIS_URL=redis://10.0.10.127:6379/0 python streamer/python_pipeline.py`
+- `python_pipeline.py` — asyncio pipeline with a self-saturating internal generator (no external tick source needed). Each tick → BSM Newton-Raphson inversion → surface update → anomaly detection. Records `perf_counter_ns()` at each stage boundary; publishes p50/p99/p999 latencies to Redis every second. For Rust builds, ThetaData dev mode (replay a full day at >real-time speed) is the natural tick source.
+- `bench.py` — passive harness: waits for the pipeline to appear in Redis, waits through warmup, snapshots metrics at the start and end of the measurement window, computes throughput from the delta, writes a row to `benchmark_runs`. Does not spawn or manage any processes.
+- `tick_server.py` — WebSocket tick server for isolated testing without ThetaData. Not used in the normal bench flow.
+
+Three anomaly detectors: ATM IV z-score per expiry, calendar spread violation (total variance monotonicity), skew inversion (OTM put IV < OTM call IV).
+
+```bash
+pip install -r streamer/requirements_pipeline.txt
+
+# Terminal 1: start the pipeline (fetches contracts from REST on startup, then streams trades)
+# --spx-level should match the underlying level for the day being replayed in dev mode
+REDIS_URL=redis://10.0.10.127:6379/0 python streamer/python_pipeline.py --spx-level 5582
+
+# Terminal 2: run a timed benchmark once pipeline prints "listening for trades"
+REDIS_URL=redis://10.0.10.127:6379/0 STOCK_ANALYSIS_DB=postgresql://... \
+  python streamer/bench.py --version-tag "python-asyncio-v1" --duration 60 --warmup 10
+```
+
+`THETA_DATA_HTTP` and `THETA_DATA_WS` env vars override the default homelab addresses (`10.0.10.127:25510` and `10.0.10.127:25520`).
 
 **API endpoints** (read from Redis, served by FastAPI):
 - `GET /api/options/vol-surface`

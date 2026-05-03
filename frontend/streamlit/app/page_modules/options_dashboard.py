@@ -294,16 +294,13 @@ def bottom_panels():
         st.caption("Python asyncio baseline" if live else "Mock — pipeline offline")
 
         if live:
-            st.caption("**Throughput**")
-            c1, c2 = st.columns(2)
-            c1.metric("Target", f"{m['tick_rate_target']:,}/s")
-            c2.metric("Lag", f"{m['lag']:,} ticks",
+            st.caption("**Health**")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Lag", f"{m['lag']:,} ticks",
                       delta=None if m["lag"] == 0 else f"{m['lag']:,} behind",
                       delta_color="inverse")
-            st.caption("**Queue depths**")
-            c3, c4 = st.columns(2)
-            c3.metric("IV queue", m["iv_queue_depth"])
-            c4.metric("Surface queue", m["surface_queue_depth"])
+            c2.metric("IV queue", m["iv_queue_depth"])
+            c3.metric("Surface queue", m["surface_queue_depth"])
 
         st.caption("**BSM inversion**")
         c5, c6, c7 = st.columns(3)
