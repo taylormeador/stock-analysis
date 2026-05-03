@@ -258,7 +258,15 @@ with tab_live:
             return
         strikes = surface_data["strikes"]
         expiries_dte = surface_data["expiries_dte"]
-        iv_grid = np.array(surface_data["iv_grid"]) * 100
+        iv_grid = np.array(surface_data["iv_grid"], dtype=float) * 100
+        # Cells with no data were published as 0.0 — treat as NaN and interpolate
+        iv_grid[iv_grid == 0] = np.nan
+        x = np.arange(iv_grid.shape[1])
+        for i in range(iv_grid.shape[0]):
+            row = iv_grid[i]
+            valid = ~np.isnan(row)
+            if valid.any() and not valid.all():
+                iv_grid[i] = np.interp(x, x[valid], row[valid])
         fig = go.Figure(go.Surface(
             x=strikes,
             y=expiries_dte,
@@ -357,9 +365,7 @@ def bottom_panels():
 
     if live:
         c1, c2, c3 = st.columns(3)
-        c1.metric("Lag", f"{m['lag']:,} ticks",
-                  delta=None if m["lag"] == 0 else f"{m['lag']:,} behind",
-                  delta_color="inverse")
+        c1.metric("Lag", f"{m['lag']:,} ticks")
         c2.metric("IV queue", m["iv_queue_depth"])
         c3.metric("Surface queue", m["surface_queue_depth"])
 
