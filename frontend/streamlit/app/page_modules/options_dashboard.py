@@ -320,29 +320,74 @@ with tab_bench:
         df.columns = [c.replace("_", " ").title() for c in df.columns]
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-        # Throughput comparison chart
-        if "version_tag" in runs[0]:
-            chart_df = pd.DataFrame(runs)
-            chart_df["ticks/sec"] = (chart_df["ticks_processed"] / chart_df["duration_s"]).round(0)
-            chart_df["label"] = chart_df["version_tag"] + "\n" + chart_df["created_at"].str[:16]
-            fig = go.Figure(go.Bar(
-                x=chart_df["label"],
-                y=chart_df["ticks/sec"],
-                marker_color="#3b82f6",
-                text=chart_df["ticks/sec"].apply(lambda v: f"{v:,.0f}"),
-                textposition="outside",
-            ))
-            fig.update_layout(
-                title="Throughput by version",
-                xaxis_title="",
-                yaxis_title="ticks / sec",
-                paper_bgcolor="#0d1117",
-                plot_bgcolor="#161b22",
-                font=dict(color=colors.text_gray),
-                height=360,
-                margin=dict(l=0, r=0, t=40, b=10),
+        chart_df = pd.DataFrame(runs)
+        chart_df["ticks_per_sec"] = chart_df["ticks_processed"] / chart_df["duration_s"]
+
+        by_version = (
+            chart_df.groupby("version_tag", sort=False)
+            .agg(
+                mean_throughput=("ticks_per_sec", "mean"),
+                min_throughput=("ticks_per_sec", "min"),
+                max_throughput=("ticks_per_sec", "max"),
+                mean_p999=("pipeline_p999_us", "mean"),
+                min_p999=("pipeline_p999_us", "min"),
+                max_p999=("pipeline_p999_us", "max"),
+                n_runs=("ticks_per_sec", "count"),
             )
+            .reset_index()
+        )
+
+        chart_layout = dict(
+            paper_bgcolor="#0d1117",
+            plot_bgcolor="#161b22",
+            font=dict(color=colors.text_gray),
+            height=340,
+            margin=dict(l=0, r=0, t=40, b=10),
+            xaxis=dict(gridcolor="#1f2937"),
+            yaxis=dict(gridcolor="#1f2937"),
+        )
+
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            fig = go.Figure(go.Bar(
+                x=by_version["version_tag"],
+                y=by_version["mean_throughput"].round(0),
+                error_y=dict(
+                    type="data",
+                    symmetric=False,
+                    array=(by_version["max_throughput"] - by_version["mean_throughput"]).round(0),
+                    arrayminus=(by_version["mean_throughput"] - by_version["min_throughput"]).round(0),
+                    color="#6b7280",
+                ),
+                marker_color="#3b82f6",
+                text=by_version["mean_throughput"].apply(lambda v: f"{v:,.0f}"),
+                textposition="outside",
+                customdata=by_version["n_runs"],
+                hovertemplate="%{x}<br>%{y:,.0f} ticks/sec<br>%{customdata} run(s)<extra></extra>",
+            ))
+            fig.update_layout(title="Throughput (ticks/sec)", yaxis_title="ticks / sec", **chart_layout)
             st.plotly_chart(fig, use_container_width=True, key="bench_throughput")
+
+        with col_b:
+            fig = go.Figure(go.Bar(
+                x=by_version["version_tag"],
+                y=(by_version["mean_p999"] / 1000).round(1),
+                error_y=dict(
+                    type="data",
+                    symmetric=False,
+                    array=((by_version["max_p999"] - by_version["mean_p999"]) / 1000).round(1),
+                    arrayminus=((by_version["mean_p999"] - by_version["min_p999"]) / 1000).round(1),
+                    color="#6b7280",
+                ),
+                marker_color="#f59e0b",
+                text=(by_version["mean_p999"] / 1000).apply(lambda v: f"{v:,.1f}"),
+                textposition="outside",
+                customdata=by_version["n_runs"],
+                hovertemplate="%{x}<br>%{y:,.1f} ms p999<br>%{customdata} run(s)<extra></extra>",
+            ))
+            fig.update_layout(title="End-to-end p999 latency", yaxis_title="ms", **chart_layout)
+            st.plotly_chart(fig, use_container_width=True, key="bench_p999")
 
     benchmark_results()
 
