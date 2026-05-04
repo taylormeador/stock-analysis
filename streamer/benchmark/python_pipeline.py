@@ -126,6 +126,7 @@ anomaly_log: deque = deque(maxlen=200)
 ticks_received: int = 0
 ticks_processed: int = 0
 _spx_level: float = 5_582.0
+_n_contracts: int = 0
 
 
 # ── Contract discovery ─────────────────────────────────────────────────────────
@@ -386,9 +387,8 @@ async def publisher(
                 all_strikes = sorted(
                     {k for strikes in _surface.values() for k in strikes}
                 )
-                today = date.today()
                 expiries_dte = [
-                    max(0, (date(e // 10000, (e % 10000) // 100, e % 100) - today).days)
+                    max(0, round(_expiry_T.get(e, 0) * 365))
                     for e in sorted_exps
                 ]
                 iv_grid = [
@@ -397,6 +397,7 @@ async def publisher(
                 ]
                 surface_payload = json.dumps(
                     {
+                        "spx_level": _spx_level,
                         "strikes": all_strikes,
                         "expiries_dte": expiries_dte,
                         "iv_grid": iv_grid,
@@ -406,6 +407,7 @@ async def publisher(
             else:
                 surface_payload = json.dumps(
                     {
+                        "spx_level": _spx_level,
                         "strikes": [],
                         "expiries_dte": [],
                         "iv_grid": [],
@@ -416,6 +418,7 @@ async def publisher(
             metrics_payload = json.dumps(
                 {
                     "spx_level": _spx_level,
+                    "n_contracts": _n_contracts,
                     "ticks_received": ticks_received,
                     "ticks_processed": ticks_processed,
                     "lag": ticks_received - ticks_processed,
@@ -489,6 +492,7 @@ async def main() -> None:
     if len(contracts) > MAX_SUBSCRIPTIONS:
         contracts = contracts[:MAX_SUBSCRIPTIONS]
         print(f"[pipeline] capped to {MAX_SUBSCRIPTIONS:,} subscriptions")
+    _n_contracts = len(contracts)
     print()
 
     rc = redis.Redis.from_url(REDIS_URL)

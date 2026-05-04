@@ -175,13 +175,14 @@ def header_metrics():
 
     strikes = surface_data.get("strikes") or []
     expiries = surface_data.get("expiries_dte") or []
-    spx = metrics_data.get("spx_level")
+    spx = surface_data.get("spx_level") or metrics_data.get("spx_level")
+    n_contracts = metrics_data.get("n_contracts")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("SPX", f"{spx:,.1f}" if spx else "—")
     with col2:
-        st.metric("Surface", f"{len(strikes) * len(expiries):,} contracts" if strikes else "—")
+        st.metric("Surface", f"{n_contracts:,} contracts" if n_contracts else "—")
     with col3:
         if strikes:
             st.metric("Strikes", f"{len(strikes)} ({min(strikes):,.0f}–{max(strikes):,.0f})")
@@ -276,17 +277,31 @@ with tab_live:
         raw_strikes = np.array(surface_data["strikes"], dtype=float)
         expiries_dte = surface_data["expiries_dte"]
         raw_grid = np.array(surface_data["iv_grid"], dtype=float) * 100
+        spx = surface_data.get("spx_level") or raw_strikes[len(raw_strikes) // 2]
 
-        # Project onto a regular 25-point strike grid so the surface mesh is even
-        s_min = round(raw_strikes.min() / 25) * 25
-        s_max = round(raw_strikes.max() / 25) * 25
+        # Clip to SPX ± 25% so sparse wings don't extrapolate into walls
+        lo, hi = spx * 0.75, spx * 1.25
+        s_min = round(max(raw_strikes.min(), lo) / 25) * 25
+        s_max = round(min(raw_strikes.max(), hi) / 25) * 25
         strikes = np.arange(s_min, s_max + 25, 25)
-        iv_grid = np.zeros((len(expiries_dte), len(strikes)))
+
+        iv_grid = np.full((len(expiries_dte), len(strikes)), np.nan)
         for i in range(len(expiries_dte)):
             row = raw_grid[i]
             valid = row != 0
             if valid.sum() >= 2:
-                iv_grid[i] = np.interp(strikes, raw_strikes[valid], row[valid])
+                valid_strikes = raw_strikes[valid]
+                row_lo, row_hi = valid_strikes.min(), valid_strikes.max()
+                in_range = (strikes >= row_lo) & (strikes <= row_hi)
+                iv_grid[i, in_range] = np.interp(
+                    strikes[in_range], valid_strikes, row[valid]
+                )
+
+        # Auto-range colorscale from the data (p5–p95) so 0-DTE doesn't dominate
+        valid_vals = iv_grid[~np.isnan(iv_grid)]
+        cmin = float(np.percentile(valid_vals, 5)) if len(valid_vals) else 10
+        cmax = float(np.percentile(valid_vals, 95)) if len(valid_vals) else 60
+
         fig = go.Figure(go.Surface(
             x=strikes,
             y=expiries_dte,
@@ -294,7 +309,7 @@ with tab_live:
             colorscale="RdYlGn_r",
             colorbar=dict(title="IV %", tickfont=dict(color=colors.text_gray)),
             hovertemplate="Strike: %{x}<br>DTE: %{y}<br>IV: %{z:.1f}%<extra></extra>",
-            cmin=10, cmax=30,
+            cmin=cmin, cmax=cmax,
         ))
         fig.update_layout(
             scene=dict(
