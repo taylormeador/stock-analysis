@@ -1,10 +1,10 @@
 use csv_async::AsyncReaderBuilder;
-use tokio::net::TcpStream;
+use futures_util::{StreamExt, SinkExt};
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use tokio_util::sync::CancellationToken;
 use tokio_util::io::StreamReader;
-use futures_util::{StreamExt, SinkExt, stream::SplitSink, stream::SplitStream};
 use futures::TryStreamExt;
 use std::io;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::protocol::Message};
 
 // This is an option contract as given by the HTTP response
 #[derive(serde::Deserialize, Debug)]
@@ -27,7 +27,7 @@ impl From<ContractResponse> for ContractSubscribe {
     fn from(r: ContractResponse) -> Self {
         let expiration = r.expiration.replace("-", "");
         let strike = r.strike * 1000.0;
-        let right = match r.right == "Call" {
+        let right = match r.right.to_uppercase() == "CALL" {
             true => "C",
             false => "P"
         };
@@ -48,6 +48,7 @@ pub async fn fetch_contracts(http_base: &str) -> Result<Vec<ContractSubscribe>, 
     let mut contracts: Vec<ContractSubscribe> = Vec::new();
     loop {
         {
+            log::info!("Sending GET {}", url);
             let response = reqwest::get(url).await?;
             let headers = response.headers().clone();
             let err_closure = {
@@ -60,13 +61,13 @@ pub async fn fetch_contracts(http_base: &str) -> Result<Vec<ContractSubscribe>, 
             
             while let Some(line) = lines.next().await {
                     let contract_response = line?;
-                    contracts.push(contract_response.into());
+                    contracts.push(ContractSubscribe::from(contract_response));
                 }
             
             if let Some(next_page) = headers.get("Next-Page") {
                 match next_page.to_str() {
-                    Ok(s) => url = s.to_string(),
-                    Err(_) => break
+                    Ok(s) if s != "null" => url = s.to_string(),
+                    _ => break
                 }
             } else {
                 break
@@ -77,7 +78,12 @@ pub async fn fetch_contracts(http_base: &str) -> Result<Vec<ContractSubscribe>, 
     Ok(contracts)
 }
 
-pub async fn ingest(mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>, mut write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>, contracts: Vec<ContractSubscribe>) {
+pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, token: CancellationToken) {
+    let (ws_stream, _) = connect_async(&ws_url).await.expect("Failed to connect to theta data terminal");
+    log::info!("WebSocket handshake has been successfully completed");
+
+    let (mut write, mut read) = ws_stream.split();
+    
     let mut num_subscribed = 0;
     for (idx, contract) in contracts.iter().enumerate() {
         let root = &contract.root;
@@ -104,8 +110,20 @@ pub async fn ingest(mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStre
     }
     log::info!("Subscribed to {} contracts", num_subscribed);
 
-    while let Some(msg) = read.next().await {
-        log::info!("{:?}", msg);
+    loop {
+        tokio::select! {
+            _ = token.cancelled() => {
+                let stop_payload = "{
+                        \"msg_type\": \"STOP\"
+                    }";
+                write.send(Message::Text(stop_payload.into())).await.expect("Failed to send payload");
+                log::info!("Stopped all streams");
+                break;
+            }
+            msg = read.next() => {
+                log::info!("{:?}", msg);
+            }
+        }
     }
 
 }
