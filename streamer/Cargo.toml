@@ -13,6 +13,6 @@ futures-util = "0.3.32"
 log = "0.4.29"
 reqwest = { version = "0.13.3", features = ["stream"] }
 serde = { version = "1.0.228", features = ["derive"] }
-tokio = { version = "1.52.1", features = ["full"] }
+tokio = { version = "1.52.2", features = ["full"] }
 tokio-tungstenite = "0.29.0"
 tokio-util = { version = "0.7.18", features = ["io"]}
