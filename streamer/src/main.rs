@@ -19,11 +19,10 @@ async fn main() {
 
     let theta_data_http = env::var("THETA_DATA_HTTP").unwrap();
     
-    let contracts = pipeline::fetch_contracts(&theta_data_http).await;
-    log::info!("{:?}", contracts);
+    let contracts = pipeline::fetch_contracts(&theta_data_http).await.expect("Failed to get contracts");
 
-    // let (mut write, mut read) = ws_stream.split();
-    // pipeline::ingest(write, contracts);
+    let (write, read) = ws_stream.split();
+    pipeline::ingest(read, write, contracts).await;
 
     // race between interrupt and message received
     // loop {
