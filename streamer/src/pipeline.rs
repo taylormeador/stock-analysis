@@ -78,12 +78,125 @@ pub async fn fetch_contracts(http_base: &str) -> Result<Vec<ContractSubscribe>, 
     Ok(contracts)
 }
 
+#[derive(Debug)]
+enum MessageType {
+    Status(StatusMessage),
+    State(StateMessage),
+    ReqResponse(ReqResponseMessage),
+    Quote(QuoteMessage),
+    Trade(TradeMessage),
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct Header {
+    r#type: String,
+    status: String,
+    response: Option<String>,
+    req_id: Option<i64>,
+    state: Option<String>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct Contract {
+    security_type: String,
+    root: String,
+    expiration: i64,
+    strike: i64,
+    right: String,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct Quote {
+    ms_of_day: i64,
+    bid_size: i64,
+    bid_exchange: i64,
+    bid: f64,
+    bid_condition: i64,
+    ask_size: i64,
+    ask_exchange: i64,
+    ask: f64,
+    ask_condition: i64,
+    date: i64,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct Trade {
+    // TODO
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct StatusMessage {
+    header: Header,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct StateMessage {
+    header: Header,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct ReqResponseMessage {
+    header: Header,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct QuoteMessage {
+    header: Header,
+    contract: Contract,
+    quote: Quote,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct TradeMessage {
+    header: Header,
+    contract: Contract,
+    trade: Trade,
+}
+
+pub async fn handle_msg(msg: Message) {
+    // TODO determine if status or quote or trade message
+    let Ok(text) = msg.into_text() else {
+        log::error!("Err while parsing Message into text");
+        return;
+    };
+    log::debug!("Received message: {}", text);
+
+    let Ok(v): Result<serde_json::Value, _> = serde_json::from_str(&text) else {
+        log::error!("Err while deserializing");
+        return;
+    };
+
+    // Since the message type is not top level, we have to manually descide what to deserialize into
+    // TODO don't unwrap
+    let message: MessageType = match v["header"]["type"].as_str() {
+        Some("STATUS") => MessageType::Status(serde_json::from_value(v).unwrap()),
+        Some("STATE") => MessageType::State(serde_json::from_value(v).unwrap()),
+        Some("REQ_RESPONSE") => MessageType::ReqResponse(serde_json::from_value(v).unwrap()),
+        Some("QUOTE") => MessageType::Quote(serde_json::from_value(v).unwrap()),
+        Some("TRADE") => MessageType::Trade(serde_json::from_value(v).unwrap()),
+        other => { log::warn!("Unexpected type value in message header: {:?}", other); log::warn!("Unexpected message: {}", v); return }
+    };
+    match message {
+        MessageType::Quote(m) => log::info!("{:?}", m),
+        _ => return
+    }
+}
+
+
 pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, token: CancellationToken) {
     let (ws_stream, _) = connect_async(&ws_url).await.expect("Failed to connect to theta data terminal");
     log::info!("WebSocket handshake has been successfully completed");
 
     let (mut write, mut read) = ws_stream.split();
-    
+
+    // Clear all prior subscriptions
+    let stop_payload = "
+        {
+            \"msg_type\": \"STOP\"
+        }";
+    write.send(Message::Text(stop_payload.into())).await.expect("Failed to send payload");
+
+    // Subscribe to current contracts
     let mut num_subscribed = 0;
     for (idx, contract) in contracts.iter().enumerate() {
         let root = &contract.root;
@@ -95,7 +208,7 @@ pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, token: Ca
             {{
                 \"msg_type\": \"STREAM\",
                 \"sec_type\": \"OPTION\",
-                \"req_type\": \"TRADE\",
+                \"req_type\": \"QUOTE\",
                 \"add\": true,
                 \"id\": {idx},
                 \"contract\": {{
@@ -110,20 +223,21 @@ pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, token: Ca
     }
     log::info!("Subscribed to {} contracts", num_subscribed);
 
+    // Race between message received and ctrl-c
     loop {
         tokio::select! {
             _ = token.cancelled() => {
-                let stop_payload = "{
-                        \"msg_type\": \"STOP\"
-                    }";
                 write.send(Message::Text(stop_payload.into())).await.expect("Failed to send payload");
                 log::info!("Stopped all streams");
                 break;
             }
             msg = read.next() => {
-                log::info!("{:?}", msg);
+                match msg {
+                    Some(Ok(m)) => handle_msg(m).await,
+                    Some(Err(e)) => log::error!("WebSocket error: {}", e),
+                    None => break
+                }
             }
         }
     }
-
 }
