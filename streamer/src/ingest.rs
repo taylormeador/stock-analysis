@@ -5,6 +5,7 @@ use tokio_util::sync::CancellationToken;
 use tokio_util::io::StreamReader;
 use futures::TryStreamExt;
 use std::io;
+use tokio::sync::mpsc::{Sender, channel};
 
 // This is an option contract as given by the HTTP response
 #[derive(serde::Deserialize, Debug)]
@@ -79,7 +80,7 @@ pub async fn fetch_contracts(http_base: &str) -> Result<Vec<ContractSubscribe>, 
 }
 
 #[derive(Debug)]
-enum MessageType {
+pub enum MessageType {
     Status(StatusMessage),
     State(StateMessage),
     ReqResponse(ReqResponseMessage),
@@ -120,41 +121,40 @@ struct Quote {
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct Trade {
+pub struct Trade {
     // TODO
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct StatusMessage {
+pub struct StatusMessage {
     header: Header,
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct StateMessage {
+pub struct StateMessage {
     header: Header,
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct ReqResponseMessage {
+pub struct ReqResponseMessage {
     header: Header,
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct QuoteMessage {
+pub struct QuoteMessage {
     header: Header,
     contract: Contract,
     quote: Quote,
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct TradeMessage {
+pub struct TradeMessage {
     header: Header,
     contract: Contract,
     trade: Trade,
 }
 
-pub async fn handle_msg(msg: Message) {
-    // TODO determine if status or quote or trade message
+pub async fn handle_msg(msg: Message, iv_tx: &Sender<QuoteMessage>) {
     let Ok(text) = msg.into_text() else {
         log::error!("Err while parsing Message into text");
         return;
@@ -166,8 +166,8 @@ pub async fn handle_msg(msg: Message) {
         return;
     };
 
-    // Since the message type is not top level, we have to manually descide what to deserialize into
-    // TODO don't unwrap
+    // Since the message type is not top level, we have to manually decide what to deserialize into
+    // TODO don't unwrap. maybe return a Result?
     let message: MessageType = match v["header"]["type"].as_str() {
         Some("STATUS") => MessageType::Status(serde_json::from_value(v).unwrap()),
         Some("STATE") => MessageType::State(serde_json::from_value(v).unwrap()),
@@ -176,14 +176,18 @@ pub async fn handle_msg(msg: Message) {
         Some("TRADE") => MessageType::Trade(serde_json::from_value(v).unwrap()),
         other => { log::warn!("Unexpected type value in message header: {:?}", other); log::warn!("Unexpected message: {}", v); return }
     };
+
     match message {
-        MessageType::Quote(m) => log::info!("{:?}", m),
-        _ => return
+        MessageType::Status(m) => log::debug!("Deserialized message: {:?}", m),
+        MessageType::State(m) => log::debug!("Deserialized message: {:?}", m),
+        MessageType::ReqResponse(m) => log::info!("{:?}", m),
+        MessageType::Quote(m) => iv_tx.send(m).await.unwrap(),
+        MessageType::Trade(m) => log::info!("{:?}", m), // TODO
     }
 }
 
 
-pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, token: CancellationToken) {
+pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, iv_tx: Sender<QuoteMessage>, token: CancellationToken) {
     let (ws_stream, _) = connect_async(&ws_url).await.expect("Failed to connect to theta data terminal");
     log::info!("WebSocket handshake has been successfully completed");
 
@@ -233,7 +237,7 @@ pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, token: Ca
             }
             msg = read.next() => {
                 match msg {
-                    Some(Ok(m)) => handle_msg(m).await,
+                    Some(Ok(m)) => handle_msg(m, &iv_tx).await,
                     Some(Err(e)) => log::error!("WebSocket error: {}", e),
                     None => break
                 }
