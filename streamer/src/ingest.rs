@@ -98,16 +98,16 @@ struct Header {
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct Contract {
+pub struct Contract {
     security_type: String,
-    root: String,
-    expiration: i64,
-    strike: i64,
-    right: String,
+    pub root: String,
+    pub expiration: i64,
+    pub strike: i64,
+    pub right: String,
 }
 
 #[derive(serde::Deserialize, Debug)]
-struct Quote {
+pub struct Quote {
     ms_of_day: i64,
     bid_size: i64,
     bid_exchange: i64,
@@ -143,8 +143,8 @@ pub struct ReqResponseMessage {
 #[derive(serde::Deserialize, Debug)]
 pub struct QuoteMessage {
     header: Header,
-    contract: Contract,
-    quote: Quote,
+    pub contract: Contract,
+    pub quote: Quote,
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -239,7 +239,7 @@ pub async fn ingest(ws_url: String, contracts: Vec<ContractSubscribe>, iv_tx: Se
                 match msg {
                     Some(Ok(m)) => handle_msg(m, &iv_tx).await,
                     Some(Err(e)) => log::error!("WebSocket error: {}", e),
-                    None => break
+                    None => break,
                 }
             }
         }
