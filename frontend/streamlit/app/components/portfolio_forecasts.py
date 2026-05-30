@@ -13,7 +13,10 @@ def build_chart(
     prices_df: pd.DataFrame, forecasts_df: pd.DataFrame, label: str
 ) -> go.Figure:
     """Two-panel chart: price + EMAs (top), forecast lines (bottom)."""
-    rule_names = forecasts_df["rule_name"].unique().tolist()
+    rule_names = sorted(
+        forecasts_df["rule_name"].unique().tolist(),
+        key=lambda r: int(r.split("_")[1]) if r.startswith("ewmac_") else r,
+    )
 
     fig = make_subplots(
         rows=2,
@@ -37,13 +40,12 @@ def build_chart(
     )
 
     ema_palette = ["#00FF41", "#58A6FF", "#FF9900", "#FF6B9D", "#C5B0D5", "#17BECF"]
-    seen_spans = []
+    seen_spans = set()
     for rule in rule_names:
         parts = rule.split("_")
         if len(parts) == 3:
-            for span in (int(parts[1]), int(parts[2])):
-                if span not in seen_spans:
-                    seen_spans.append(span)
+            seen_spans.update([int(parts[1]), int(parts[2])])
+    seen_spans = sorted(seen_spans)
 
     for idx, span in enumerate(seen_spans):
         ema = prices_df["close"].ewm(span=span, adjust=False).mean()
