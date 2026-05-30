@@ -71,6 +71,7 @@ async def get_portfolio_forecasts(
         {
             "symbol": instrument["symbol"],
             "label": instrument["label"],
+            "asset_class": instrument["asset_class"],
             "prices": prices_by_symbol.get(instrument["symbol"], []),
             "forecasts": forecasts_by_symbol.get(instrument["symbol"], []),
         }
@@ -85,15 +86,20 @@ async def get_portfolio_forecasts(
 
 async def _fetch_active_instruments() -> list[dict[str, str]]:
     sql = text("""
-        SELECT symbol, label, price_source
+        SELECT symbol, label, price_source, asset_class
         FROM instruments
         WHERE is_active = TRUE
-        ORDER BY label
+        ORDER BY asset_class, label
     """)
     async with get_connection() as conn:
         result = await conn.execute(sql)
         return [
-            {"symbol": row.symbol, "label": row.label, "price_source": row.price_source}
+            {
+                "symbol": row.symbol,
+                "label": row.label,
+                "price_source": row.price_source,
+                "asset_class": row.asset_class,
+            }
             for row in result
         ]
 
