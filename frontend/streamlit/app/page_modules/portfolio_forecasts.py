@@ -44,8 +44,6 @@ tab_signals, tab_charts = st.tabs([
 
 # ── TAB 1: SIGNALS ────────────────────────────────────────────────────────────
 with tab_signals:
-    signals_summary(instruments)
-    st.divider()
     forecast_bar_chart(instruments)
     st.divider()
     forecast_table(instruments)

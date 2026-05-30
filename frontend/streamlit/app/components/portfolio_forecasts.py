@@ -73,10 +73,15 @@ def forecast_table(instruments: list[dict]) -> None:
             [k for k in cf if k != "combined"],
             key=lambda r: int(r.split("_")[1]) if r.startswith("ewmac_") else r,
         )
+        rule_values = []
         for rule in rule_names:
             fast, slow = rule.split("_")[1], rule.split("_")[2]
-            row[f"{fast}/{slow}"] = round(cf[rule], 1)
+            val = round(cf[rule], 1)
+            row[f"{fast}/{slow}"] = val
+            rule_values.append(val)
         row["Combined"] = round(cf["combined"], 1)
+        signs = {1 if v > 0 else -1 for v in rule_values if v != 0}
+        row["Status"] = "Aligned" if len(signs) <= 1 else "Diverging"
         rows.append(row)
 
     if not rows:
@@ -84,7 +89,7 @@ def forecast_table(instruments: list[dict]) -> None:
         return
 
     df = pd.DataFrame(rows)
-    numeric_cols = [c for c in df.columns if c not in ("Label", "Sector")]
+    numeric_cols = [c for c in df.columns if c not in ("Label", "Sector", "Status")]
 
     styled = (
         df.style
@@ -158,7 +163,7 @@ def build_chart(
     label: str,
     height: int = 460,
 ) -> go.Figure:
-    """Two-panel chart: price + EMAs (top), forecast lines (bottom)."""
+    """Two-panel chart: price + EMAs + vol (top), forecast lines (bottom)."""
     rule_names = sorted(
         forecasts_df["rule_name"].unique().tolist(),
         key=lambda r: int(r.split("_")[1]) if r.startswith("ewmac_") else r,
@@ -171,6 +176,7 @@ def build_chart(
         vertical_spacing=0.06,
         row_heights=[0.6, 0.4],
         subplot_titles=(f"{label} — Price & EMAs", "Forecast Strength"),
+        specs=[[{"secondary_y": True}], [{"secondary_y": False}]],
     )
 
     fig.add_trace(
@@ -181,8 +187,22 @@ def build_chart(
             line=dict(color=colors.text_gray, width=1.5),
             hovertemplate="<b>%{x}</b><br>Price: %{y:,.2f}<extra></extra>",
         ),
-        row=1, col=1,
+        row=1, col=1, secondary_y=False,
     )
+
+    if "blended_vol" in prices_df.columns and prices_df["blended_vol"].notna().any():
+        fig.add_trace(
+            go.Scatter(
+                x=prices_df["date"],
+                y=prices_df["blended_vol"],
+                name="Ann. Vol %",
+                line=dict(color="rgba(255, 165, 0, 0.6)", width=1),
+                fill="tozeroy",
+                fillcolor="rgba(255, 165, 0, 0.08)",
+                hovertemplate="<b>%{x}</b><br>Vol: %{y:.1f}%<extra></extra>",
+            ),
+            row=1, col=1, secondary_y=True,
+        )
 
     ema_palette = ["#00FF41", "#58A6FF", "#FF9900", "#FF6B9D", "#C5B0D5", "#17BECF"]
     seen_spans = set()
@@ -203,7 +223,7 @@ def build_chart(
                 opacity=0.8,
                 hovertemplate=f"<b>%{{x}}</b><br>EMA {span}: %{{y:,.2f}}<extra></extra>",
             ),
-            row=1, col=1,
+            row=1, col=1, secondary_y=False,
         )
 
     forecast_palette = ["#FF9900", "#C5B0D5", "#17BECF", "#FF6B9D"]
@@ -263,6 +283,13 @@ def build_chart(
     fig.update_xaxes(gridcolor="rgba(0, 255, 65, 0.08)", showgrid=True)
     fig.update_yaxes(gridcolor="rgba(0, 255, 65, 0.08)", showgrid=True)
     fig.update_yaxes(title_text="Forecast", range=[-22, 22], row=2, col=1)
+    fig.update_yaxes(
+        title_text="Vol %",
+        secondary_y=True,
+        showgrid=False,
+        tickfont=dict(color="rgba(255, 165, 0, 0.6)", size=9),
+        title_font=dict(color="rgba(255, 165, 0, 0.6)", size=9),
+    )
     return fig
 
 

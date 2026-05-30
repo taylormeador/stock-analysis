@@ -1,11 +1,14 @@
 import asyncio
 import logging
+import math
 from datetime import date, timedelta
 
 import pandas as pd
 from sqlalchemy import text
 
 from app.db import get_connection
+
+ANNUALIZE = math.sqrt(252) * 100
 
 logger = logging.getLogger(__name__)
 
@@ -125,44 +128,50 @@ async def _fetch_prices(
 
 async def _fetch_futures_prices(symbols: list[str], since: date) -> dict[str, list[dict]]:
     sql = text("""
-        SELECT symbol, date, close
-        FROM futures_prices
-        WHERE symbol = ANY(:symbols)
-          AND date >= :since
-        ORDER BY symbol, date ASC
+        SELECT fp.symbol, fp.date, fp.close,
+               iv.blended_vol * :annualize AS blended_vol
+        FROM futures_prices fp
+        LEFT JOIN instrument_vol iv ON iv.symbol = fp.symbol AND iv.date = fp.date
+        WHERE fp.symbol = ANY(:symbols)
+          AND fp.date >= :since
+        ORDER BY fp.symbol, fp.date ASC
     """)
     async with get_connection() as conn:
-        result = await conn.execute(sql, {"symbols": symbols, "since": since})
+        result = await conn.execute(sql, {"symbols": symbols, "since": since, "annualize": ANNUALIZE})
         rows = result.fetchall()
 
     if not rows:
         return {}
 
-    df = pd.DataFrame(rows, columns=["symbol", "date", "close"])
+    df = pd.DataFrame(rows, columns=["symbol", "date", "close", "blended_vol"])
     df["date"] = df["date"].astype(str)
     df["close"] = pd.to_numeric(df["close"]).fillna(0.0)
-    return {symbol: group[["date", "close"]].to_dict("records") for symbol, group in df.groupby("symbol")}
+    df["blended_vol"] = pd.to_numeric(df["blended_vol"])
+    return {symbol: group[["date", "close", "blended_vol"]].to_dict("records") for symbol, group in df.groupby("symbol")}
 
 
 async def _fetch_spot_prices(symbols: list[str], since: date) -> dict[str, list[dict]]:
     sql = text("""
-        SELECT ticker AS symbol, date, close
-        FROM stock_prices
-        WHERE ticker = ANY(:symbols)
-          AND date >= :since
-        ORDER BY ticker, date ASC
+        SELECT sp.ticker AS symbol, sp.date, sp.close,
+               iv.blended_vol * :annualize AS blended_vol
+        FROM stock_prices sp
+        LEFT JOIN instrument_vol iv ON iv.symbol = sp.ticker AND iv.date = sp.date
+        WHERE sp.ticker = ANY(:symbols)
+          AND sp.date >= :since
+        ORDER BY sp.ticker, sp.date ASC
     """)
     async with get_connection() as conn:
-        result = await conn.execute(sql, {"symbols": symbols, "since": since})
+        result = await conn.execute(sql, {"symbols": symbols, "since": since, "annualize": ANNUALIZE})
         rows = result.fetchall()
 
     if not rows:
         return {}
 
-    df = pd.DataFrame(rows, columns=["symbol", "date", "close"])
+    df = pd.DataFrame(rows, columns=["symbol", "date", "close", "blended_vol"])
     df["date"] = df["date"].astype(str)
     df["close"] = pd.to_numeric(df["close"]).fillna(0.0)
-    return {symbol: group[["date", "close"]].to_dict("records") for symbol, group in df.groupby("symbol")}
+    df["blended_vol"] = pd.to_numeric(df["blended_vol"])
+    return {symbol: group[["date", "close", "blended_vol"]].to_dict("records") for symbol, group in df.groupby("symbol")}
 
 
 async def _fetch_forecasts(symbols: list[str], since: date) -> dict[str, list[dict]]:
