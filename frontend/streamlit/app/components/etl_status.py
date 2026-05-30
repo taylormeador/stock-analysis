@@ -44,21 +44,8 @@ def system_health_overview():
         )
 
 
-@st.fragment(run_every="5s")
-def realtime_component_status():
-    """This section updates every 5s without reloading the whole page."""
-    placeholder = st.empty()
-
-    json_response = get_json("/etl-status")
-
-    if not json_response.get('data'):
-        with placeholder.container():
-            st.error(":material/error: **No data available**\n\n")
-        return
-
-    df = pd.DataFrame(json_response["data"]["etl_task_statuses"])
+def _render_status_rows(placeholder, df: pd.DataFrame) -> None:
     now = datetime.now(timezone.utc)
-
     with placeholder.container():
         for _, row in df.iterrows():
             col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
@@ -87,6 +74,23 @@ def realtime_component_status():
                 st.caption(f":material/avg_time: Run time: {row.run_time}s")
 
             st.progress(row.progress)
+
+
+@st.fragment(run_every="5s")
+def realtime_component_status():
+    placeholder = st.empty()
+
+    # Render stale data immediately — no blank period while fetching
+    if "_etl_status_df" in st.session_state:
+        _render_status_rows(placeholder, st.session_state["_etl_status_df"])
+
+    json_response = get_json("/etl-status")
+    if not json_response.get("data"):
+        return
+
+    df = pd.DataFrame(json_response["data"]["etl_task_statuses"])
+    st.session_state["_etl_status_df"] = df
+    _render_status_rows(placeholder, df)
 
 
 def task_performance(df: pd.DataFrame):
@@ -182,29 +186,30 @@ def static_info():
     )
 
 
+def _render_sidebar_stats(placeholder, data: dict) -> None:
+    task_deltas_df = pd.DataFrame(data["task_time_deltas"])
+    num_tasks_processed = data["num_tasks_processed"]
+    task_failure_rate = data["task_failure_rate"]
+    mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
+    failure_rate = int(task_failure_rate)
+    with placeholder.container():
+        st.markdown("### :material/analytics: Quick Stats (24h)")
+        st.metric(":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}")
+        st.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
+        st.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
+
+
 @st.fragment(run_every="1m")
 def sidebar_stats():
     placeholder = st.empty()
 
+    if "_etl_sidebar_data" in st.session_state:
+        _render_sidebar_stats(placeholder, st.session_state["_etl_sidebar_data"])
+
     json_response = get_json("/etl-status")
     data = json_response["data"]
-
     if not data:
-        with placeholder.container():
-            st.error(":material/error: **No data available**\n\n")
         return
 
-    task_deltas_df = pd.DataFrame(data["task_time_deltas"])
-    num_tasks_processed = data["num_tasks_processed"]
-    task_failure_rate = data["task_failure_rate"]
-
-    mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
-    failure_rate = int(task_failure_rate)
-
-    with placeholder.container():
-        st.markdown("### :material/analytics: Quick Stats (24h)")
-        st.metric(
-            ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
-        )
-        st.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
-        st.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
+    st.session_state["_etl_sidebar_data"] = data
+    _render_sidebar_stats(placeholder, data)
