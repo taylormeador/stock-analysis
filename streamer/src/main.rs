@@ -20,14 +20,15 @@ async fn main() {
     let token = CancellationToken::new();
     let token_2 = token.clone();
     let token_3 = token.clone();
+    let token_4 = token.clone();
 
-    // init channels
+    // Init channels
     let (iv_tx, iv_rx): (Sender<ingest::QuoteMessage>, Receiver<ingest::QuoteMessage>) = channel(32);
-    // let (surface_tx, _) = channel(32);
+    let (surface_tx, surface_rx): (Sender<calc::IVTick>, Receiver<calc::IVTick>) = channel(32);
     
     let t1 = tokio::spawn(ingest::ingest(ws_url, contracts, iv_tx, token_2));
-    let t2 = tokio::spawn(calc::calc_iv(iv_rx, token_3));
-
+    let t2 = tokio::spawn(calc::calc_iv(iv_rx, surface_tx, token_3));
+    let t3 = tokio::spawn(calc::calc_surface_and_anomalies(surface_rx, token_4));
 
     // Listen for interrupt
     loop {
@@ -42,5 +43,7 @@ async fn main() {
     // Wait for threads to shutdown cleanly
     let _ = t1.await;
     let _ = t2.await;
+    let _ = t3.await;
     
+    log::info!("Bye!")
 }

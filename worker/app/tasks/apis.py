@@ -110,6 +110,30 @@ def get_eod_options_data(self, start_date: str | None = None, end_date: str | No
         tracker.fail_task(str(e))
         raise
 
+@app.task(base=SingleInstanceTask, bind=True)
+def ingest_spot_vol(self):
+    """
+    Compute and store vol for active spot instruments.
+    Runs after fetch_stock_data so prices are already up to date.
+    """
+    tracker = TaskStatusTracker(
+        task_id=self.request.id,
+        component_name="Spot Vol Ingestion",
+        task_description="EWMA vol for spot/index instruments used in EWMAC forecasts",
+    )
+    tracker.start_task()
+
+    try:
+        futures.ingest_spot_vol(tracker)
+        tracker.complete_task()
+        return True
+
+    except Exception as e:
+        logger.exception("error while computing spot vol: ")
+        tracker.fail_task(str(e))
+        raise
+
+
 @app.task(bind=True)
 def ingest_futures_prices(self, start_date: str | None = None, end_date: str | None = None):
     """

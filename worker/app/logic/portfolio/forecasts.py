@@ -82,7 +82,7 @@ def generate_forecasts(
         tracker.update_status_message(f"Processing {label} ({i + 1}/{num_instruments})")
 
         try:
-            prices = fetch_prices(symbol, as_of, LOOKBACK_DAYS)
+            prices = fetch_prices(symbol, as_of, LOOKBACK_DAYS, instrument["price_source"])
         except Exception as e:
             logger.error(f"Failed to fetch prices for {symbol}: {e}")
             continue

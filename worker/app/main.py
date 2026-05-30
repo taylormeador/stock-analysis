@@ -25,8 +25,6 @@ logger = logging.getLogger(__name__)
 date_format = "%Y-%m-%d"
 two_days_ago = date.today() - timedelta(days=2)
 two_days_ago_str = two_days_ago.strftime(date_format)
-today = date.today()
-today_str = today.strftime(date_format)
 
 # Celery Beat schedule
 app.conf.beat_schedule = {
@@ -73,7 +71,7 @@ app.conf.beat_schedule = {
     # I don't know when the data is updated so we look back a couple days
     "fetch-daily-cboe-stats": {
         "task": "app.tasks.scraping.scrape_cboe_daily_stats",
-        "kwargs": {"start_date_str": two_days_ago_str, "end_date_str": today_str},
+        "kwargs": {"start_date_str": two_days_ago_str, "end_date_str": date.today().strftime(date_format)},
         "schedule": crontab(hour="8", minute="0"),
     },
     "get-fred-data": {
@@ -88,23 +86,15 @@ app.conf.beat_schedule = {
         "task": "app.tasks.apis.ingest_futures_prices",
         "schedule": crontab(hour="*", minute="0"),
     },
-    # Daily portfolio pipeline — forecasts first, then calculations
+    # Spot price vol — runs after fetch_stock_data, before forecast generation
+    "ingest-spot-vol": {
+        "task": "app.tasks.apis.ingest_spot_vol",
+        "schedule": crontab(hour="8", minute="15"),
+    },
+    # Forecast generation — runs after spot vol is computed
     "generate-daily-forecasts": {
         "task": "app.tasks.portfolio.generate_forecasts",
-        "kwargs": {"as_of": today_str},
         "schedule": crontab(hour="8", minute="30"),
-    },
-    # This is a simulated portfolio that I want to track
-    "run-daily-portfolio-calculations": {
-        "task": "app.tasks.portfolio.run_portfolio_calculations",
-        "kwargs": {
-            "start_date": today_str,
-            "end_date": today_str,
-            "run_id": "daily",
-            "capital": 75000,
-            "symbols": ["/MES", "/MBT", "/ZC", "/MGC"],
-        },
-        "schedule": crontab(hour="8", minute="45"),
     },
 }
 

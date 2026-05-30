@@ -62,7 +62,7 @@ async def get_portfolio_forecasts(
     symbols = [i["symbol"] for i in instruments]
 
     prices_by_symbol, forecasts_by_symbol, calculations = await asyncio.gather(
-        _fetch_prices(symbols, since),
+        _fetch_prices(instruments, since),
         _fetch_forecasts(symbols, since),
         _fetch_calculations(symbols, since, run_id),
     )
@@ -85,17 +85,39 @@ async def get_portfolio_forecasts(
 
 async def _fetch_active_instruments() -> list[dict[str, str]]:
     sql = text("""
-        SELECT symbol, label
+        SELECT symbol, label, price_source
         FROM instruments
         WHERE is_active = TRUE
         ORDER BY label
     """)
     async with get_connection() as conn:
         result = await conn.execute(sql)
-        return [{"symbol": row.symbol, "label": row.label} for row in result]
+        return [
+            {"symbol": row.symbol, "label": row.label, "price_source": row.price_source}
+            for row in result
+        ]
 
 
-async def _fetch_prices(symbols: list[str], since: date) -> dict[str, list[dict]]:
+async def _fetch_prices(
+    instruments: list[dict[str, str]], since: date
+) -> dict[str, list[dict]]:
+    futures_symbols = [i["symbol"] for i in instruments if i["price_source"] == "futures_prices"]
+    spot_symbols = [i["symbol"] for i in instruments if i["price_source"] == "stock_prices"]
+
+    queries = []
+    if futures_symbols:
+        queries.append(_fetch_futures_prices(futures_symbols, since))
+    if spot_symbols:
+        queries.append(_fetch_spot_prices(spot_symbols, since))
+
+    results = await asyncio.gather(*queries)
+    combined: dict[str, list[dict]] = {}
+    for r in results:
+        combined.update(r)
+    return combined
+
+
+async def _fetch_futures_prices(symbols: list[str], since: date) -> dict[str, list[dict]]:
     sql = text("""
         SELECT symbol, date, close
         FROM futures_prices
@@ -113,11 +135,28 @@ async def _fetch_prices(symbols: list[str], since: date) -> dict[str, list[dict]
     df = pd.DataFrame(rows, columns=["symbol", "date", "close"])
     df["date"] = df["date"].astype(str)
     df["close"] = pd.to_numeric(df["close"]).fillna(0.0)
+    return {symbol: group[["date", "close"]].to_dict("records") for symbol, group in df.groupby("symbol")}
 
-    return {
-        symbol: group[["date", "close"]].to_dict("records")
-        for symbol, group in df.groupby("symbol")
-    }
+
+async def _fetch_spot_prices(symbols: list[str], since: date) -> dict[str, list[dict]]:
+    sql = text("""
+        SELECT ticker AS symbol, date, close
+        FROM stock_prices
+        WHERE ticker = ANY(:symbols)
+          AND date >= :since
+        ORDER BY ticker, date ASC
+    """)
+    async with get_connection() as conn:
+        result = await conn.execute(sql, {"symbols": symbols, "since": since})
+        rows = result.fetchall()
+
+    if not rows:
+        return {}
+
+    df = pd.DataFrame(rows, columns=["symbol", "date", "close"])
+    df["date"] = df["date"].astype(str)
+    df["close"] = pd.to_numeric(df["close"]).fillna(0.0)
+    return {symbol: group[["date", "close"]].to_dict("records") for symbol, group in df.groupby("symbol")}
 
 
 async def _fetch_forecasts(symbols: list[str], since: date) -> dict[str, list[dict]]:

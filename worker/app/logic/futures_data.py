@@ -18,13 +18,13 @@ SHORT_TERM_VOL_WEIGHT = 0.7
 
 def fetch_active_instruments() -> list[dict]:
     sql = text("""
-        SELECT symbol, label
+        SELECT symbol, label, price_source
         FROM instruments
         WHERE is_active = TRUE
     """)
     with db.get_connection() as conn:
         result = conn.execute(sql)
-        return [{"symbol": row.symbol, "label": row.label} for row in result]
+        return [{"symbol": row.symbol, "label": row.label, "price_source": row.price_source} for row in result]
 
 
 def fetch_trading_instruments() -> list[dict]:
@@ -45,15 +45,24 @@ def fetch_trading_instruments() -> list[dict]:
         ]
 
 
-def fetch_all_prices_from_db(symbol: str) -> pd.Series:
+def fetch_all_prices_from_db(symbol: str, price_source: str = "futures_prices") -> pd.Series:
     """Fetch full price history for vol calculation."""
-    sql = text("""
-        SELECT date, close
-        FROM futures_prices
-        WHERE symbol = :symbol
-          AND close IS NOT NULL
-        ORDER BY date ASC
-    """)
+    if price_source == "stock_prices":
+        sql = text("""
+            SELECT date, close
+            FROM stock_prices
+            WHERE ticker = :symbol
+              AND close IS NOT NULL
+            ORDER BY date ASC
+        """)
+    else:
+        sql = text("""
+            SELECT date, close
+            FROM futures_prices
+            WHERE symbol = :symbol
+              AND close IS NOT NULL
+            ORDER BY date ASC
+        """)
     with db.get_connection() as conn:
         df = pd.read_sql(sql, conn, params={"symbol": symbol})
 
@@ -185,12 +194,13 @@ def ingest_futures_prices(
     logger.info(f"Ingesting futures prices from {start_date} to {end_date}")
     tracker.update_status_message(f"Fetching prices from {start_date} to {end_date}")
 
-    instruments = fetch_active_instruments()
+    all_instruments = fetch_active_instruments()
+    instruments = [i for i in all_instruments if i["price_source"] == "futures_prices"]
     num_instruments = len(instruments)
 
     if not instruments:
-        logger.warning("No active instruments found in instruments")
-        tracker.update_status_message("No active instruments found")
+        logger.warning("No active futures instruments found")
+        tracker.update_status_message("No active futures instruments found")
         return
 
     total_rows = 0
@@ -231,7 +241,7 @@ def ingest_futures_prices(
             logger.info(f"  Upserted {len(rows)} price rows")
 
             # Recalculate vol over full history and upsert
-            all_prices = fetch_all_prices_from_db(symbol)
+            all_prices = fetch_all_prices_from_db(symbol, "futures_prices")
             if len(all_prices) >= EWMA_VOL_SPAN:
                 vol_df = calc_vol_series(all_prices)
                 upsert_instrument_vol(symbol, vol_df)
@@ -253,6 +263,53 @@ def ingest_futures_prices(
     if failed:
         message += f" — failed: {', '.join(failed)}"
 
+    logger.info(message)
+    tracker.update_status_message(message)
+
+
+def ingest_spot_vol(tracker: TaskStatusTracker):
+    """
+    Compute and store vol for active spot instruments.
+    Prices are already in stock_prices via fetch_stock_data; this task
+    derives instrument_vol from that history.
+    """
+    all_instruments = fetch_active_instruments()
+    instruments = [i for i in all_instruments if i["price_source"] == "stock_prices"]
+
+    if not instruments:
+        logger.warning("No active spot instruments found")
+        tracker.update_status_message("No active spot instruments found")
+        return
+
+    num_instruments = len(instruments)
+    failed = []
+
+    for i, instrument in enumerate(instruments):
+        symbol = instrument["symbol"]
+        label = instrument["label"]
+        logger.info(f"Computing vol for {label} ({symbol})")
+        tracker.update_status_message(f"Computing vol for {label} ({i + 1}/{num_instruments})")
+
+        try:
+            all_prices = fetch_all_prices_from_db(symbol, "stock_prices")
+            if len(all_prices) < EWMA_VOL_SPAN:
+                logger.warning(f"  Insufficient history for vol calculation on {symbol}")
+                failed.append(symbol)
+                continue
+
+            vol_df = calc_vol_series(all_prices)
+            upsert_instrument_vol(symbol, vol_df)
+            logger.info(f"  Upserted {len(vol_df)} vol rows for {symbol}")
+
+        except Exception as e:
+            logger.error(f"Failed to compute vol for {symbol}: {e}")
+            failed.append(symbol)
+
+        tracker.update_progress((i + 1) / num_instruments)
+
+    message = f"Computed vol for {num_instruments - len(failed)} spot instruments"
+    if failed:
+        message += f" — failed: {', '.join(failed)}"
     logger.info(message)
     tracker.update_status_message(message)
 
