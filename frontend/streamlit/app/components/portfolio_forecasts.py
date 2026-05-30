@@ -92,7 +92,9 @@ def forecast_table(instruments: list[dict]) -> None:
         .format({c: "{:+.1f}" for c in numeric_cols})
         .set_properties(**{"text-align": "center"}, subset=numeric_cols)
     )
-    st.dataframe(styled, use_container_width=True, hide_index=True)
+    row_height_px = 36
+    table_height = (len(df) + 1) * row_height_px + 4
+    st.dataframe(styled, use_container_width=True, hide_index=True, height=table_height)
 
 
 def forecast_bar_chart(instruments: list[dict]) -> None:
@@ -251,8 +253,10 @@ def build_chart(
             bordercolor=colors.bright_green,
             borderwidth=1,
             font=dict(size=10),
-            orientation="h",
-            y=-0.02,
+            x=1.01,
+            y=1,
+            xanchor="left",
+            yanchor="top",
         ),
         margin=dict(l=60, r=20, t=40, b=20),
     )
