@@ -47,44 +47,46 @@ def system_health_overview():
 @st.fragment(run_every="5s")
 def realtime_component_status():
     """This section updates every 5s without reloading the whole page."""
-    json_response = get_json("/etl-status")
-    df = pd.DataFrame(
-        json_response["data"]["etl_task_statuses"]
-    )  # TODO use query param for partial update?
+    placeholder = st.empty()
 
+    json_response = get_json("/etl-status")
 
     if not json_response.get('data'):
-        st.error(":material/error: **No data available**\n\n")
-        st.stop()
+        with placeholder.container():
+            st.error(":material/error: **No data available**\n\n")
+        return
 
+    df = pd.DataFrame(json_response["data"]["etl_task_statuses"])
     now = datetime.now(timezone.utc)
-    for _, row in df.iterrows():
-        col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
-        with col1:
-            if row.status == "Complete":
-                st.success(f"**{row.status}**")
-            elif row.status == "Retrying":
-                st.warning(f"**{row.status} - {row.progress * 100:.0f}%**")
-            elif row.status == "Failed":
-                st.error(f"**{row.status} - {row.progress * 100:.0f}%**")
-            else:
-                st.info(f"**{row.status} - {row.progress * 100:.0f}%**")
 
-        with col2:
-            st.markdown(f"**{row.component_name}**")
-            st.caption(row.task_description)
+    with placeholder.container():
+        for _, row in df.iterrows():
+            col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
+            with col1:
+                if row.status == "Complete":
+                    st.success(f"**{row.status}**")
+                elif row.status == "Retrying":
+                    st.warning(f"**{row.status} - {row.progress * 100:.0f}%**")
+                elif row.status == "Failed":
+                    st.error(f"**{row.status} - {row.progress * 100:.0f}%**")
+                else:
+                    st.info(f"**{row.status} - {row.progress * 100:.0f}%**")
 
-        with col3:
-            st.markdown("**Status**")
-            st.caption(row.status_message[:150])
+            with col2:
+                st.markdown(f"**{row.component_name}**")
+                st.caption(row.task_description)
 
-        with col4:
-            delta = now - pd.to_datetime(row.start_time)
-            ago = timeago.format(delta, now)
-            st.caption(f":material/schedule: Last run: {ago}")
-            st.caption(f":material/avg_time: Run time: {row.run_time}s")
+            with col3:
+                st.markdown("**Status**")
+                st.caption(row.status_message[:150])
 
-        st.progress(row.progress)
+            with col4:
+                delta = now - pd.to_datetime(row.start_time)
+                ago = timeago.format(delta, now)
+                st.caption(f":material/schedule: Last run: {ago}")
+                st.caption(f":material/avg_time: Run time: {row.run_time}s")
+
+            st.progress(row.progress)
 
 
 def task_performance(df: pd.DataFrame):
@@ -182,13 +184,15 @@ def static_info():
 
 @st.fragment(run_every="1m")
 def sidebar_stats():
-    # Fetch data from API
+    placeholder = st.empty()
+
     json_response = get_json("/etl-status")
     data = json_response["data"]
 
     if not data:
-        st.error(":material/error: **No data available**\n\n")
-        st.stop()
+        with placeholder.container():
+            st.error(":material/error: **No data available**\n\n")
+        return
 
     task_deltas_df = pd.DataFrame(data["task_time_deltas"])
     num_tasks_processed = data["num_tasks_processed"]
@@ -197,9 +201,10 @@ def sidebar_stats():
     mean_task_duration = round(float(task_deltas_df["mean"].iloc[0]), 2)
     failure_rate = int(task_failure_rate)
 
-    st.markdown("### :material/analytics: Quick Stats (24h)")
-    st.metric(
-        ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
-    )
-    st.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
-    st.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
+    with placeholder.container():
+        st.markdown("### :material/analytics: Quick Stats (24h)")
+        st.metric(
+            ":material/timer: Tasks Completed", f"{sum(num_tasks_processed.values())}"
+        )
+        st.metric(":material/error: Task Failure Rate", f"{failure_rate}%")
+        st.metric(":material/speed: Mean Task Duration", f"{mean_task_duration}s")
