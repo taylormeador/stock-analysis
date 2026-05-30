@@ -8,7 +8,7 @@ Multi-service stock analysis platform supporting discretionary trading. Core wor
 
 **Trading approach:** Hybrid discretionary — Carver-style EWMAC trend forecasts are used as one signal among several that a human trader weighs. No automated position sizing or order execution. The forecast is a dimensionless trend-strength signal (±20 scale); the trader decides what to do with it.
 
-**Instruments traded:** Equity index futures (/MES, /MNQ, /M2K) and crypto (/MBT), using index/ETF spot prices (^GSPC, QQQ, IWM, GLD, BTC-USD) as proxies for forecast generation. Backadjusted futures data costs money; spot prices are free via yfinance and track the futures closely enough for trend signals. Commodity futures (oil, grains) are excluded because their ETF proxies structurally diverge from futures due to roll yield.
+**Instruments traded:** Equity index futures (/MES, /MNQ, /M2K), rates (/ZN, /ZB), metals (/MGC, /SI), crypto (/MBT, /MET), and FX (/6E, /6B, /6J) — using spot/ETF prices as proxies for forecast generation. Backadjusted futures data costs money; spot prices are free via yfinance and track the futures closely enough for trend signals. Commodity futures (oil, grains) are excluded because their ETF proxies structurally diverge from futures due to roll yield.
 
 ## Services
 
@@ -93,6 +93,20 @@ The worker service runs multiple Celery queues:
 
 Portfolio position sizing (FDM, IDM, capital allocation) is intentionally not run — forecasts are used as discretionary signals, not automated orders.
 
+### Forecasts Dashboard (`frontend/streamlit/app/page_modules/portfolio_forecasts.py`)
+
+Two-tab layout:
+- **Signals tab** — combined forecast bar chart (all instruments, sorted by strength), color-coded heatmap table (one row per instrument, columns per EWMAC variation + combined + alignment status)
+- **Charts tab** — instruments grouped by asset class, 2-column grid, each chart has two panels: (1) price + EMAs + annualized vol overlay (secondary y-axis), (2) forecast strength per variation + combined
+
+The vol overlay on the price panel shows `blended_vol` from `instrument_vol` (annualized %). It is context/input data — the forecast already incorporates vol normalization, so the overlay shows how the signal was computed, not an additional actionable signal.
+
+The API joins `instrument_vol.blended_vol` into the price query (LEFT JOIN on symbol+date) so no separate round-trip is needed. Annualization (`× √252 × 100`) is applied at query time via the `ANNUALIZE` constant in `api/app/logic/portfolio_forecasts.py`.
+
+### fetch_stock_data ticker filter
+
+`app.tasks.apis.fetch_stock_data` accepts an optional `tickers: list[str]` parameter. Defaults to all tracked tickers. Useful for targeted historical backfills without re-fetching all 150+ tickers.
+
 ### Instrument & Price Model
 
 The `instruments` table is the registry of what gets forecasts. Key columns:
@@ -106,12 +120,19 @@ Active instruments are all spot/index (`price_source = 'stock_prices'`):
 | `^GSPC` | SPX | equity_index |
 | `QQQ` | QQQ | equity_index |
 | `IWM` | IWM | equity_index |
+| `TLT` | TLT | rates |
+| `IEF` | IEF | rates |
 | `GLD` | GLD | metals |
+| `SLV` | SLV | metals |
 | `BTC-USD` | BTC | crypto |
+| `ETH-USD` | ETH | crypto |
+| `EURUSD=X` | EUR | fx |
+| `GBPUSD=X` | GBP | fx |
+| `JPYUSD=X` | JPY | fx |
 
 `stock_prices` is the single source of truth for all spot/index price data (OHLCV + technical indicators). `futures_prices` remains intact for actual futures data but has no active instruments currently. The `price_source` indirection means the EWMAC pipeline, API, and vol computation all dispatch to the correct table without hardcoding.
 
-Migration: `database/ddls/add_spot_instruments.sql`
+Migrations: `database/ddls/add_spot_instruments.sql` (initial spot instruments + `price_source` column), then re-run for the expanded instrument list above.
 
 ### Streamer Service
 
