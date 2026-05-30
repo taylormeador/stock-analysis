@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Multi-service stock analysis and quantitative trading platform. Core workflow: scheduled data ingestion → ML analysis → EWMAC forecast generation → portfolio calculation → dashboard display.
+Multi-service stock analysis platform supporting discretionary trading. Core workflow: scheduled data ingestion → ML analysis → EWMAC forecast generation → dashboard display.
+
+**Trading approach:** Hybrid discretionary — Carver-style EWMAC trend forecasts are used as one signal among several that a human trader weighs. No automated position sizing or order execution. The forecast is a dimensionless trend-strength signal (±20 scale); the trader decides what to do with it.
+
+**Instruments traded:** Equity index futures (/MES, /MNQ, /M2K) and crypto (/MBT), using index/ETF spot prices (^GSPC, QQQ, IWM, GLD, BTC-USD) as proxies for forecast generation. Backadjusted futures data costs money; spot prices are free via yfinance and track the futures closely enough for trend signals. Commodity futures (oil, grains) are excluded because their ETF proxies structurally diverge from futures due to roll yield.
 
 ## Services
 
@@ -45,6 +49,7 @@ psql stock_analysis_db < database/ddls/ddls.sql
 psql stock_analysis_db < database/ddls/reddit_ddls.sql
 psql stock_analysis_db < database/ddls/options.sql
 psql stock_analysis_db < database/ddls/portfolio.sql
+psql stock_analysis_db < database/ddls/add_spot_instruments.sql
 ```
 
 ## Architecture
@@ -63,10 +68,10 @@ The worker service runs multiple Celery queues:
 |---|---|
 | Every 2 min | Scrape WSB daily thread |
 | Every 10 min | Scrape top Reddit comments + embeddings |
-| Hourly | Futures data, price cache update |
-| 8:00 AM daily | Stock data, CBOE stats, FRED data, options |
-| 8:30 AM daily | EWMAC forecasts for all variations |
-| 8:45 AM daily | Portfolio calculations (4 futures: /MES, /MBT, /ZC, /MGC) |
+| Hourly | Futures data (no active instruments currently), price cache update |
+| 8:00 AM daily | Stock data (incl. spot instruments), CBOE stats, FRED data, options |
+| 8:15 AM daily | Spot vol — EWMA vol for active spot instruments → `instrument_vol` |
+| 8:30 AM daily | EWMAC forecasts for all active instruments → `forecasts` |
 | 4x daily | LLM summaries via Claude API (premarket, midday, close, evening) |
 
 ### Key Patterns
@@ -84,8 +89,29 @@ The worker service runs multiple Celery queues:
 1. **Ingest** — Reddit (PRAW), yfinance, FRED, CBOE, Theta Data Terminal options
 2. **Analyze** — VADER + FinBERT sentiment, sentence-transformer embeddings, BERTopic clustering, LLM summaries (Claude)
 3. **Model** — XGBoost/LightGBM forecasting, EWMAC trading rules
-4. **Portfolio** — Forecast variations → position sizing → backtest verification
-5. **Display** — FastAPI serves Streamlit frontend; Flower monitors tasks
+4. **Display** — FastAPI serves Streamlit frontend; Flower monitors tasks
+
+Portfolio position sizing (FDM, IDM, capital allocation) is intentionally not run — forecasts are used as discretionary signals, not automated orders.
+
+### Instrument & Price Model
+
+The `instruments` table is the registry of what gets forecasts. Key columns:
+- `is_active` — controls whether the instrument runs through the forecast pipeline
+- `price_source` — `'stock_prices'` or `'futures_prices'`; tells every query which table to read from
+
+Active instruments are all spot/index (`price_source = 'stock_prices'`):
+
+| symbol | label | asset_class |
+|---|---|---|
+| `^GSPC` | SPX | equity_index |
+| `QQQ` | QQQ | equity_index |
+| `IWM` | IWM | equity_index |
+| `GLD` | GLD | metals |
+| `BTC-USD` | BTC | crypto |
+
+`stock_prices` is the single source of truth for all spot/index price data (OHLCV + technical indicators). `futures_prices` remains intact for actual futures data but has no active instruments currently. The `price_source` indirection means the EWMAC pipeline, API, and vol computation all dispatch to the correct table without hardcoding.
+
+Migration: `database/ddls/add_spot_instruments.sql`
 
 ### Streamer Service
 
