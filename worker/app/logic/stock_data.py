@@ -185,6 +185,7 @@ def fetch_stock_data(
     tracker: TaskStatusTracker,
     start_date: str | None = None,
     end_date: str | None = None,
+    tickers: list[str] | None = None,
 ):
     # Default to yesterday/today for start/end date.
     if start_date is None:
@@ -199,7 +200,8 @@ def fetch_stock_data(
         f"Fetching data for dates: {start_date} to {end_date}"
     )
 
-    tickers = get_tickers()
+    if tickers is None:
+        tickers = get_tickers()
     num_tickers = len(tickers)
 
     total_records = 0

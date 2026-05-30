@@ -15,11 +15,17 @@ logger = logging.getLogger(__name__)
 # TODO this file organization doesn't make a lot of sense. Trying to find an ETL based on whether it's an API call or scraping is kinda silly.
 
 @app.task(base=SingleInstanceTask, bind=True)
-def fetch_stock_data(self, start_date: str | None = None, end_date: str | None = None):
+def fetch_stock_data(
+    self,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    tickers: list[str] | None = None,
+):
     """
-    Fetch stock prices for all tracked tickers.
+    Fetch stock prices for tracked tickers.
 
     Date args should be in form "%Y-%m-%d" and they will default to yesterday/today.
+    Tickers defaults to all tracked tickers if not specified.
     """
     logger.info("Starting stock price fetch")
     tracker = TaskStatusTracker(
@@ -30,7 +36,7 @@ def fetch_stock_data(self, start_date: str | None = None, end_date: str | None =
     tracker.start_task()
 
     try:
-        stocks.fetch_stock_data(tracker, start_date, end_date)
+        stocks.fetch_stock_data(tracker, start_date, end_date, tickers)
         tracker.complete_task()
         return True
 
