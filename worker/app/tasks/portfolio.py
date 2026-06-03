@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from app.celery_app import app
 from app.utils import TaskStatusTracker
@@ -31,7 +31,7 @@ def generate_forecasts(
     )
     tracker.start_task()
 
-    parsed_date = datetime.strptime(as_of, "%Y-%m-%d").date() if as_of else date.today()
+    parsed_date = datetime.strptime(as_of, "%Y-%m-%d").date() if as_of else date.today() - timedelta(days=1)
 
     try:
         forecasts.generate_forecasts(
