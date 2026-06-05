@@ -84,15 +84,23 @@ def _fetch_underlying_prices(symbols: list[str]) -> dict[str, float]:
 def fetch_and_cache(tracker=None) -> None:
     username = os.environ["TASTYTRADE_USERNAME"]
     password = os.environ["TASTYTRADE_PASSWORD"]
-    # TT_SECRET is the TOTP secret if 2FA is enabled on the account.
-    # Set to any non-empty string if 2FA is not enabled.
+    # TT_SECRET: TOTP seed if 2FA is enabled; any non-empty string otherwise.
+    # TT_REFRESH: the SDK requires this field but we create a fresh session each
+    # run, so it is never actually used for token refresh. Set to any non-empty
+    # string (e.g. "none") in your .env.
     secret = os.environ["TT_SECRET"]
+    refresh = os.environ.get("TT_REFRESH", "none") or "none"
 
     # Import here so the worker won't crash if tastytrade isn't installed
     from tastytrade import Session
     from tastytrade.account import Account
 
-    session = Session(login=username, password=password, provider_secret=secret)
+    session = Session(
+        login=username,
+        password=password,
+        provider_secret=secret,
+        refresh_token=refresh,
+    )
 
     accounts_raw = Account.get_accounts(session)
     if not accounts_raw:

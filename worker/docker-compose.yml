@@ -24,6 +24,7 @@ services:
       - TASTYTRADE_USERNAME=${TASTYTRADE_USERNAME}
       - TASTYTRADE_PASSWORD=${TASTYTRADE_PASSWORD}
       - TT_SECRET=${TT_SECRET}
+      - TT_REFRESH=${TT_REFRESH}
     volumes:
       - ./app:/app/app
       - ./data:/data
