@@ -23,6 +23,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - TASTYTRADE_USERNAME=${TASTYTRADE_USERNAME}
       - TASTYTRADE_PASSWORD=${TASTYTRADE_PASSWORD}
+      - TT_SECRET=${TT_SECRET}
     volumes:
       - ./app:/app/app
       - ./data:/data

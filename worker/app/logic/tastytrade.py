@@ -84,12 +84,15 @@ def _fetch_underlying_prices(symbols: list[str]) -> dict[str, float]:
 def fetch_and_cache(tracker=None) -> None:
     username = os.environ["TASTYTRADE_USERNAME"]
     password = os.environ["TASTYTRADE_PASSWORD"]
+    # TT_SECRET is the TOTP secret if 2FA is enabled on the account.
+    # Set to any non-empty string if 2FA is not enabled.
+    secret = os.environ["TT_SECRET"]
 
     # Import here so the worker won't crash if tastytrade isn't installed
     from tastytrade import Session
     from tastytrade.account import Account
 
-    session = Session(login=username, password=password)
+    session = Session(login=username, password=password, provider_secret=secret)
 
     accounts_raw = Account.get_accounts(session)
     if not accounts_raw:
