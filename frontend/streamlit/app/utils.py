@@ -32,6 +32,18 @@ def get_json(endpoint: str) -> Dict:
     return {"data": []}
 
 
+def put_json(endpoint: str, payload: dict) -> Dict:
+    url = API_URL + endpoint
+    try:
+        response = requests.put(url=url, json=payload)
+        if response.ok:
+            return response.json()
+        logger.info(f"PUT error {response.status_code}: {response.text}")
+    except:
+        logger.exception("error putting to API")
+    return {}
+
+
 def post_json(endpoint: str, payload: dict) -> Dict:
     url = API_URL + endpoint
     try:

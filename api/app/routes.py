@@ -11,6 +11,7 @@ import app.logic.options as options
 import app.logic.prometheus as prometheus
 import app.logic.whats_hot as whats_hot
 import app.logic.portfolio_forecasts as portfolio_forecasts
+import app.logic.tastytrade as tastytrade_logic
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,12 @@ FLOWER_URL = os.getenv("FLOWER_URL", "")
 
 
 # ── Request model ─────────────────────────────────────────────────────────────
+
+
+class StopUpdateRequest(BaseModel):
+    stop_amount: float | None = None
+    stop_mode: str = "stop_loss"
+    notes: str | None = None
 
 
 class PortfolioCalcRequest(BaseModel):
@@ -190,6 +197,33 @@ async def options_benchmark_runs():
 async def get_pipeline_metrics():
     data = await asyncio.to_thread(options.get_pipeline_metrics)
     return {"data": data}
+
+
+# ── Tastytrade routes ─────────────────────────────────────────────────────────
+
+
+@router.get("/tastytrade/dashboard")
+async def get_tastytrade_dashboard():
+    """Account balances, positions, and computed risk metrics."""
+    data = await tastytrade_logic.get_dashboard()
+    return {"data": data}
+
+
+@router.put("/tastytrade/stops/{account_number}/{symbol:path}")
+async def update_position_stop(
+    account_number: str,
+    symbol: str,
+    request: StopUpdateRequest,
+):
+    """Set or update the stop-loss annotation for a position."""
+    await tastytrade_logic.update_stop(
+        account_number=account_number,
+        symbol=symbol,
+        stop_amount=request.stop_amount,
+        stop_mode=request.stop_mode,
+        notes=request.notes,
+    )
+    return {"data": {"status": "ok"}}
 
 
 @router.get("/backtest")

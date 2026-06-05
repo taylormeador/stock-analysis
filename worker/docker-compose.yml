@@ -21,6 +21,8 @@ services:
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
       - FRED_API_KEY=${FRED_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TASTYTRADE_USERNAME=${TASTYTRADE_USERNAME}
+      - TASTYTRADE_PASSWORD=${TASTYTRADE_PASSWORD}
     volumes:
       - ./app:/app/app
       - ./data:/data
