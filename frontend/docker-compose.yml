@@ -25,6 +25,7 @@ services:
       - "8501"
     environment:
       - API_URL=${API_URL}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
     volumes:
       - ./streamlit/app:/app/app
     command: streamlit run app/app.py --server.port=8501 --server.address=0.0.0.0
