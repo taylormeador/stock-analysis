@@ -46,6 +46,11 @@ options_dashboard = st.Page(
     title="Options Dashboard",
     icon=":material/candlestick_chart:",
 )
+account_monitor = st.Page(
+    page="page_modules/tastytrade_dashboard.py",
+    title="Account Monitor",
+    icon=":material/monitoring:",
+)
 
-pg = st.navigation([home_page, whats_hot, analysis_page, options_dashboard, status_page, hacker_page])
+pg = st.navigation([home_page, whats_hot, analysis_page, options_dashboard, account_monitor, status_page, hacker_page])
 pg.run()
