@@ -125,7 +125,7 @@ async def _fetch_async(tracker=None) -> None:
                         "average_open_price": float(pos.average_open_price)
                         if getattr(pos, "average_open_price", None) is not None
                         else None,
-                        "multiplier": int(pos.multiplier),
+                        "multiplier": float(pos.multiplier),
                         "delta": delta,
                         "implied_volatility": None,  # not available via REST
                         "underlying_price": None,  # filled below

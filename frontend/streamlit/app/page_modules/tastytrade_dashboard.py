@@ -67,8 +67,8 @@ def _ratio(v, decimals=2):
 
 def _donut_chart(labels: list[str], values: list[float], title: str, height: int = 300) -> go.Figure:
     palette = [
-        "#00FF41", "#58A6FF", "#FF9900", "#FF6B9D", "#C5B0D5",
-        "#17BECF", "#bcbd22", "#9edae5", "#aec7e8", "#ffbb78",
+        "#2d6a4f", "#1d4e89", "#7b4f2e", "#5c3566", "#2e5a6b",
+        "#6b5c2e", "#3d5a3e", "#4a3728", "#2e4057", "#5a3d4a",
     ]
     fig = go.Figure(go.Pie(
         labels=labels,
@@ -137,11 +137,11 @@ def _render_account(acct: dict) -> None:
     # ── Capital at risk + vol targeting charts ──
     active_positions = [p for p in acct.get("positions", []) if p.get("is_active")]
 
-    car_labels = [p["underlying_symbol"] for p in active_positions if p.get("capital_at_risk")]
-    car_values = [p["capital_at_risk"] for p in active_positions if p.get("capital_at_risk")]
+    car_labels = [p["underlying_symbol"] for p in active_positions if p.get("capital_at_risk") is not None]
+    car_values = [p["capital_at_risk"] for p in active_positions if p.get("capital_at_risk") is not None]
 
-    vol_labels = [p["underlying_symbol"] for p in active_positions if p.get("vol_contribution")]
-    vol_values = [p["vol_contribution"] for p in active_positions if p.get("vol_contribution")]
+    vol_labels = [p["underlying_symbol"] for p in active_positions if p.get("vol_contribution") is not None]
+    vol_values = [p["vol_contribution"] for p in active_positions if p.get("vol_contribution") is not None]
 
     total_car = acct.get("total_capital_at_risk", 0)
     car_ratio = acct.get("capital_at_risk_ratio")
@@ -244,7 +244,7 @@ def _dashboard() -> None:
         return
 
     ts_display = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
-    st.caption(f"Last fetched: {ts_display} — auto-refreshes every 30s")
+    st.caption(f"Last fetched: {ts_display}")
 
     for acct in accounts:
         _render_account(acct)
