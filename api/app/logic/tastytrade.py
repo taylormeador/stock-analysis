@@ -53,7 +53,33 @@ def _parse_occ(symbol: str) -> dict | None:
     }
 
 
+def _cap_risk_with_stop(pos: dict) -> float | None:
+    """Capital at risk when a live stop order exists."""
+    qty = pos["quantity"]
+    mult = pos["multiplier"]
+    itype = pos["instrument_type"]
+    stop = pos["stop_price"]
+
+    if "Option" in itype:
+        # Stop is placed on the option price — cost to buy back at the stop level.
+        return stop * mult * qty
+
+    if "Future" in itype:
+        # Stop is placed on the futures price — loss per contract from entry to stop.
+        entry = pos.get("average_open_price")
+        if entry is None:
+            return stop * mult * qty
+        return abs(entry - stop) * mult * qty
+
+    # Equity with a stop on the share price
+    entry = pos.get("average_open_price")
+    if entry is None:
+        return None
+    return abs(entry - stop) * mult * qty
+
+
 def _auto_cap_risk(pos: dict) -> float | None:
+    """Capital at risk fallback when no stop is defined — full notional/assignment."""
     qty = pos["quantity"]
     mult = pos["multiplier"]
     direction = pos["direction"]
@@ -65,11 +91,11 @@ def _auto_cap_risk(pos: dict) -> float | None:
             if parsed["option_type"] == "P":
                 return parsed["strike"] * mult * qty
             else:
-                px = pos.get("underlying_price") or pos.get("close_price") or 0.0
-                return px * mult * qty
+                px = pos.get("underlying_price") or pos.get("close_price")
+                return px * mult * qty if px else None
         else:
-            avg = pos.get("average_open_price") or pos.get("close_price") or 0.0
-            return avg * mult * qty
+            avg = pos.get("average_open_price") or pos.get("close_price")
+            return avg * mult * qty if avg else None
 
     if "Future" in itype:
         px = pos.get("close_price") or pos.get("underlying_price")
@@ -118,7 +144,9 @@ def _compute_position_metrics(pos: dict, instrument_vols: dict[str, float]) -> d
     underlying_px = pos.get("underlying_price")
     underlying = pos.get("underlying_symbol", "")
 
-    cap_risk = _auto_cap_risk(pos)
+    stop_price = pos.get("stop_price")
+    cap_risk = _cap_risk_with_stop(pos) if stop_price is not None else _auto_cap_risk(pos)
+    stop_defined = stop_price is not None
 
     notional_delta = None
     if delta is not None and underlying_px is not None:
@@ -136,6 +164,7 @@ def _compute_position_metrics(pos: dict, instrument_vols: dict[str, float]) -> d
 
     return {
         **pos,
+        "stop_defined": stop_defined,
         "capital_at_risk": round(cap_risk, 2) if cap_risk is not None else None,
         "notional_delta": round(notional_delta, 2) if notional_delta is not None else None,
         "vol_contribution": round(vol_contribution, 2) if vol_contribution is not None else None,

@@ -71,6 +71,22 @@ async def _build_session() -> Session:
     )
 
 
+def _build_stop_map(orders: list) -> dict[str, float]:
+    """Return {symbol: stop_trigger_price} for all live stop/stop-limit closing orders."""
+    from tastytrade.order import OrderType, OrderAction
+    stop_map: dict[str, float] = {}
+    close_actions = {OrderAction.BUY_TO_CLOSE, OrderAction.SELL_TO_CLOSE}
+    for order in orders:
+        if order.order_type not in (OrderType.STOP, OrderType.STOP_LIMIT):
+            continue
+        if order.stop_trigger is None:
+            continue
+        for leg in order.legs:
+            if leg.action in close_actions:
+                stop_map[str(leg.symbol)] = float(order.stop_trigger)
+    return stop_map
+
+
 async def _fetch_async(tracker=None) -> None:
     session = await _build_session()
 
@@ -86,9 +102,12 @@ async def _fetch_async(tracker=None) -> None:
         try:
             balances = await acct.get_balances(session)
             positions_raw = await acct.get_positions(session)
+            orders_raw = await acct.get_live_orders(session)
         except Exception:
             logger.exception(f"Failed to fetch data for account {acct.account_number}")
             continue
+
+        stop_map = _build_stop_map(orders_raw)
 
         positions = []
         for pos in positions_raw:
@@ -133,6 +152,7 @@ async def _fetch_async(tracker=None) -> None:
                         "delta": delta,
                         "implied_volatility": None,  # not available via REST
                         "underlying_price": None,  # filled below
+                        "stop_price": stop_map.get(str(pos.symbol)),
                     }
                 )
             except Exception:
