@@ -66,11 +66,11 @@ def _auto_cap_risk(pos: dict) -> float | None:
             return avg * mult * qty
 
     if "Future" in itype:
-        px = pos.get("close_price") or 0.0
-        return px * mult * qty
+        px = pos.get("close_price") or pos.get("underlying_price")
+        return px * mult * qty if px else None
 
-    px = pos.get("close_price") or pos.get("underlying_price") or 0.0
-    return px * mult * qty
+    px = pos.get("close_price") or pos.get("underlying_price")
+    return px * mult * qty if px else None
 
 
 async def _fetch_instrument_vols(symbols: list[str]) -> dict[str, float]:

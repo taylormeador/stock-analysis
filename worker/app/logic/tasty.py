@@ -112,6 +112,13 @@ async def _fetch_async(tracker=None) -> None:
                 if "Future" in instrument_type:
                     delta = 1.0 if direction == "Long" else -1.0
 
+                # Prefer close_price; fall back to mark_price or mark when absent
+                raw_price = (
+                    getattr(pos, "close_price", None)
+                    or getattr(pos, "mark_price", None)
+                    or getattr(pos, "mark", None)
+                )
+
                 positions.append(
                     {
                         "symbol": str(pos.symbol),
@@ -119,9 +126,7 @@ async def _fetch_async(tracker=None) -> None:
                         "instrument_type": instrument_type,
                         "quantity": float(abs(pos.quantity)),
                         "direction": direction,
-                        "close_price": float(pos.close_price)
-                        if getattr(pos, "close_price", None) is not None
-                        else None,
+                        "close_price": float(raw_price) if raw_price is not None else None,
                         "average_open_price": float(pos.average_open_price)
                         if getattr(pos, "average_open_price", None) is not None
                         else None,
