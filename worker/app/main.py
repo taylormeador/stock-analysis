@@ -29,38 +29,38 @@ two_days_ago_str = two_days_ago.strftime(date_format)
 
 # Celery Beat schedule
 app.conf.beat_schedule = {
-    "scrape-reddit-wsb-daily-thread-new": {
-        "task": "app.tasks.scraping.scrape_reddit_wsb_daily_thread",
-        "kwargs": {"filter": "new", "limit": 250},
-        "schedule": 120.0,
-    },
-    "scrape-reddit-wsb-daily-thread-top": {
-        "task": "app.tasks.scraping.scrape_reddit_wsb_daily_thread",
-        "kwargs": {"filter": "top", "limit": 25},
-        "schedule": 600.0,
-    },
-    "generate-real-time-embeddings": {
-        "task": "app.tasks.embeddings.generate_real_time_embeddings",
-        "schedule": 600.0,
-    },
+    # "scrape-reddit-wsb-daily-thread-new": {
+    #     "task": "app.tasks.scraping.scrape_reddit_wsb_daily_thread",
+    #     "kwargs": {"filter": "new", "limit": 250},
+    #     "schedule": 120.0,
+    # },
+    # "scrape-reddit-wsb-daily-thread-top": {
+    #     "task": "app.tasks.scraping.scrape_reddit_wsb_daily_thread",
+    #     "kwargs": {"filter": "top", "limit": 25},
+    #     "schedule": 600.0,
+    # },
+    # "generate-real-time-embeddings": {
+    #     "task": "app.tasks.embeddings.generate_real_time_embeddings",
+    #     "schedule": 600.0,
+    # },
     # We want to generate summaries at premarket, mid day, close, and evening.
     # This is not exact due to daylight savings, but it's close enough for my purposes.
-    "generate-real-time-llm-summary-premarket": {
-        "task": "app.tasks.embeddings.summarize_real_time_topics",
-        "schedule": crontab(hour="14", minute="0"),
-    },
-    "generate-real-time-llm-summary-midday": {
-        "task": "app.tasks.embeddings.summarize_real_time_topics",
-        "schedule": crontab(hour="17", minute="0"),
-    },
-    "generate-real-time-llm-summary-close": {
-        "task": "app.tasks.embeddings.summarize_real_time_topics",
-        "schedule": crontab(hour="21", minute="0"),
-    },
-    "generate-real-time-llm-summary-evening": {
-        "task": "app.tasks.embeddings.summarize_real_time_topics",
-        "schedule": crontab(hour="2", minute="0"),
-    },
+    # "generate-real-time-llm-summary-premarket": {
+    #     "task": "app.tasks.embeddings.summarize_real_time_topics",
+    #     "schedule": crontab(hour="14", minute="0"),
+    # },
+    # "generate-real-time-llm-summary-midday": {
+    #     "task": "app.tasks.embeddings.summarize_real_time_topics",
+    #     "schedule": crontab(hour="17", minute="0"),
+    # },
+    # "generate-real-time-llm-summary-close": {
+    #     "task": "app.tasks.embeddings.summarize_real_time_topics",
+    #     "schedule": crontab(hour="21", minute="0"),
+    # },
+    # "generate-real-time-llm-summary-evening": {
+    #     "task": "app.tasks.embeddings.summarize_real_time_topics",
+    #     "schedule": crontab(hour="2", minute="0"),
+    # },
     "fetch-daily-stock-data": {
         "task": "app.tasks.apis.fetch_stock_data",
         "schedule": crontab(hour="8", minute="0"),
@@ -72,7 +72,10 @@ app.conf.beat_schedule = {
     # I don't know when the data is updated so we look back a couple days
     "fetch-daily-cboe-stats": {
         "task": "app.tasks.scraping.scrape_cboe_daily_stats",
-        "kwargs": {"start_date_str": two_days_ago_str, "end_date_str": date.today().strftime(date_format)},
+        "kwargs": {
+            "start_date_str": two_days_ago_str,
+            "end_date_str": date.today().strftime(date_format),
+        },
         "schedule": crontab(hour="8", minute="0"),
     },
     "get-fred-data": {
