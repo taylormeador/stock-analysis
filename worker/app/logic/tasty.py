@@ -76,7 +76,18 @@ def _build_stop_map(orders: list) -> dict[str, float]:
     from tastytrade.order import OrderType, OrderAction
     stop_map: dict[str, float] = {}
     close_actions = {OrderAction.BUY_TO_CLOSE, OrderAction.SELL_TO_CLOSE}
+
     for order in orders:
+        logger.info(
+            "ORDER: type=%s status=%s stop_trigger=%s legs=%s",
+            getattr(order, "order_type", "?"),
+            getattr(order, "status", "?"),
+            getattr(order, "stop_trigger", "?"),
+            [
+                {"symbol": str(leg.symbol), "action": getattr(leg, "action", "?")}
+                for leg in getattr(order, "legs", [])
+            ],
+        )
         if order.order_type not in (OrderType.STOP, OrderType.STOP_LIMIT):
             continue
         if order.stop_trigger is None:
@@ -84,6 +95,8 @@ def _build_stop_map(orders: list) -> dict[str, float]:
         for leg in order.legs:
             if leg.action in close_actions:
                 stop_map[str(leg.symbol)] = float(order.stop_trigger)
+
+    logger.info("Stop map built: %s", stop_map)
     return stop_map
 
 
