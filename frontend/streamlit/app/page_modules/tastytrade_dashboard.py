@@ -19,17 +19,17 @@ def _check_password() -> bool:
     if st.session_state.get("tt_authenticated"):
         return True
 
-    st.title(":material/lock: Restricted Access")
-    with st.form("tt_login"):
-        pw = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
-    if submitted:
-        expected = os.environ.get("DASHBOARD_PASSWORD", "")
-        if pw == expected:
-            st.session_state["tt_authenticated"] = True
-            st.rerun()
-        else:
-            st.error("Incorrect password.")
+    _, col, _ = st.columns([1, 1, 1])
+    with col:
+        st.title(":material/lock:")
+        pw = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password")
+        if st.button("Login", use_container_width=True):
+            expected = os.environ.get("DASHBOARD_PASSWORD", "")
+            if pw == expected:
+                st.session_state["tt_authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
     return False
 
 if not _check_password():
@@ -140,8 +140,9 @@ def _render_account(acct: dict) -> None:
     car_labels = [p["underlying_symbol"] for p in active_positions if p.get("capital_at_risk") is not None]
     car_values = [p["capital_at_risk"] for p in active_positions if p.get("capital_at_risk") is not None]
 
-    vol_labels = [p["underlying_symbol"] for p in active_positions if p.get("vol_contribution") is not None]
-    vol_values = [p["vol_contribution"] for p in active_positions if p.get("vol_contribution") is not None]
+    all_positions = acct.get("positions", [])
+    vol_labels = [p["underlying_symbol"] for p in all_positions if p.get("vol_contribution") is not None]
+    vol_values = [p["vol_contribution"] for p in all_positions if p.get("vol_contribution") is not None]
 
     total_car = acct.get("total_capital_at_risk", 0)
     car_ratio = acct.get("capital_at_risk_ratio")

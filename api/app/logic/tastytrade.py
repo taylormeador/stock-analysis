@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 _rc = redis.Redis.from_url(os.environ["REDIS_URL"])
 REDIS_KEY = "tastytrade:dashboard"
 
-_FUTURES_VOL_MAP: dict[str, str] = {
+_VOL_MAP: dict[str, str] = {
+    # Futures underlyings → instrument_vol symbol
     "SPX": "^GSPC", "/ES": "^GSPC", "/MES": "^GSPC",
     "NDX": "QQQ",   "/NQ": "QQQ",   "/MNQ": "QQQ",
     "RUT": "IWM",   "/RTY": "IWM",  "/M2K": "IWM",
@@ -30,6 +31,11 @@ _FUTURES_VOL_MAP: dict[str, str] = {
     "/MBT": "BTC-USD", "/BTC": "BTC-USD",
     "/MET": "ETH-USD", "/ETH": "ETH-USD",
     "/6E": "EURUSD=X", "/6B": "GBPUSD=X", "/6J": "JPYUSD=X",
+    # Equity ETFs that map directly to tracked instrument_vol symbols
+    "VOO": "^GSPC", "SPY": "^GSPC", "VT": "^GSPC",
+    "QQQ": "QQQ",   "IWM": "IWM",
+    "TLT": "TLT",   "IEF": "IEF",
+    "GLD": "GLD",   "SLV": "SLV",
 }
 
 _OCC_RE = re.compile(
@@ -120,7 +126,7 @@ def _compute_position_metrics(pos: dict, instrument_vols: dict[str, float]) -> d
 
     iv = pos.get("implied_volatility")
     if iv is None:
-        vol_sym = _FUTURES_VOL_MAP.get(underlying)
+        vol_sym = _VOL_MAP.get(underlying)
         if vol_sym:
             iv = instrument_vols.get(vol_sym)
 
@@ -184,7 +190,7 @@ async def get_dashboard() -> dict:
     all_underlyings: set[str] = set()
     for acct in data.get("accounts", []):
         for pos in acct.get("positions", []):
-            mapped = _FUTURES_VOL_MAP.get(pos.get("underlying_symbol", ""), pos.get("underlying_symbol", ""))
+            mapped = _VOL_MAP.get(pos.get("underlying_symbol", ""), pos.get("underlying_symbol", ""))
             if mapped:
                 all_underlyings.add(mapped)
 

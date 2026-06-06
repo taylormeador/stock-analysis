@@ -106,10 +106,9 @@ async def _fetch_async(tracker=None) -> None:
                 underlying = getattr(pos, "underlying_symbol", None) or str(pos.symbol)
                 all_underlying.add(underlying)
 
-                # Futures delta is ±1 by definition; options/equities need
-                # DXLink streaming which we're not using here.
+                # Futures and equities have known delta; options need DXLink.
                 delta = None
-                if "Future" in instrument_type:
+                if "Future" in instrument_type or instrument_type == "Equity":
                     delta = 1.0 if direction == "Long" else -1.0
 
                 # Prefer close_price; fall back to mark_price or mark when absent
