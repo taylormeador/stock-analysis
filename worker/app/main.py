@@ -9,7 +9,7 @@ from app.tasks import embeddings  # noqa: F401
 from app.tasks import sentiment  # noqa: F401
 from app.tasks import backtests  # noqa: F401
 from app.tasks import portfolio  # noqa: F401
-from app.tasks import tastytrade  # noqa: F401
+from app.tasks import tasty  # noqa: F401
 
 from celery import signals
 from app.utils import start_metrics_server
@@ -88,7 +88,7 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour="*", minute="0"),
     },
     "fetch-tastytrade-data": {
-        "task": "app.tasks.tastytrade.fetch_tastytrade_data",
+        "task": "app.tasks.tasty.fetch_tastytrade_data",
         "schedule": 120.0,
     },
     # Spot price vol — runs after fetch_stock_data, before forecast generation

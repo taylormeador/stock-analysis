@@ -2,7 +2,7 @@ import logging
 
 from app.celery_app import app
 from app.utils import TaskStatusTracker, SingleInstanceTask
-import app.logic.tastytrade as tastytrade
+import app.logic.tasty as tastytrade
 
 logger = logging.getLogger(__name__)
 
