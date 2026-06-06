@@ -46,6 +46,12 @@ _RED = "#CC3300"
 _ORANGE = colors.orange
 _GRAY = colors.text_gray
 
+_DONUT_PALETTE = [
+    "#2d6a4f", "#1d4e89", "#7b4f2e", "#5c3566", "#2e5a6b",
+    "#6b5c2e", "#3d5a3e", "#4a3728", "#2e4057", "#5a3d4a",
+]
+_UNALLOCATED_COLOR = "#2a2a2a"
+
 # ── Helper formatting ─────────────────────────────────────────────────────────
 
 def _dollar(v):
@@ -65,16 +71,20 @@ def _ratio(v, decimals=2):
 
 # ── Chart builders ────────────────────────────────────────────────────────────
 
-def _donut_chart(labels: list[str], values: list[float], title: str, height: int = 300) -> go.Figure:
-    palette = [
-        "#2d6a4f", "#1d4e89", "#7b4f2e", "#5c3566", "#2e5a6b",
-        "#6b5c2e", "#3d5a3e", "#4a3728", "#2e4057", "#5a3d4a",
-    ]
+def _donut_chart(
+    labels: list[str],
+    values: list[float],
+    title: str,
+    height: int = 360,
+    marker_colors: list[str] | None = None,
+) -> go.Figure:
+    color_list = marker_colors if marker_colors else _DONUT_PALETTE[:len(labels)]
     fig = go.Figure(go.Pie(
         labels=labels,
         values=values,
         hole=0.55,
-        marker=dict(colors=palette[:len(labels)], line=dict(color=colors.dark_bg, width=2)),
+        automargin=True,
+        marker=dict(colors=color_list, line=dict(color=colors.dark_bg, width=2)),
         textinfo="label+percent",
         textfont=dict(size=10, color=_GRAY, family="monospace"),
         hovertemplate="<b>%{label}</b><br>$%{value:,.0f}<br>%{percent}<extra></extra>",
@@ -86,7 +96,7 @@ def _donut_chart(labels: list[str], values: list[float], title: str, height: int
         plot_bgcolor=colors.dark_bg,
         font=dict(color=_GRAY, family="monospace"),
         legend=dict(font=dict(size=9), bgcolor="rgba(0,0,0,0)", x=1.0, y=0.5),
-        margin=dict(l=10, r=10, t=40, b=10),
+        margin=dict(l=40, r=40, t=40, b=40),
         showlegend=False,
     )
     return fig
@@ -137,8 +147,8 @@ def _render_account(acct: dict) -> None:
     # ── Capital at risk + vol targeting charts ──
     active_positions = [p for p in acct.get("positions", []) if p.get("is_active")]
 
-    car_labels = [p["underlying_symbol"] for p in active_positions if p.get("capital_at_risk") is not None]
-    car_values = [p["capital_at_risk"] for p in active_positions if p.get("capital_at_risk") is not None]
+    car_pos_labels = [p["underlying_symbol"] for p in active_positions if p.get("capital_at_risk") is not None]
+    car_pos_values = [p["capital_at_risk"] for p in active_positions if p.get("capital_at_risk") is not None]
 
     all_positions = acct.get("positions", [])
     vol_labels = [p["underlying_symbol"] for p in all_positions if p.get("vol_contribution") is not None]
@@ -146,22 +156,30 @@ def _render_account(acct: dict) -> None:
 
     total_car = acct.get("total_capital_at_risk", 0)
     car_ratio = acct.get("capital_at_risk_ratio")
-    car_denom = "Cash" if atype == "MARGIN" else "Net Liq"
     car_ceiling = CAR_CEILING_MARGIN if atype == "MARGIN" else None
+
+    # Build CAR donut relative to net liq — always shows an "Unallocated" slice.
+    unallocated = max(0.0, net_liq - total_car)
+    car_labels = car_pos_labels + ["Unallocated"]
+    car_values = car_pos_values + [unallocated]
+    car_colors = _DONUT_PALETTE[:len(car_pos_labels)] + [_UNALLOCATED_COLOR]
+
+    # CAR ratio vs net liq for the summary line
+    car_vs_netliq = round(total_car / net_liq, 4) if net_liq else None
 
     chart_cols = st.columns(2)
     with chart_cols[0]:
-        if car_labels:
-            fig = _donut_chart(car_labels, car_values, f"Capital at Risk by Position")
+        if car_pos_labels:
+            fig = _donut_chart(car_labels, car_values, "Capital at Risk vs Net Liq", marker_colors=car_colors)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No active positions with capital at risk data.")
-        ratio_str = _pct(car_ratio)
-        if car_ratio is not None and car_ceiling is not None and car_ratio > car_ceiling:
+        ratio_str = _pct(car_vs_netliq)
+        if car_vs_netliq is not None and car_ceiling is not None and car_vs_netliq > car_ceiling:
             ratio_str = f":red[{ratio_str}]"
-        elif car_ratio is not None and car_ceiling is not None and car_ratio > car_ceiling * 0.90:
+        elif car_vs_netliq is not None and car_ceiling is not None and car_vs_netliq > car_ceiling * 0.90:
             ratio_str = f":orange[{ratio_str}]"
-        st.markdown(f"**Total:** {_dollar(total_car)} &nbsp;|&nbsp; **{car_denom} %:** {ratio_str}")
+        st.markdown(f"**At Risk:** {_dollar(total_car)} &nbsp;|&nbsp; **% Net Liq:** {ratio_str}")
 
     with chart_cols[1]:
         if vol_labels:
