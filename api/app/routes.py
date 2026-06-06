@@ -23,11 +23,6 @@ FLOWER_URL = os.getenv("FLOWER_URL", "")
 # ── Request model ─────────────────────────────────────────────────────────────
 
 
-class StopUpdateRequest(BaseModel):
-    stop_amount: float | None = None
-    stop_mode: str = "stop_loss"
-    notes: str | None = None
-
 
 class PortfolioCalcRequest(BaseModel):
     start_date: str
@@ -208,22 +203,6 @@ async def get_tastytrade_dashboard():
     data = await tastytrade_logic.get_dashboard()
     return {"data": data}
 
-
-@router.put("/tastytrade/stops/{account_number}/{symbol:path}")
-async def update_position_stop(
-    account_number: str,
-    symbol: str,
-    request: StopUpdateRequest,
-):
-    """Set or update the stop-loss annotation for a position."""
-    await tastytrade_logic.update_stop(
-        account_number=account_number,
-        symbol=symbol,
-        stop_amount=request.stop_amount,
-        stop_mode=request.stop_mode,
-        notes=request.notes,
-    )
-    return {"data": {"status": "ok"}}
 
 
 @router.get("/backtest")
