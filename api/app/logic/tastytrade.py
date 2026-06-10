@@ -6,7 +6,6 @@ import json
 import logging
 import math
 import os
-import re
 
 import redis
 from sqlalchemy import text
@@ -37,72 +36,6 @@ _VOL_MAP: dict[str, str] = {
     "TLT": "TLT",   "IEF": "IEF",
     "GLD": "GLD",   "SLV": "SLV",
 }
-
-_OCC_RE = re.compile(
-    r"^(?P<underlying>[A-Z0-9./]+)\s*(?P<exp>\d{6})(?P<otype>[CP])(?P<strike>\d{8})$"
-)
-
-
-def _parse_occ(symbol: str) -> dict | None:
-    m = _OCC_RE.match(symbol.strip())
-    if not m:
-        return None
-    return {
-        "option_type": m.group("otype"),
-        "strike": int(m.group("strike")) / 1000,
-    }
-
-
-def _cap_risk_with_stop(pos: dict) -> float | None:
-    """Capital at risk when a live stop order exists."""
-    qty = pos["quantity"]
-    mult = pos["multiplier"]
-    itype = pos["instrument_type"]
-    stop = pos["stop_price"]
-
-    if "Option" in itype:
-        # Stop is placed on the option price — cost to buy back at the stop level.
-        return stop * mult * qty
-
-    if "Future" in itype:
-        # Stop is placed on the futures price — loss per contract from entry to stop.
-        entry = pos.get("average_open_price")
-        if entry is None:
-            return stop * mult * qty
-        return abs(entry - stop) * mult * qty
-
-    # Equity with a stop on the share price
-    entry = pos.get("average_open_price")
-    if entry is None:
-        return None
-    return abs(entry - stop) * mult * qty
-
-
-def _auto_cap_risk(pos: dict) -> float | None:
-    """Capital at risk fallback when no stop is defined — full notional/assignment."""
-    qty = pos["quantity"]
-    mult = pos["multiplier"]
-    direction = pos["direction"]
-    itype = pos["instrument_type"]
-
-    if "Option" in itype:
-        parsed = _parse_occ(pos["symbol"])
-        if parsed and direction == "Short":
-            if parsed["option_type"] == "P":
-                return parsed["strike"] * mult * qty
-            else:
-                px = pos.get("underlying_price") or pos.get("close_price")
-                return px * mult * qty if px else None
-        else:
-            avg = pos.get("average_open_price") or pos.get("close_price")
-            return avg * mult * qty if avg else None
-
-    if "Future" in itype:
-        px = pos.get("close_price") or pos.get("underlying_price")
-        return px * mult * qty if px else None
-
-    px = pos.get("close_price") or pos.get("underlying_price")
-    return px * mult * qty if px else None
 
 
 async def _fetch_instrument_vols(symbols: list[str]) -> dict[str, float]:
@@ -143,15 +76,21 @@ def _compute_position_metrics(pos: dict, instrument_vols: dict[str, float]) -> d
     delta = pos.get("delta")
     underlying_px = pos.get("underlying_price")
     underlying = pos.get("underlying_symbol", "")
+    itype = pos.get("instrument_type", "")
 
-    stop_price = pos.get("stop_price")
-    cap_risk = _cap_risk_with_stop(pos) if stop_price is not None else _auto_cap_risk(pos)
-    stop_defined = stop_price is not None
+    # Notional dollar value of the position
+    if "Option" in itype:
+        notional_px = underlying_px
+    else:
+        notional_px = pos.get("close_price") or underlying_px
+    notional_value = round(notional_px * qty * mult, 2) if notional_px is not None else None
 
+    # Delta-weighted notional (for vol targeting)
     notional_delta = None
     if delta is not None and underlying_px is not None:
         notional_delta = abs(delta) * underlying_px * mult * qty
 
+    # Vol lookup: use IV if available (never is via REST), else instrument_vol
     iv = pos.get("implied_volatility")
     if iv is None:
         vol_sym = _VOL_MAP.get(underlying)
@@ -164,9 +103,9 @@ def _compute_position_metrics(pos: dict, instrument_vols: dict[str, float]) -> d
 
     return {
         **pos,
-        "stop_defined": stop_defined,
-        "capital_at_risk": round(cap_risk, 2) if cap_risk is not None else None,
+        "notional_value": notional_value,
         "notional_delta": round(notional_delta, 2) if notional_delta is not None else None,
+        "vol_pct_used": round(iv, 4) if iv is not None else None,
         "vol_contribution": round(vol_contribution, 2) if vol_contribution is not None else None,
     }
 
@@ -174,30 +113,24 @@ def _compute_position_metrics(pos: dict, instrument_vols: dict[str, float]) -> d
 def _compute_account_metrics(acct: dict, positions_enriched: list[dict]) -> dict:
     active = [p for p in positions_enriched if p.get("is_active")]
     net_liq = acct["net_liq"]
-    cash = acct["cash_balance"]
 
     cushion_ratio = None
     if acct["account_type"] == "margin" and acct.get("maintenance_excess") is not None:
         cushion_ratio = round(acct["maintenance_excess"] / net_liq, 4) if net_liq else None
-
-    total_car = sum(p["capital_at_risk"] for p in active if p.get("capital_at_risk") is not None)
-    denominator = cash if acct["account_type"] == "margin" else net_liq
-    car_ratio = round(total_car / denominator, 4) if denominator else None
 
     leverage_ratio = None
     if acct["account_type"] == "margin":
         total_notional = sum(p["notional_delta"] for p in active if p.get("notional_delta") is not None)
         leverage_ratio = round(total_notional / net_liq, 4) if net_liq and total_notional else None
 
-    total_vol = sum(p["vol_contribution"] for p in active if p.get("vol_contribution") is not None)
+    # Vol contribution is computed over ALL positions (including B&H shares) for portfolio-level view
+    total_vol = sum(p["vol_contribution"] for p in positions_enriched if p.get("vol_contribution") is not None)
     vol_as_pct = round(total_vol / net_liq, 4) if net_liq and total_vol else None
 
     return {
         **acct,
         "positions": positions_enriched,
         "cushion_ratio": cushion_ratio,
-        "total_capital_at_risk": round(total_car, 2),
-        "capital_at_risk_ratio": car_ratio,
         "leverage_ratio": leverage_ratio,
         "total_vol_contribution": round(total_vol, 2) if total_vol else None,
         "vol_as_pct_of_account": vol_as_pct,
