@@ -120,7 +120,10 @@ def _render_symbol(sym: dict) -> None:
     chart_tuple = tuple((d["t"], d["c"]) for d in sym.get("chart", []))
     fig = _build_chart(chart_tuple, change)
     if fig:
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        # Stable key per symbol → React updates the chart in-place instead of
+        # unmounting/remounting it, which eliminates the flash on refresh.
+        key = "mkt_" + sym["symbol"].replace("^", "").replace("=", "").replace("-", "").replace(".", "")
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False}, key=key)
     else:
         st.caption("—")
 
@@ -182,11 +185,6 @@ def _render_calendar(events: list) -> None:
 
 st.title(":material/public: Market Overview")
 
-# Placeholder defined outside the fragment so its content persists across
-# fragment re-runs. The fragment renders into it atomically — the old content
-# stays visible until the new render is complete, then swaps in all at once.
-_content = st.empty()
-
 
 @st.fragment(run_every="1m")
 def _overview() -> None:
@@ -196,22 +194,21 @@ def _overview() -> None:
     news        = _fetch_news().get("data") or []
     calendar    = _fetch_calendar().get("data") or []
 
-    with _content.container():
-        if not symbols:
-            st.warning("Market data unavailable — API may be starting up.")
-            return
+    if not symbols:
+        st.warning("Market data unavailable — API may be starting up.")
+        return
 
-        ts = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
-        st.caption(f"Updated: {ts}")
+    ts = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
+    st.caption(f"Updated: {ts}")
 
-        chart_col, cal_col = st.columns([5, 1])
-        with chart_col:
-            _render_prices(symbols)
-        with cal_col:
-            _render_calendar(calendar)
+    chart_col, cal_col = st.columns([5, 1])
+    with chart_col:
+        _render_prices(symbols)
+    with cal_col:
+        _render_calendar(calendar)
 
-        st.divider()
-        _render_news(news)
+    st.divider()
+    _render_news(news)
 
 
 _overview()
