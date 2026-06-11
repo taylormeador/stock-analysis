@@ -16,11 +16,11 @@ home_page = st.Page(
     title="Home",
     icon=":material/home:",
 )
-whats_hot = st.Page(
-    page="page_modules/whats_hot.py",
-    title="What's Hot",
-    icon=":material/mode_heat:",
-)
+# whats_hot = st.Page(
+#     page="page_modules/whats_hot.py",
+#     title="What's Hot",
+#     icon=":material/mode_heat:",
+# )
 backtest_page = st.Page(
     page="page_modules/backtest/backtest_page.py",
     title="Backtest",
@@ -41,16 +41,16 @@ hacker_page = st.Page(
     title="Terminal",
     icon=":material/terminal:",
 )
-options_dashboard = st.Page(
-    page="page_modules/options_dashboard.py",
-    title="Options Dashboard",
-    icon=":material/candlestick_chart:",
-)
+# options_dashboard = st.Page(
+#     page="page_modules/options_dashboard.py",
+#     title="Options Dashboard",
+#     icon=":material/candlestick_chart:",
+# )
 account_monitor = st.Page(
     page="page_modules/tastytrade_dashboard.py",
     title="Account Monitor",
     icon=":material/monitoring:",
 )
 
-pg = st.navigation([home_page, whats_hot, analysis_page, options_dashboard, account_monitor, status_page, hacker_page])
+pg = st.navigation([home_page, analysis_page, account_monitor, status_page, hacker_page])
 pg.run()

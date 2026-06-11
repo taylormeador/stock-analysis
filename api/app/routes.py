@@ -10,6 +10,7 @@ import app.logic.etl_status as etl_status
 import app.logic.options as options
 import app.logic.prometheus as prometheus
 import app.logic.whats_hot as whats_hot
+import app.logic.market_overview as market_overview
 import app.logic.portfolio_forecasts as portfolio_forecasts
 import app.logic.tastytrade as tastytrade_logic
 
@@ -203,6 +204,24 @@ async def get_tastytrade_dashboard():
     data = await tastytrade_logic.get_dashboard()
     return {"data": data}
 
+
+
+@router.get("/market/overview")
+async def get_market_overview():
+    data = await asyncio.to_thread(market_overview.get_market_overview)
+    return {"data": data}
+
+
+@router.get("/market/news")
+async def get_market_news():
+    data = await asyncio.to_thread(market_overview.get_news)
+    return {"data": data}
+
+
+@router.get("/market/calendar")
+async def get_market_calendar():
+    data = await asyncio.to_thread(market_overview.get_calendar)
+    return {"data": data}
 
 
 @router.get("/backtest")

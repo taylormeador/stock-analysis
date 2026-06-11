@@ -1,362 +1,181 @@
-import pandas as pd
+"""
+Macro market overview — price grid, headlines, economic calendar.
+Refreshes every minute via st.fragment.
+"""
+from datetime import datetime, timezone
+
 import plotly.graph_objects as go
 import streamlit as st
 from styles import apply_custom_css, colors
-from utils import get_json, live_clock
+from utils import get_json
 
 apply_custom_css()
 
-# Get data
-response = get_json("/home")
-data = response.get("data", {})
-if not data:
-    st.error(":material/error: No data found")
-    st.stop()
+_GREEN = colors.bright_green
+_RED = "#CC3300"
+_GRAY = colors.text_gray
 
-snapshot = data.get("snapshot")
-ticker_mentions = data.get("ticker_mentions")
-etl_task_statuses = data.get("etl_task_statuses")
 
-# Hero section
-st.title(":material/query_stats: CurveFitter9000")
-st.caption(
-    "Systematic trading research platform combining sentiment analysis, "
-    "backtesting, and wishful thinking to provide actionable market insights"
-)
-st.page_link(
-    page="https://github.com/taylormeador/stock-analysis",
-    label="Git Repo",
-    icon=":material/commit:",
-)
+def _fmt_price(v: float) -> str:
+    if v >= 10_000:
+        return f"{v:,.0f}"
+    if v >= 1_000:
+        return f"{v:,.1f}"
+    if v >= 100:
+        return f"{v:,.2f}"
+    if v >= 10:
+        return f"{v:,.3f}"
+    return f"{v:,.4f}"
 
-st.divider()
 
-# Main content - Featured Components
-st.markdown("## Featured Components")
+def _relative_time(created: str) -> str:
+    """Parse RFC-2822 or ISO datetime string → '2h ago'."""
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(created).astimezone(timezone.utc)
+    except Exception:
+        try:
+            dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except Exception:
+            return ""
+    delta = datetime.now(timezone.utc) - dt
+    mins = int(delta.total_seconds() / 60)
+    if mins < 60:
+        return f"{mins}m ago"
+    if mins < 1440:
+        return f"{mins // 60}h ago"
+    return f"{mins // 1440}d ago"
 
-# Component 1: Real-Time Sentiment Pipeline
-st.markdown("### :material/psychology: Real-Time Sentiment Pipeline")
 
-col1, col2 = st.columns([2, 1])
+def _mini_chart(chart_data: list, change_pct: float | None) -> go.Figure | None:
+    if not chart_data:
+        return None
+    times  = [d["t"] for d in chart_data]
+    closes = [d["c"] for d in chart_data]
+    up = (change_pct or 0) >= 0
+    line_color = _GREEN if up else _RED
+    fill_color = "rgba(0,200,83,0.08)" if up else "rgba(204,51,0,0.08)"
+    fig = go.Figure(go.Scatter(
+        x=times, y=closes,
+        mode="lines",
+        line=dict(color=line_color, width=1.5),
+        fill="tozeroy", fillcolor=fill_color,
+        hovertemplate="%{x|%b %d %H:%M}<br>%{y:,.4g}<extra></extra>",
+    ))
+    fig.update_layout(
+        height=130,
+        plot_bgcolor=colors.dark_bg, paper_bgcolor=colors.dark_bg,
+        xaxis=dict(visible=False), yaxis=dict(visible=False),
+        margin=dict(l=0, r=0, t=0, b=0),
+    )
+    return fig
 
-with col1:
-    # Show most recent topic cluster data (top 10 clusters)
-    if snapshot:
-        latest_snapshot = pd.DataFrame(snapshot)[:10]
 
-        # Create a mini version of the topic sentiment chart
-        fig = go.Figure()
-
-        for _, topic in latest_snapshot.iterrows():
-            # Sentiment-based color scheme
-            sentiment = topic["llm_sentiment"]
-            if sentiment > 0.3:
-                marker_color = colors.bright_green  # Bullish
-            elif sentiment < -0.3:
-                marker_color = colors.orange  # Bearish
-            else:
-                marker_color = colors.blue  # Neutral
-
-            fig.add_trace(
-                go.Scatter(
-                    x=[topic["llm_sentiment"]],
-                    y=[topic["llm_confidence"]],
-                    mode="markers+text",
-                    text=topic["llm_theme"][:30] + "...",
-                    textposition="top center",
-                    marker=dict(
-                        size=topic["count"] / 10,
-                        color=marker_color,
-                        opacity=0.7,
-                    ),
-                    hovertext=f"{topic['llm_theme']}<br>Count: {topic['count']}<br>Sentiment: {topic['llm_sentiment']:.2f}",
-                    hoverinfo="text",
-                    showlegend=False,
-                )
-            )
-
-        fig.update_layout(
-            xaxis=dict(
-                title="Sentiment (Bearish ← → Bullish)",
-                range=[-1.1, 1.1],
-                gridcolor="rgba(0, 255, 65, 0.1)",
-                zeroline=True,
-                zerolinecolor="rgba(0, 255, 65, 0.3)",
-            ),
-            yaxis=dict(
-                title="Confidence",
-                range=[-0.05, 1.05],
-                gridcolor="rgba(0, 255, 65, 0.1)",
-            ),
-            plot_bgcolor=colors.dark_bg,
-            paper_bgcolor=colors.dark_bg,
-            font=dict(color=colors.text_gray, family="monospace"),
-            height=400,
-            margin=dict(l=40, r=40, t=20, b=40),
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
+def _render_symbol(sym: dict) -> None:
+    price  = sym.get("last_price")
+    change = sym.get("change_pct")
+    price_str = _fmt_price(price) if price is not None else "—"
+    if change is None:
+        pct_str = "—"
+    elif change >= 0:
+        pct_str = f":green[+{change:.2f}%]"
     else:
-        st.info("Topic clustering pipeline running - check back in a few minutes")
+        pct_str = f":red[{change:.2f}%]"
+    st.markdown(f"**{sym['label']}** &nbsp; {price_str} &nbsp; {pct_str}")
+    fig = _mini_chart(sym.get("chart", []), change)
+    if fig:
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    else:
+        st.caption("no data")
 
-with col2:
-    st.markdown(
-        """
-        **BERTopic clusters 10K+ daily WSB comments into thematic groups. 
-        Claude Haiku generates sentiment scores and theme summaries. 
-        Updates 4x daily at market open, midday, close, and evening.**
-        
-        **Technical implementation:**
-        - Distributed embedding generation with sentence-transformers across GPU workers
-        - pgvector for semantic search over 5M+ historical comments  
-        - Real-time clustering with HDBSCAN
-        - Structured LLM analysis via Anthropic API
-        """
-    )
 
-    if st.button("→ See full topic analysis", use_container_width=True):
-        st.switch_page("page_modules/whats_hot.py")
+def _render_prices(symbols: list) -> None:
+    i = 0
+    groups_seen = []
+    while i < len(symbols):
+        group = symbols[i]["group"]
+        if group not in groups_seen:
+            groups_seen.append(group)
+            st.markdown(f"##### {group.upper()}")
+        row_syms = symbols[i:i+4]
+        cols = st.columns(4)
+        for col, sym in zip(cols, row_syms):
+            with col:
+                _render_symbol(sym)
+        i += 4
 
-st.divider()
 
-# Component 2: Distributed Data Collection
-st.markdown("### :material/account_tree: Distributed Data Collection")
-
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.markdown(
-        """
-        **Celery Beat orchestrates dozens of scheduled tasks across multiple data sources. 
-        Redis-based distributed rate limiting prevents API bans. 
-        Prometheus + Grafana track task health and performance.**
-        
-        **Pipeline handles:**
-        - Reddit API (100 req/min rate limit coordination)
-        - yfinance price data (187 tracked tickers)
-        - CBOE options market statistics
-        - FRED macroeconomic indicators
-        - Historical Reddit archive ETL (50M+ comments from compressed zst files)
-        """
-    )
-
-    if st.button("→ Monitor ETL pipeline", use_container_width=True):
-        st.switch_page("page_modules/etl_status.py")
-
-with col2:
-    # Show mini ETL status
-    if etl_task_statuses:
-        etl_task_statuses = pd.DataFrame(etl_task_statuses)
-
-        # Show compact status for each component
-        for _, row in etl_task_statuses.head(9).iterrows():
-            col_a, col_b, col_c = st.columns([2, 1, 1])
-
-            with col_a:
-                st.markdown(f"**{row['component_name']}**")
-
-            with col_b:
-                if row["status"] == "Complete":
-                    st.markdown(f":material/check_circle: {row['status']}")
-                elif row["status"] == "In Progress":
-                    st.markdown(f":material/pending: {row['status']}")
-                elif row["status"] == "Failed":
-                    st.markdown(f":material/error: {row['status']}")
-                else:
-                    st.markdown(f":material/info: {row['status']}")
-
-            with col_c:
-                if row["progress"]:
-                    st.progress(float(row["progress"]))
-
-st.divider()
-
-# Component 3: ML Training Pipeline
-st.markdown("### :material/model_training: ML Training Pipeline TODO")
-
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    # Show a simple visualization of model performance metrics
-    # This is placeholder - you'd replace with real MLflow data
-    st.markdown(
-        """
-        **Current model performance (backtested 2023-2024):**
-        """
-    )
-
-    metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
-    with metrics_col1:
-        st.metric("Direction Accuracy", "62.3%", "+2.1%")
-    with metrics_col2:
-        st.metric("Sharpe Ratio", "0.67", "+0.15")
-    with metrics_col3:
-        st.metric("Max Drawdown", "-12.4%", "")
-
-    st.markdown(
-        """
-        **Feature importance (top 5):**
-        1. `sentiment_score` - Reddit aggregate sentiment
-        2. `rsi_14` - Relative strength index
-        3. `vix_put_call_ratio` - CBOE volatility indicator
-        4. `fed_funds_rate` - FRED macro signal
-        5. `mention_count` - Reddit discussion volume
-        """
-    )
-
-with col2:
-    st.markdown(
-        """
-        **XGBoost regression models trained on combined features: 
-        Reddit sentiment, technical indicators, options flows, 
-        and macro signals. MLflow tracks experiments with full 
-        reproducibility.**
-        
-        **Pipeline features:**
-        - Temporal train/test splits (no lookahead bias)
-        - Walk-forward validation planned
-        - Trading metrics: direction accuracy, Sharpe ratio, max drawdown
-        - Automated feature importance analysis
-        - Model versioning and artifact storage
-        """
-    )
-
-st.divider()
-
-# Architecture Diagram
-st.markdown("## System Architecture")
-
-st.markdown(
-    """
-```
-┌─────────────────┐
-│  Data Sources   │
-│  • Reddit API   │
-│  • yfinance     │
-│  • CBOE         │
-│  • FRED         │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│     Celery Workers (3 pools)        │
-│  • CPU workers (scheduled tasks)    │
-│  • GPU workers (embeddings)         │
-│  • Historical workers (long ETL)    │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│      PostgreSQL + pgvector          │
-│  • Stock prices (5M+ rows)          │
-│  • Reddit comments (50M+ rows)      │
-│  • Embeddings (384-dim vectors)     │
-│  • ML training datasets             │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│         FastAPI (async)             │
-│  • Real-time price cache (Redis)    │
-│  • Aggregated sentiment data        │
-│  • ETL status monitoring            │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│    Streamlit + nginx frontend       │
-│  • Live dashboards                  │
-│  • Topic visualization              │
-│  • System monitoring                │
-└─────────────────────────────────────┘
-
-     ┌──────────────────┐
-     │   Monitoring     │
-     │  • Prometheus    │
-     │  • Grafana       │
-     │  • Flower        │
-     │  • MLflow        │
-     └──────────────────┘
-```
-"""
-)
-
-# Sidebar
-with st.sidebar:
-    st.markdown("### :material/schedule: Time")
-    live_clock()
-
-    st.markdown("### :material/trending_up: Live Trending")
-
-    if ticker_mentions:
-        trending_df = pd.DataFrame(ticker_mentions)
-        if not trending_df.empty:
-            top_tickers = trending_df.nlargest(5, "ticker_mentions_1")
-            for _, ticker_data in top_tickers.iterrows():
-                st.metric(
-                    ticker_data["ticker"],
-                    f"{int(ticker_data['ticker_mentions_1'])} mentions",
-                    delta=(
-                        f"{ticker_data['mention_pct_change']:.1f}%"
-                        if ticker_data["mention_pct_change"] != 0
-                        else None
-                    ),
-                )
+def _render_news(articles: list) -> None:
+    st.markdown("##### HEADLINES")
+    if not articles:
+        st.caption("No headlines available — check BENZINGA_API_KEY.")
+        return
+    for a in articles:
+        age = _relative_time(a.get("created", ""))
+        title = a.get("title", "")
+        url   = a.get("url", "")
+        imp   = a.get("importance", 0)
+        # Importance 4-5 gets a visual callout
+        prefix = "🔴 " if imp >= 4 else "▸ "
+        age_part = f"&nbsp; *{age}*" if age else ""
+        if url:
+            st.markdown(f"{prefix}[{title}]({url}){age_part}")
         else:
-            st.error("No data")
-    else:
-        st.error("No data")
+            st.markdown(f"{prefix}**{title}**{age_part}")
+
+
+def _render_calendar(events: list) -> None:
+    st.markdown("##### UPCOMING EVENTS")
+    if not events:
+        st.caption("No calendar data — check FRED_API_KEY.")
+        return
+    for ev in events:
+        try:
+            dt = datetime.strptime(ev["date"], "%Y-%m-%d")
+            date_label = dt.strftime("%b %d")
+        except Exception:
+            date_label = ev["date"]
+        event_name = ev["event"]
+        category   = ev.get("category", "macro")
+        if category == "fomc":
+            st.markdown(f"**{date_label}** &nbsp; :orange[{event_name}]")
+        else:
+            st.markdown(f"**{date_label}** &nbsp; {event_name}")
+
+
+# ── Page ──────────────────────────────────────────────────────────────────────
+
+st.title(":material/public: Market Overview")
+
+
+@st.fragment(run_every="1m")
+def _overview() -> None:
+    prices_resp   = get_json("/market/overview")
+    news_resp     = get_json("/market/news")
+    calendar_resp = get_json("/market/calendar")
+
+    prices_data = prices_resp.get("data") or {}
+    symbols     = prices_data.get("symbols", [])
+    fetched_at  = prices_data.get("fetched_at")
+    news        = news_resp.get("data") or []
+    calendar    = calendar_resp.get("data") or []
+
+    if not symbols:
+        st.warning("Market data unavailable — API may be starting up.")
+        return
+
+    ts = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
+    st.caption(f"Updated: {ts}")
+
+    _render_prices(symbols)
 
     st.divider()
 
-    st.markdown("### :material/dns: System Health")
+    left, right = st.columns([3, 2])
+    with left:
+        _render_news(news)
+    with right:
+        _render_calendar(calendar)
 
-    if not etl_task_statuses.empty:
-        # Calculate health metrics
-        total_tasks = len(etl_task_statuses)
-        completed = len(etl_task_statuses[etl_task_statuses["status"] == "Complete"])
-        in_progress = len(
-            etl_task_statuses[etl_task_statuses["status"] == "In Progress"]
-        )
-        failed = len(etl_task_statuses[etl_task_statuses["status"] == "Failed"])
 
-        if failed > 0:
-            st.error(f":material/error: {failed} failed tasks")
-        if in_progress > 0:
-            st.info(f":material/pending: {in_progress} tasks running")
-        else:
-            st.success(":material/check_circle: All systems operational")
-
-        celery_stats = get_json("/celery-stats")
-        if celery_stats.get("data"):
-            stats = celery_stats["data"]
-            st.caption(
-                f"**Workers:** {stats['active_workers']}/{stats['total_workers']} healthy"
-            )
-            st.caption(f"**Queue depth:** {stats['queue_depth']}")
-        st.caption(f"**Success rate:** {(completed / total_tasks) * 100:.1f}%")
-
-    st.divider()
-
-    st.markdown("### :material/code: Tech Stack")
-    st.markdown(
-        """
-        **Backend:**
-        - PostgreSQL + pgvector
-        - Redis (cache + coordination)
-        - Celery (3 worker pools)
-        - FastAPI + async SQLAlchemy
-        
-        **ML/Data:**
-        - XGBoost, scikit-learn
-        - sentence-transformers
-        - BERTopic clustering
-        - MLflow experiment tracking
-        - pandas, pandas-ta
-        
-        **Infrastructure:**
-        - Docker + Debian + Proxmox
-        - Prometheus + Grafana
-        - nginx + Cloudflare Tunnel
-        """
-    )
+_overview()
