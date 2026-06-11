@@ -86,8 +86,8 @@ _EARNINGS_WATCHLIST = [
 def _fetch_prices() -> dict:
     sym_list = [s["symbol"] for s in SYMBOLS]
     try:
-        daily  = yf.download(sym_list, period="5d", interval="1d", progress=False, auto_adjust=True)
-        hourly = yf.download(sym_list, period="5d", interval="1h", progress=False, auto_adjust=True)
+        daily  = yf.download(sym_list, period="5d", interval="1d", progress=False, auto_adjust=True, threads=False)
+        hourly = yf.download(sym_list, period="5d", interval="1h", progress=False, auto_adjust=True, threads=False)
     except Exception:
         logger.exception("yfinance batch download failed")
         return {"symbols": [], "fetched_at": datetime.now(timezone.utc).isoformat()}
@@ -254,10 +254,17 @@ async def get_calendar() -> list:
                 except Exception:
                     logger.warning(f"FRED calendar fetch failed for {name} (id={release_id})")
 
-    # Earnings — all tickers in parallel via asyncio.gather
+    # Earnings — bounded concurrency so we don't exhaust the thread pool.
+    # asyncio.to_thread uses the default executor; cap at 8 simultaneous calls.
     end_date = today + timedelta(days=45)
+    sem = asyncio.Semaphore(8)
+
+    async def _limited(sym: str):
+        async with sem:
+            return await _fetch_one_earnings(sym, today, end_date)
+
     earnings_results = await asyncio.gather(
-        *[_fetch_one_earnings(sym, today, end_date) for sym in _EARNINGS_WATCHLIST],
+        *[_limited(sym) for sym in _EARNINGS_WATCHLIST],
         return_exceptions=False,
     )
     events.extend(e for e in earnings_results if e is not None)
