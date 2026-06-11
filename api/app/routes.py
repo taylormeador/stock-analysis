@@ -220,7 +220,7 @@ async def get_market_news():
 
 @router.get("/market/calendar")
 async def get_market_calendar():
-    data = await asyncio.to_thread(market_overview.get_calendar)
+    data = await market_overview.get_calendar()
     return {"data": data}
 
 

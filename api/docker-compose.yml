@@ -14,6 +14,7 @@ services:
       - FLOWER_URL=${FLOWER_URL}
       - PYTHONPATH=/app
       - BENZINGA_API_KEY=${BENZINGA_API_KEY}
+      - FRED_API_KEY=${FRED_API_KEY}
     volumes:
       - ./app:/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

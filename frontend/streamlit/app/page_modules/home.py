@@ -145,17 +145,17 @@ def _render_news(articles: list) -> None:
     if not articles:
         st.caption("No headlines — check BENZINGA_API_KEY.")
         return
-    for a in articles:
-        age   = _relative_time(a.get("created", ""))
-        title = a.get("title", "")
-        url   = a.get("url", "")
-        imp   = a.get("importance", 0)
+    col1, col2 = st.columns(2)
+    for i, a in enumerate(articles):
+        age    = _relative_time(a.get("created", ""))
+        title  = a.get("title", "")
+        url    = a.get("url", "")
+        imp    = a.get("importance", 0)
         prefix  = "🔴 " if imp >= 4 else "▸ "
         age_str = f" *{age}*" if age else ""
-        if url:
-            st.markdown(f"{prefix}[{title}]({url}){age_str}")
-        else:
-            st.markdown(f"{prefix}**{title}**{age_str}")
+        line = f"{prefix}[{title}]({url}){age_str}" if url else f"{prefix}**{title}**{age_str}"
+        with (col1 if i % 2 == 0 else col2):
+            st.markdown(line)
 
 
 def _render_calendar(events: list) -> None:
@@ -169,8 +169,11 @@ def _render_calendar(events: list) -> None:
         except Exception:
             label = ev["date"]
         name = ev["event"]
-        if ev.get("category") == "fomc":
+        category = ev.get("category")
+        if category == "fomc":
             st.markdown(f"**{label}** &nbsp; :orange[{name}]")
+        elif category == "earnings":
+            st.markdown(f"**{label}** &nbsp; :blue[{name}]")
         else:
             st.markdown(f"**{label}** &nbsp; {name}")
 

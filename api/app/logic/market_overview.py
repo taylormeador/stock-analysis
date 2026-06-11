@@ -2,10 +2,11 @@
 Macro market overview: prices, news, and economic calendar.
 Each function is Redis-cached independently at different TTLs.
 """
+import asyncio
 import json
 import logging
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 import pandas as pd
@@ -57,6 +58,26 @@ _FRED_RELEASES = [
     (30,  "PPI"),
     (53,  "GDP"),
     (56,  "Retail Sales"),
+]
+
+# Companies whose earnings move the broad market or signal macro health
+_EARNINGS_WATCHLIST = [
+    # Mag 7
+    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
+    # Financials
+    "JPM", "GS", "BAC", "MS", "BLK", "V", "MA",
+    # Consumer
+    "WMT", "COST", "HD", "NKE",
+    # Industrials / Defense
+    "CAT", "BA", "GE", "LMT", "RTX",
+    # Healthcare / Pharma
+    "UNH", "LLY", "JNJ", "PFE",
+    # Energy
+    "XOM", "CVX", "COP",
+    # Semiconductors
+    "AMD", "AVGO", "INTC",
+    # Media / Other
+    "NFLX", "DIS", "CRM", "BRK-B",
 ]
 
 
@@ -174,7 +195,22 @@ def get_news() -> list:
 
 # ── Calendar ──────────────────────────────────────────────────────────────────
 
-def get_calendar() -> list:
+async def _fetch_one_earnings(sym: str, start: date, end: date) -> dict | None:
+    def _sync():
+        try:
+            df = yf.Ticker(sym).earnings_dates
+            if df is None or df.empty:
+                return None
+            future = [idx.date() for idx in df.index if start <= idx.date() <= end]
+            if future:
+                return {"date": min(future).isoformat(), "event": f"{sym} Earnings", "category": "earnings"}
+        except Exception:
+            logger.debug(f"Could not get earnings date for {sym}")
+        return None
+    return await asyncio.to_thread(_sync)
+
+
+async def get_calendar() -> list:
     try:
         cached = _rc.get("market:calendar")
         if cached:
@@ -190,37 +226,46 @@ def get_calendar() -> list:
         if date.fromisoformat(d_str) >= today:
             events.append({"date": d_str, "event": "FOMC Decision", "category": "fomc"})
 
-    # FRED economic releases — fetch next occurrence of each key series
+    # FRED releases — async HTTP
     api_key = os.environ.get("FRED_API_KEY")
     if api_key:
-        for release_id, name in _FRED_RELEASES:
-            try:
-                resp = httpx.get(
-                    "https://api.stlouisfed.org/fred/release/dates",
-                    params={
-                        "release_id": release_id,
-                        "api_key": api_key,
-                        "file_type": "json",
-                        "include_release_dates_with_no_data": "true",
-                        "sort_order": "desc",
-                        "limit": 6,
-                    },
-                    timeout=10,
-                )
-                resp.raise_for_status()
-                future_dates = sorted([
-                    rd["date"] for rd in resp.json().get("release_dates", [])
-                    if rd["date"] >= today.isoformat()
-                ])
-                if future_dates:
-                    events.append({"date": future_dates[0], "event": name, "category": "macro"})
-            except Exception:
-                logger.warning(f"FRED calendar fetch failed for {name} (id={release_id})")
+        async with httpx.AsyncClient() as client:
+            for release_id, name in _FRED_RELEASES:
+                try:
+                    resp = await client.get(
+                        "https://api.stlouisfed.org/fred/release/dates",
+                        params={
+                            "release_id": release_id,
+                            "api_key": api_key,
+                            "file_type": "json",
+                            "include_release_dates_with_no_data": "true",
+                            "sort_order": "desc",
+                            "limit": 6,
+                        },
+                        timeout=10,
+                    )
+                    resp.raise_for_status()
+                    future_dates = sorted([
+                        rd["date"] for rd in resp.json().get("release_dates", [])
+                        if rd["date"] >= today.isoformat()
+                    ])
+                    if future_dates:
+                        events.append({"date": future_dates[0], "event": name, "category": "macro"})
+                except Exception:
+                    logger.warning(f"FRED calendar fetch failed for {name} (id={release_id})")
+
+    # Earnings — all tickers in parallel via asyncio.gather
+    end_date = today + timedelta(days=45)
+    earnings_results = await asyncio.gather(
+        *[_fetch_one_earnings(sym, today, end_date) for sym in _EARNINGS_WATCHLIST],
+        return_exceptions=False,
+    )
+    events.extend(e for e in earnings_results if e is not None)
 
     events.sort(key=lambda x: x["date"])
 
     try:
-        _rc.set("market:calendar", json.dumps(events), ex=3600)  # 1 hr
+        _rc.set("market:calendar", json.dumps(events), ex=21600)  # 6 hr
     except Exception:
         pass
     return events
