@@ -146,7 +146,7 @@ def get_news() -> list:
     try:
         resp = httpx.get(
             "https://api.benzinga.com/api/v2/news",
-            params={"token": api_key, "pageSize": 12, "importance": 2},
+            params={"token": api_key, "pageSize": 12, "importance": 3},
             headers={"Accept": "application/json"},
             timeout=10,
         )

@@ -92,7 +92,7 @@ def _build_chart(chart_tuple: tuple, change_pct: float | None) -> go.Figure:
         showlegend=False,
     ))
     fig.update_layout(
-        height=80,
+        height=65,
         plot_bgcolor=colors.dark_bg,
         paper_bgcolor=colors.dark_bg,
         xaxis=dict(visible=False),
@@ -179,6 +179,11 @@ def _render_calendar(events: list) -> None:
 
 st.title(":material/public: Market Overview")
 
+# Placeholder defined outside the fragment so its content persists across
+# fragment re-runs. The fragment renders into it atomically — the old content
+# stays visible until the new render is complete, then swaps in all at once.
+_content = st.empty()
+
 
 @st.fragment(run_every="1m")
 def _overview() -> None:
@@ -188,22 +193,22 @@ def _overview() -> None:
     news        = _fetch_news().get("data") or []
     calendar    = _fetch_calendar().get("data") or []
 
-    if not symbols:
-        st.warning("Market data unavailable — API may be starting up.")
-        return
+    with _content.container():
+        if not symbols:
+            st.warning("Market data unavailable — API may be starting up.")
+            return
 
-    ts = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
-    st.caption(f"Updated: {ts}")
+        ts = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
+        st.caption(f"Updated: {ts}")
 
-    _render_prices(symbols)
+        chart_col, cal_col = st.columns([5, 1])
+        with chart_col:
+            _render_prices(symbols)
+        with cal_col:
+            _render_calendar(calendar)
 
-    st.divider()
-
-    left, right = st.columns([3, 2])
-    with left:
+        st.divider()
         _render_news(news)
-    with right:
-        _render_calendar(calendar)
 
 
 _overview()

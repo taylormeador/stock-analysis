@@ -212,6 +212,8 @@ def _render_positions_table(positions: list[dict]) -> None:
 st.title(":material/monitoring: Account Monitor")
 st.divider()
 
+_content = st.empty()
+
 
 @st.fragment(run_every="30s")
 def _dashboard() -> None:
@@ -220,19 +222,20 @@ def _dashboard() -> None:
     accounts = data.get("accounts", [])
     fetched_at = data.get("fetched_at")
 
-    if not accounts:
-        st.warning(
-            ":material/sync_problem: No data yet — the Tastytrade worker hasn't run, "
-            "or credentials are not configured."
-        )
-        return
+    with _content.container():
+        if not accounts:
+            st.warning(
+                ":material/sync_problem: No data yet — the Tastytrade worker hasn't run, "
+                "or credentials are not configured."
+            )
+            return
 
-    ts_display = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
-    st.caption(f"Last fetched: {ts_display}")
+        ts_display = fetched_at[:19].replace("T", " ") + " UTC" if fetched_at else "unknown"
+        st.caption(f"Last fetched: {ts_display}")
 
-    for acct in accounts:
-        _render_account(acct)
-        st.divider()
+        for acct in accounts:
+            _render_account(acct)
+            st.divider()
 
 
 _dashboard()
