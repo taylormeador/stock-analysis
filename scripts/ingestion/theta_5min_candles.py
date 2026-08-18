@@ -80,6 +80,9 @@ def call_with_retry(fn, *args, **kwargs):
         except (NoDataFoundError, AuthenticationError):
             raise
         except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.PERMISSION_DENIED:
+                # A subscription/entitlement decision won't change on retry.
+                raise
             if attempt == MAX_RETRIES:
                 raise
             logger.warning(
@@ -159,6 +162,12 @@ def process_symbol(
             bars = call_with_retry(client.stock_history_ohlc, **kwargs)
         except NoDataFoundError:
             continue
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.PERMISSION_DENIED:
+                # Chunks walk oldest-to-newest, so a subscription depth limit
+                # shows up here first; skip and let later (more recent) chunks proceed.
+                continue
+            raise
         if bars.empty:
             continue
         write_bars(bars, symbol, output_dir)
