@@ -187,7 +187,13 @@ def parse_args():
         default=None,
         help="Defaults to the client's own default (nqb / Nasdaq Basic) if unset",
     )
-    parser.add_argument("--workers", type=int, default=4, help="Concurrent symbols in flight")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=3,
+        help="Concurrent symbols in flight. ThetaData returns RESOURCE_EXHAUSTED above ~3-4 "
+        "concurrent requests on standard accounts — tested empirically, not documented.",
+    )
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     parser.add_argument(
         "--dry-run", action="store_true", help="Only print the discovered symbol universe and exit"
