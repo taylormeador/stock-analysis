@@ -48,9 +48,11 @@ STATE_DIR_NAME = "_ingest_state"
 
 INTERVAL = "5m"
 CHUNK_DAYS = 28  # stays under ThetaData's ~1-month limit on multi-day OHLC requests
-# Cheap: the EOD probe is a single call regardless of range, so default far back
-# and let the probe discover each symbol's real first trading date.
-DEFAULT_START = dt.date(1990, 1, 1)
+# ThetaData rejects the EOD probe outright (PERMISSION_DENIED) if the requested
+# range exceeds the account's entitled history depth — it doesn't truncate.
+# Default to a 4-year lookback to match a standard-tier account; raise via
+# --start-date if your subscription covers more.
+DEFAULT_START = dt.date.today() - dt.timedelta(days=365 * 4)
 MAX_RETRIES = 5
 
 
@@ -142,6 +144,11 @@ def process_symbol(
     except NoDataFoundError:
         marker.write_text("no-data")
         return "no data"
+    except grpc.RpcError as e:
+        if e.code() == grpc.StatusCode.PERMISSION_DENIED:
+            marker.write_text("permission-denied")
+            return "permission denied (start_date too far back for this subscription)"
+        raise
 
     if eod.empty:
         marker.write_text("no-data")
