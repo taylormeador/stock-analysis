@@ -10,12 +10,11 @@ Terminal process. Requires Python 3.12+.
 Symbol universe comes from `client.stock_list_symbols()` — ThetaData doesn't
 publish a static ticker list, so we ask it directly.
 
-For each symbol, `stock_history_eod()` (no multi-day limit) is used as a cheap
-one-call probe to discover that symbol's actual first/last trading date, since
-ThetaData doesn't document how far back a given symbol's data goes. The 5-minute
-`stock_history_ohlc()` calls (limited to ~1 month per request) are then only
-made across that discovered range, so a young symbol doesn't cost the same as
-an old one.
+5-minute bars come from `stock_history_ohlc()`, chunked into ~28-day requests
+(ThetaData rejects multi-day requests over ~1 month). A chunk with no data for
+a young/inactive symbol, or one that falls outside the account's entitled
+history depth, is skipped rather than retried — both are permanent, not
+transient, so retrying wastes time without changing the outcome.
 
 Output is written to OUTPUT_DIR (env: THETA_STOCK_DATA_DIR) as a parquet
 dataset hive-partitioned by `date`, e.g. `<root>/date=2024-01-02/*.parquet`.
@@ -133,33 +132,15 @@ def process_symbol(
     output_dir: Path,
     state_dir: Path,
 ) -> str:
-    marker = state_dir / f"{symbol}.done"
+    # Some symbols (e.g. when-issued securities like ".PR.S/WI") contain "/",
+    # which would otherwise be read as a path separator here.
+    marker = state_dir / f"{symbol.replace('/', '_')}.done"
     if marker.exists():
         return "skipped (already done)"
 
-    try:
-        eod = call_with_retry(
-            client.stock_history_eod, symbol=symbol, start_date=start_date, end_date=end_date
-        )
-    except NoDataFoundError:
-        marker.write_text("no-data")
-        return "no data"
-    except grpc.RpcError as e:
-        if e.code() == grpc.StatusCode.PERMISSION_DENIED:
-            marker.write_text("permission-denied")
-            return "permission denied (start_date too far back for this subscription)"
-        raise
-
-    if eod.empty:
-        marker.write_text("no-data")
-        return "no data"
-
-    date_col = find_timestamp_column(eod)
-    dates = pd.to_datetime(eod[date_col]).dt.date
-    avail_start, avail_end = dates.min(), dates.max()
-
+    chunks = list(month_chunks(start_date, end_date))
     total_rows = 0
-    for chunk_start, chunk_end in month_chunks(avail_start, avail_end):
+    for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):
         kwargs = dict(
             symbol=symbol, interval=INTERVAL, start_date=chunk_start, end_date=chunk_end
         )
@@ -168,20 +149,25 @@ def process_symbol(
         try:
             bars = call_with_retry(client.stock_history_ohlc, **kwargs)
         except NoDataFoundError:
-            continue
+            pass
         except grpc.RpcError as e:
-            if e.code() == grpc.StatusCode.PERMISSION_DENIED:
-                # Chunks walk oldest-to-newest, so a subscription depth limit
-                # shows up here first; skip and let later (more recent) chunks proceed.
-                continue
-            raise
-        if bars.empty:
-            continue
-        write_bars(bars, symbol, output_dir)
-        total_rows += len(bars)
+            if e.code() != grpc.StatusCode.PERMISSION_DENIED:
+                raise
+            # Chunks walk oldest-to-newest, so a subscription depth limit
+            # shows up here first; skip and let later (more recent) chunks proceed.
+        else:
+            if not bars.empty:
+                write_bars(bars, symbol, output_dir)
+                total_rows += len(bars)
+
+        if i % 5 == 0 or i == len(chunks):
+            logger.info(
+                "%s: chunk %d/%d done (%s to %s), %d rows so far",
+                symbol, i, len(chunks), chunk_start, chunk_end, total_rows,
+            )
 
     marker.write_text(str(total_rows))
-    return f"{total_rows} bars ({avail_start} to {avail_end})"
+    return f"{total_rows} bars ({start_date} to {end_date})"
 
 
 def parse_args():
