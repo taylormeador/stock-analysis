@@ -186,8 +186,9 @@ def parse_args():
     parser.add_argument(
         "--venue",
         choices=["nqb", "utp_cta"],
-        default=None,
-        help="Defaults to the client's own default (nqb / Nasdaq Basic) if unset",
+        default="utp_cta",
+        help="utp_cta (consolidated SIP feed) is the default since standard accounts "
+        "get INVALID_ARGUMENT on nqb (Nasdaq Basic) — tested empirically.",
     )
     parser.add_argument(
         "--workers",
