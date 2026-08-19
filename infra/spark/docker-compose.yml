@@ -15,15 +15,21 @@
 # works for containers on the same host). Host networking sidesteps it
 # entirely — the container binds directly to the VM's real IP.
 #
-# NOT YET VERIFIED END TO END — no Docker daemon was available to test this
-# against a real cluster. Confirm the worker actually registers in the
-# master's UI (http://<master-ip>:8080) before trusting this.
+# Confirmed working: worker registers in the master's UI (http://<master-ip>:8080).
+#
+# /mnt/srv1-hdd2 is mounted on every node (master and workers both need it —
+# executors read partitions of the NFS-backed parquet files directly, not
+# just the driver). scripts/spark is bind-mounted read-only so job code can
+# be edited without rebuilding the image.
 
 services:
   spark:
     image: apache/spark:3.5.9-scala2.12-java17-python3-r-ubuntu
     container_name: stock-analysis-spark-${SPARK_MODE}
     network_mode: host
+    volumes:
+      - /mnt/srv1-hdd2:/mnt/srv1-hdd2
+      - ../../scripts/spark:/opt/jobs:ro
     environment:
       - SPARK_MODE=${SPARK_MODE}
       - SPARK_LOCAL_IP=${SPARK_LOCAL_IP}
