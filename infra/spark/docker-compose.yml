@@ -1,0 +1,38 @@
+# Standalone Spark cluster, no YARN/Kubernetes/Swarm. Deploy this SAME file to
+# every node (master and workers) — role is picked entirely from .env, copied
+# from .env.example and edited per node.
+#
+# Using apache/spark (official), not bitnami/spark: Bitnami's free image
+# catalog was discontinued in 2025 — bitnami/spark has no published tags
+# anymore, and bitnamilegacy/spark (frozen, unmaintained) only goes back to
+# Spark 4.0.0. apache/spark is the actively maintained replacement, but it's
+# the raw Spark distribution with no SPARK_MODE convenience wrapper, so
+# master/worker startup is driven directly via spark-class below.
+#
+# network_mode: host is deliberate, not a shortcut: Spark's RPC layer needs
+# workers/executors reachable back from the master and from each other, and
+# Docker's bridge networking + NAT breaks that across separate VMs (it only
+# works for containers on the same host). Host networking sidesteps it
+# entirely — the container binds directly to the VM's real IP.
+#
+# NOT YET VERIFIED END TO END — no Docker daemon was available to test this
+# against a real cluster. Confirm the worker actually registers in the
+# master's UI (http://<master-ip>:8080) before trusting this.
+
+services:
+  spark:
+    image: apache/spark:3.5.9-scala2.12-java17-python3-r-ubuntu
+    container_name: stock-analysis-spark-${SPARK_MODE}
+    network_mode: host
+    environment:
+      - SPARK_MODE=${SPARK_MODE}
+      - SPARK_LOCAL_IP=${SPARK_LOCAL_IP}
+      - SPARK_MASTER_URL=${SPARK_MASTER_URL:-}
+    command: >
+      sh -c '
+      if [ "$$SPARK_MODE" = "master" ]; then
+        exec /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host $$SPARK_LOCAL_IP --port 7077 --webui-port 8080;
+      else
+        exec /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $$SPARK_MASTER_URL --webui-port 8081;
+      fi'
+    restart: unless-stopped
