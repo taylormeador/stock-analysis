@@ -1,25 +1,29 @@
 """
-Backfill 5-minute stock OHLC candles from ThetaData into partitioned parquet files.
+Backfill 5-minute stock OHLC candles from ThetaData into parquet files.
 
 Uses the `thetadata` pip package (gRPC client, no local Java Terminal needed) —
 NOT the older `ThetaData-API/thetadata-python` package that launches a local
 Terminal process. Requires Python 3.12+.
 
-    pip install thetadata pandas pyarrow
+    pip install thetadata pandas pyarrow python-dotenv
 
 Symbol universe comes from `client.stock_list_symbols()` — ThetaData doesn't
 publish a static ticker list, so we ask it directly.
 
 5-minute bars come from `stock_history_ohlc()`, chunked into ~28-day requests
-(ThetaData rejects multi-day requests over ~1 month). A chunk with no data for
-a young/inactive symbol, or one that falls outside the account's entitled
-history depth, is skipped rather than retried — both are permanent, not
-transient, so retrying wastes time without changing the outcome.
+(ThetaData rejects multi-day requests over ~1 month). A chunk with no data,
+or one that falls outside the account's entitled history depth, is skipped
+rather than retried — both are permanent, not transient.
 
-Output is written to OUTPUT_DIR (env: THETA_STOCK_DATA_DIR) as a parquet
-dataset hive-partitioned by `date`, e.g. `<root>/date=2024-01-02/*.parquet`.
-A per-symbol marker file under `<root>/_ingest_state/` makes reruns skip
-symbols that already finished, so an interrupted backfill can be resumed.
+Output layout is the resumability mechanism: one file per (symbol, chunk) at
+a deterministic path, `<OUTPUT_DIR>/<symbol>/<chunk_start>_<chunk_end>.parquet`.
+Before fetching a chunk, its target file's existence is checked — if it's
+there, the chunk is skipped. Each file is written to a `.tmp` path and
+atomically renamed into place, so a crash mid-write never leaves a partial
+file that looks done. There is no separate marker/state directory that can
+drift out of sync with what's actually on disk: the data *is* the marker.
+This makes the whole backfill idempotent — kill it any time, rerun the exact
+same command, and it resumes from wherever it actually left off.
 
 Usage:
     python scripts/ingestion/theta_5min_candles.py --email you@example.com --password ***
@@ -43,16 +47,17 @@ from thetadata.errors import AuthenticationError, NoDataFoundError
 logger = logging.getLogger("theta_5min_candles")
 
 OUTPUT_DIR = Path(os.getenv("THETA_STOCK_DATA_DIR", "/mnt/srv1-hdd2/stock-data"))
-STATE_DIR_NAME = "_ingest_state"
 
 INTERVAL = "5m"
 CHUNK_DAYS = 28  # stays under ThetaData's ~1-month limit on multi-day OHLC requests
-# ThetaData rejects the EOD probe outright (PERMISSION_DENIED) if the requested
-# range exceeds the account's entitled history depth — it doesn't truncate.
-# Default to a 4-year lookback to match a standard-tier account; raise via
-# --start-date if your subscription covers more.
+# PERMISSION_DENIED is returned outright (not truncated) for ranges older than
+# the account's entitled history depth. Default to a 4-year lookback to match
+# a standard-tier account; raise via --start-date if your subscription covers more.
 DEFAULT_START = dt.date.today() - dt.timedelta(days=365 * 4)
 MAX_RETRIES = 5
+# Errors that are permanent for a given request — retrying with the same
+# arguments can't change the outcome, so they're not retried.
+PERMANENT_ERROR_CODES = (grpc.StatusCode.PERMISSION_DENIED, grpc.StatusCode.INVALID_ARGUMENT)
 
 
 def month_chunks(start: dt.date, end: dt.date, chunk_days: int = CHUNK_DAYS):
@@ -81,8 +86,7 @@ def call_with_retry(fn, *args, **kwargs):
         except (NoDataFoundError, AuthenticationError):
             raise
         except grpc.RpcError as e:
-            if e.code() == grpc.StatusCode.PERMISSION_DENIED:
-                # A subscription/entitlement decision won't change on retry.
+            if e.code() in PERMANENT_ERROR_CODES:
                 raise
             if attempt == MAX_RETRIES:
                 raise
@@ -115,12 +119,23 @@ def get_universe(client: ThetaClient) -> list[str]:
     return sorted(set(df[col].dropna().astype(str)))
 
 
-def write_bars(df: pd.DataFrame, symbol: str, output_dir: Path):
+def chunk_path(output_dir: Path, symbol: str, chunk_start: dt.date, chunk_end: dt.date) -> Path:
+    # Some symbols (e.g. when-issued securities like ".PR.S/WI") contain "/",
+    # which would otherwise be read as a path separator here.
+    safe_symbol = symbol.replace("/", "_")
+    return output_dir / safe_symbol / f"{chunk_start.isoformat()}_{chunk_end.isoformat()}.parquet"
+
+
+def write_bars(df: pd.DataFrame, symbol: str, path: Path):
     ts_col = find_timestamp_column(df)
     df = df.rename(columns={ts_col: "bar_time"})
     df["symbol"] = symbol
     df["date"] = pd.to_datetime(df["bar_time"]).dt.strftime("%Y-%m-%d")
-    df.to_parquet(output_dir, engine="pyarrow", partition_cols=["date"], index=False)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(".tmp.parquet")
+    df.to_parquet(tmp_path, engine="pyarrow", index=False)
+    os.replace(tmp_path, path)  # atomic on the same filesystem
 
 
 def process_symbol(
@@ -130,17 +145,17 @@ def process_symbol(
     end_date: dt.date,
     venue: str | None,
     output_dir: Path,
-    state_dir: Path,
 ) -> str:
-    # Some symbols (e.g. when-issued securities like ".PR.S/WI") contain "/",
-    # which would otherwise be read as a path separator here.
-    marker = state_dir / f"{symbol.replace('/', '_')}.done"
-    if marker.exists():
-        return "skipped (already done)"
-
     chunks = list(month_chunks(start_date, end_date))
-    total_rows = 0
+    new_rows = 0
+    already_done = 0
+
     for i, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+        path = chunk_path(output_dir, symbol, chunk_start, chunk_end)
+        if path.exists():
+            already_done += 1
+            continue
+
         kwargs = dict(
             symbol=symbol, interval=INTERVAL, start_date=chunk_start, end_date=chunk_end
         )
@@ -151,32 +166,43 @@ def process_symbol(
         except NoDataFoundError:
             pass
         except grpc.RpcError as e:
-            if e.code() != grpc.StatusCode.PERMISSION_DENIED:
+            if e.code() not in PERMANENT_ERROR_CODES:
                 raise
-            # Chunks walk oldest-to-newest, so a subscription depth limit
-            # shows up here first; skip and let later (more recent) chunks proceed.
+            logger.warning(
+                "%s: chunk %s to %s permanently skipped (%s: %s)",
+                symbol, chunk_start, chunk_end, e.code().name, e.details(),
+            )
         else:
             if not bars.empty:
-                write_bars(bars, symbol, output_dir)
-                total_rows += len(bars)
+                write_bars(bars, symbol, path)
+                new_rows += len(bars)
 
         if i % 5 == 0 or i == len(chunks):
             logger.info(
-                "%s: chunk %d/%d done (%s to %s), %d rows so far",
-                symbol, i, len(chunks), chunk_start, chunk_end, total_rows,
+                "%s: chunk %d/%d done (%s to %s), %d new rows so far (%d chunks already had data)",
+                symbol, i, len(chunks), chunk_start, chunk_end, new_rows, already_done,
             )
 
-    marker.write_text(str(total_rows))
-    return f"{total_rows} bars ({start_date} to {end_date})"
+    return f"{new_rows} new bars, {already_done}/{len(chunks)} chunks already done ({start_date} to {end_date})"
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--email", help="ThetaData account email (or set THETADATA_CREDENTIALS_FILE / creds.txt)")
-    parser.add_argument("--password", help="ThetaData account password")
-    parser.add_argument("--api-key", help="ThetaData API key (takes precedence over email/password)")
+    parser.add_argument(
+        "--email", default=os.getenv("THETADATA_EMAIL"), help="ThetaData account email (or set THETADATA_EMAIL)"
+    )
+    parser.add_argument(
+        "--password",
+        default=os.getenv("THETADATA_PASSWORD"),
+        help="ThetaData account password (or set THETADATA_PASSWORD)",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=os.getenv("THETADATA_API_KEY"),
+        help="ThetaData API key (or set THETADATA_API_KEY; takes precedence over email/password)",
+    )
     parser.add_argument(
         "--tickers", nargs="+", help="Restrict to these symbols instead of the full ThetaData universe"
     )
@@ -210,8 +236,6 @@ def main():
 
     output_dir: Path = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-    state_dir = output_dir / STATE_DIR_NAME
-    state_dir.mkdir(parents=True, exist_ok=True)
 
     client = ThetaClient(
         email=args.email, password=args.password, api_key=args.api_key, dataframe_type="pandas"
@@ -242,7 +266,6 @@ def main():
                 args.end_date,
                 args.venue,
                 output_dir,
-                state_dir,
             ): symbol
             for symbol in symbols
         }
