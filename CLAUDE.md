@@ -45,11 +45,11 @@ cd backtester && cargo build --release
 ### Database Setup
 
 ```bash
-psql stock_analysis_db < database/ddls/ddls.sql
-psql stock_analysis_db < database/ddls/reddit_ddls.sql
-psql stock_analysis_db < database/ddls/options.sql
-psql stock_analysis_db < database/ddls/portfolio.sql
-psql stock_analysis_db < database/ddls/add_spot_instruments.sql
+psql stock_analysis_db < infra/ddls/ddls.sql
+psql stock_analysis_db < infra/ddls/reddit_ddls.sql
+psql stock_analysis_db < infra/ddls/options.sql
+psql stock_analysis_db < infra/ddls/portfolio.sql
+psql stock_analysis_db < infra/ddls/add_spot_instruments.sql
 ```
 
 ## Architecture
@@ -132,7 +132,7 @@ Active instruments are all spot/index (`price_source = 'stock_prices'`):
 
 `stock_prices` is the single source of truth for all spot/index price data (OHLCV + technical indicators). `futures_prices` remains intact for actual futures data but has no active instruments currently. The `price_source` indirection means the EWMAC pipeline, API, and vol computation all dispatch to the correct table without hardcoding.
 
-Migrations: `database/ddls/add_spot_instruments.sql` (initial spot instruments + `price_source` column), then re-run for the expanded instrument list above.
+Migrations: `infra/ddls/add_spot_instruments.sql` (initial spot instruments + `price_source` column), then re-run for the expanded instrument list above.
 
 ### Streamer Service
 
